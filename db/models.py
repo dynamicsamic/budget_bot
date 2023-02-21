@@ -1,7 +1,9 @@
 import datetime as dt
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import declarative_base, relationship
+
+import settings
 
 Base = declarative_base()
 
@@ -17,11 +19,13 @@ class BaseModel(Base):
 
     id = Column(Integer, primary_key=True)
 
-    created_at = Column(DateTime(timezone=True), default=dt.datetime.now())
+    created_at = Column(
+        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
+    )
     last_updated = Column(
         DateTime(timezone=True),
-        default=dt.datetime.now(),
-        onupdate=dt.datetime.now(),
+        default=dt.datetime.now(settings.TIME_ZONE),
+        onupdate=dt.datetime.now(settings.TIME_ZONE),
     )
 
 
@@ -30,34 +34,45 @@ class User(BaseModel):
 
     tg_username = NotNullColumn(String(length=256), unique=True)
     tg_id = NotNullColumn(Integer, unique=True)
-    budget = relationship("Budget", back_populates="user")
+    budget = relationship(
+        "Budget",
+        back_populates="user",
+        cascade="all, delete",
+        passive_deletes=True,
+    )
 
 
-class Budget:
+class Budget(BaseModel):
     __tablename__ = "budget"
 
     name = NotNullColumn(String(length=256), unique=True)
     currency = Column(String(length=10), default="RUB")
-    user_id = NotNullColumn(Integer, ForeignKey("user"))
+    user_id = NotNullColumn(Integer, ForeignKey("user.id"))
     user = relationship("User", back_populates="budget")
-    entries = relationship("Entry", back_populates="budget")
+    entries = relationship(
+        "Entry",
+        back_populates="budget",
+        cascade="all, delete",
+        passive_deletes=True,
+    )
 
 
-class Category:
+class Category(BaseModel):
     __tablename__ = "category"
 
     name = NotNullColumn(String(length=128))
     entries = relationship("Entry", back_populates="category")
 
 
-class Entry:
-    __tablename = "entry"
+class Entry(BaseModel):
+    __tablename__ = "entry"
 
-    budget_id = NotNullColumn(Integer, ForeignKey("budget"))
+    budget_id = NotNullColumn(Integer, ForeignKey("budget.id"))
     budget = relationship("Budget", back_populates="entries")
-    category_id = NotNullColumn(Integer, ForeignKey("category"))
+    category_id = NotNullColumn(Integer, ForeignKey("category.id"))
     category = relationship("Category", back_populates="entries")
-    sum = NotNullColumn(Integer)
+    sum = NotNullColumn(Numeric(2, 10))
+    description = Column(String(length=256), nullable=True)
 
 
 """
