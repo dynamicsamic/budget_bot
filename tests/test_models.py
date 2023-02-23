@@ -1,32 +1,21 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import func, select
 
 from db import models
 
-engine = create_engine("sqlite+pysqlite:///:memory:", echo=True)
-Session = sessionmaker(bind=engine)
+from .fixtures import db_session, test_user, user_data
 
 
-@pytest.fixture(scope="module")
-def db_session():
-    models.Base.metadata.create_all(engine)
-    session = Session()
-    yield session
-    session.rollback()
-    session.close()
-
-
-@pytest.fixture(scope="module")
-def test_user():
-    test_user = models.User(tg_username="dynamicsamic", tg_id=1)
-    return test_user
-
-
-def test_author(db_session, test_user):
+def test_db_creates_user_with_provided_data(db_session, test_user):
     db_session.add(test_user)
     db_session.commit()
-    user = (
-        db_session.query(models.User).filter_by(models.User.tg_id == 1).first()
+    queryset = db_session.execute(
+        select(models.User).where(
+            models.User.tg_id == user_data["test_user"]["tg_id"]
+        )
     )
-    assert user.tg_id == 1
+    user = queryset.scalar()
+    assert user.tg_username == user_data["test_user"]["tg_username"]
+
+
+def test_another(db_session):
+    print(db_session.execute(select(func.count(models.User.id))))

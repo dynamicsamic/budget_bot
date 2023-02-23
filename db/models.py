@@ -11,14 +11,13 @@ Base = declarative_base()
 class NotNullColumn(Column):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("nullable", False)
-        return super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class BaseModel(Base):
     __abstract__ = True
 
     id = Column(Integer, primary_key=True)
-
     created_at = Column(
         DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
     )
@@ -40,6 +39,9 @@ class User(BaseModel):
         cascade="all, delete",
         passive_deletes=True,
     )
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.tg_username}: {self.tg_id})"
 
 
 class Budget(BaseModel):
