@@ -1,7 +1,17 @@
 import datetime as dt
+from typing import Iterable, Sequence
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    func,
+    select,
+)
+from sqlalchemy.orm import Session, declarative_base, relationship
 
 import settings
 
@@ -27,12 +37,26 @@ class BaseModel(Base):
         onupdate=dt.datetime.now(settings.TIME_ZONE),
     )
 
+    @classmethod
+    def all(
+        cls, session: Session, to_list: bool = False
+    ) -> Iterable["BaseModel"]:
+        """Return all instances in either list or ScalarResult."""
+        qs = session.scalars(select(cls))
+        return qs.all() if to_list else qs
+
+    @classmethod
+    def count(cls, session: Session) -> int:
+        """Return number of all instances in the DB."""
+        query = select(func.count(cls.id))
+        return session.scalars(query).one()
+
 
 class User(BaseModel):
     __tablename__ = "user"
 
-    tg_username = NotNullColumn(String(length=256), unique=True)
     tg_id = NotNullColumn(Integer, unique=True)
+    tg_username = NotNullColumn(String(length=256), unique=True)
     budget = relationship(
         "Budget",
         back_populates="user",
@@ -40,7 +64,7 @@ class User(BaseModel):
         passive_deletes=True,
     )
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.__class__.__name__}({self.tg_username}: {self.tg_id})"
 
 
