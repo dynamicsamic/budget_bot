@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Iterable, Sequence
+from typing import Iterable, Self, Sequence
 
 from sqlalchemy import (
     Column,
@@ -11,6 +11,7 @@ from sqlalchemy import (
     func,
     select,
 )
+from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.orm import Session, declarative_base, relationship
 
 import settings
@@ -40,7 +41,7 @@ class BaseModel(Base):
     @classmethod
     def all(
         cls, session: Session, to_list: bool = False
-    ) -> Iterable["BaseModel"]:
+    ) -> ScalarResult[Self] | list[Self]:
         """Return all instances in either list or ScalarResult."""
         qs = session.scalars(select(cls))
         return qs.all() if to_list else qs
