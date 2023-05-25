@@ -1,6 +1,6 @@
 import factory
 
-from db import models
+from app.db import models
 
 
 class UserFactory(factory.alchemy.SQLAlchemyModelFactory):

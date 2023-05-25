@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from db import models
+from app.db import models
 
 from .conf import constants
 from .fixtures import db_session, test_user, user_data, users
@@ -53,3 +53,12 @@ def test_create_user_with_existing_data_raises_error(db_session):
     existing_user = models.User(**user_data["test_user"])
     db_session.add(existing_user)
     db_session.commit()
+
+
+def test_create_budget_without_currency_arg_sets_default(db_session, users):
+    db_session.add(models.Budget(name="test", user_id=1))
+    db_session.commit()
+
+    budget = db_session.get(models.Budget, 1)
+    default_currency = models.Currency.RUB
+    assert budget.currency == default_currency

@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session as sqlalchemy_session
 from sqlalchemy.orm import sessionmaker
 
-from db import models
+from app.db import models
 
 from . import factories
 from .conf import constants
