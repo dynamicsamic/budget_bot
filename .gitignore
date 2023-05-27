@@ -135,6 +135,7 @@ dmypy.json
 .vscode/
 
 # trash / temporary code
+sandbox.py
 trash.py
 *_old.py
 

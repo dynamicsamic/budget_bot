@@ -1,10 +1,9 @@
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import models
 
-from . import factories
 from .conf import constants
 
 user_data = {
@@ -27,7 +26,7 @@ def create_tables(engine):
 @pytest.fixture
 def db_session(engine, create_tables) -> Session:
     connection = engine.connect()
-    transaction = connection.begin()
+    connection.begin()
     session = scoped_session(sessionmaker(bind=connection, autoflush=False))
 
     yield session
