@@ -1,6 +1,7 @@
 import datetime as dt
 import enum
-from typing import List, Optional, Self
+from functools import cache
+from typing import List, Optional, Self, Type
 
 from sqlalchemy import (
     CheckConstraint,
@@ -21,6 +22,9 @@ from sqlalchemy.orm import (
 )
 
 from app import settings
+from sandbox import session_agnostic
+
+from . import prod_engine, test_engine
 
 
 class Base(DeclarativeBase):
@@ -31,6 +35,26 @@ class Currency(enum.Enum):
     RUB = "RUB"
     USD = "USD"
     EUR = "EUR"
+
+
+class QueryManager:
+    def __init__(self, model: Type[Base]) -> None:
+        self.model = model
+        self.db_engine = test_engine if settings.DEBUG else prod_engine
+
+    @session_agnostic
+    def count(self, session: Session = None) -> int:
+        """Return number of all instances in the DB."""
+        query = select(func.count(self.model.id))
+        return session.scalar(query)
+
+    @session_agnostic
+    def all(
+        self, session: Session = None, to_list: bool = False
+    ) -> ScalarResult[Self] | list[Self]:
+        """Return all instances either in list or in ScalarResult."""
+        qs = session.scalars(select(self.model))
+        return qs.all() if to_list else qs
 
 
 class BaseModel(Base):
@@ -46,20 +70,6 @@ class BaseModel(Base):
         onupdate=dt.datetime.now(settings.TIME_ZONE),
     )
 
-    @classmethod
-    def all(
-        cls, session: Session, to_list: bool = False
-    ) -> ScalarResult[Self] | list[Self]:
-        """Return all instances either in list or in ScalarResult."""
-        qs = session.scalars(select(cls))
-        return qs.all() if to_list else qs
-
-    @classmethod
-    def count(cls, session: Session) -> int:
-        """Return number of all instances in the DB."""
-        query = select(func.count(cls.id))
-        return session.scalar(query)
-
 
 class User(BaseModel):
     __tablename__ = "user"
@@ -70,6 +80,12 @@ class User(BaseModel):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+
+    @classmethod
+    @property
+    @cache
+    def queries(cls):
+        return QueryManager(cls)
 
     def __repr__(self) -> str:
         return (
