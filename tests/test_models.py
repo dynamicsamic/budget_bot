@@ -14,17 +14,17 @@ def test_count_method_returns_number_of_all_instances(db_session, users):
     assert isinstance(user_num, int)
 
 
-def test_count_method_without_args_returns_scalar_result(db_session, users):
+def test_all_method_without_args_returns_scalar_result(db_session, users):
     from sqlalchemy.engine.result import ScalarResult
 
-    user_instances = models.User.all(db_session)
+    user_instances = models.User.queries.all(db_session)
     assert isinstance(user_instances, ScalarResult)
 
 
 def test_count_method_with_tolist_arg_returns_list_of_all_intsances(
     db_session, users
 ):
-    user_instances = models.User.all(db_session, to_list=True)
+    user_instances = models.User.queries.all(db_session, to_list=True)
     assert isinstance(user_instances, list)
     assert len(user_instances) == constants["USER_NUM"]
 
