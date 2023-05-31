@@ -1,17 +1,23 @@
 from functools import wraps
+from typing import Protocol
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app import settings
-from app.db import prod_engine, test_engine
+from app.db import base, prod_engine, test_engine
 
 
-def session_agnostic(f):
+class Myp(Protocol):
+    def __call__(self, session: Session, *args, **kwargs):
+        ...
+
+
+def session_agnostic(f: Myp):
     """Decorator that injects a sqlalchemy session into class method."""
 
     @wraps(f)
-    def inner(self, *args, **kwargs):
+    def inner(self: base.BaseModel, *args, **kwargs):
         session_exists = False
         if args:
             for arg in args:
