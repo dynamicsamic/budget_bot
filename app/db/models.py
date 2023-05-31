@@ -1,74 +1,18 @@
-import datetime as dt
 import enum
 from functools import cache
-from typing import List, Optional, Self, Type
+from typing import Any, List, Optional
 
-from sqlalchemy import (
-    CheckConstraint,
-    DateTime,
-    ForeignKey,
-    Integer,
-    String,
-    func,
-    select,
-)
-from sqlalchemy.engine.result import ScalarResult
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    Session,
-    mapped_column,
-    relationship,
-)
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app import settings
-from sandbox import session_agnostic
-
-from . import prod_engine, test_engine
-
-
-class Base(DeclarativeBase):
-    pass
+from .base import BaseModel
+from .managers import QueryManager
 
 
 class Currency(enum.Enum):
     RUB = "RUB"
     USD = "USD"
     EUR = "EUR"
-
-
-class QueryManager:
-    def __init__(self, model: Type[Base]) -> None:
-        self.model = model
-        self.db_engine = test_engine if settings.DEBUG else prod_engine
-
-    @session_agnostic
-    def count(self, session: Session = None) -> int:
-        """Return number of all instances in the DB."""
-        query = select(func.count(self.model.id))
-        return session.scalar(query)
-
-    @session_agnostic
-    def all(
-        self, session: Session = None, to_list: bool = False
-    ) -> ScalarResult[Self] | list[Self]:
-        """Return all instances either in list or in ScalarResult."""
-        qs = session.scalars(select(self.model))
-        return qs.all() if to_list else qs
-
-
-class BaseModel(Base):
-    __abstract__ = True
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
-    )
-    last_updated: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=dt.datetime.now(settings.TIME_ZONE),
-        onupdate=dt.datetime.now(settings.TIME_ZONE),
-    )
 
 
 class User(BaseModel):
