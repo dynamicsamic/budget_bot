@@ -129,30 +129,102 @@ def test_all_method_sessionless_with_to_list_arg_return_list():
     assert isinstance(model_instances, list)
 
 
-def test_get_method_bound_session_without_search_field_find_obj_by_pk(
+def test_get_method_bound_session_without_kwargs_find_obj_by_pk(
     db_session,
 ):
     id_ = 1
-    obj = MockModel.queries.get(id_, db_session)
+    obj = MockModel.queries.get(id_, session=db_session)
     assert isinstance(obj, MockModel)
     assert obj.id == id_
 
 
-def test_get_method_sessionless_without_search_field_find_obj_by_pk():
+def test_get_method_sessionless_without_kwargs_find_obj_by_pk():
     id_ = 1
     obj = MockModel.queries.get(id_)
     assert isinstance(obj, MockModel)
     assert obj.id == id_
 
 
-def test_get_method_bound_session_with_name_search_field_find_obj_by_name(
+def test_get_method_bound_session_without_kwargs_with_unexisting_pk_return_none(
+    db_session,
+):
+    id_ = -1
+    obj = MockModel.queries.get(id_, session=db_session)
+    assert obj == None
+
+
+def test_get_method_sessionless_without_kwargs_with_unexisting_pk_return_none():
+    id_ = -1
+    obj = MockModel.queries.get(id_)
+    assert obj == None
+
+
+def test_get_method_bound_session_without_kwargs_with_invalid_pk_return_none(
+    db_session,
+):
+    id_ = "invalid"
+    obj = MockModel.queries.get(id_, session=db_session)
+    assert obj is None
+
+
+def test_get_method_bound_session_with_name_kwarg_find_obj_by_name(
     db_session,
 ):
     name = "obj1"
     obj = MockModel.queries.get(
-        value="obj1", session=db_session, search_field="name"
+        session=db_session,
+        name=name,
     )
+    assert isinstance(obj, MockModel)
     assert obj.name == name
+
+
+def test_get_method_sessionless_with_name_kwarg_find_obj_by_name():
+    name = "obj1"
+    obj = MockModel.queries.get(
+        name=name,
+    )
+    assert isinstance(obj, MockModel)
+    assert obj.name == name
+
+
+def test_get_method_bound_session_with_kwargs_uses_only_first_kwarg(
+    db_session,
+):
+    first_obj_id = 1
+    second_obj_name = "obj2"
+    obj = MockModel.queries.get(
+        session=db_session,
+        id=first_obj_id,
+        name=second_obj_name,
+    )
+    assert obj.id == first_obj_id
+    assert obj.name != second_obj_name
+
+
+def test_get_method_sessionless_with_kwargs_uses_only_first_kwarg():
+    first_obj_id = 1
+    second_obj_name = "obj2"
+    obj = MockModel.queries.get(
+        id=first_obj_id,
+        name=second_obj_name,
+    )
+    assert obj.id == first_obj_id
+    assert obj.name != second_obj_name
+
+
+def test_get_method_bound_session_with_invalid_kwarg_return_none(
+    db_session,
+):
+    invalid_kwargs = {"invalid": "invalid"}
+    obj = MockModel.queries.get(session=db_session, **invalid_kwargs)
+    assert obj is None
+
+
+def test_get_method_sessionless_with_invalid_kwarg_return_none():
+    invalid_kwargs = {"invalid": "invalid"}
+    obj = MockModel.queries.get(**invalid_kwargs)
+    assert obj is None
 
 
 def test_teardown(db_session):
