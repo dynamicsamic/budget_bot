@@ -2,6 +2,7 @@ from typing import Any, Type
 
 from sqlalchemy import func, select, text
 from sqlalchemy.engine.result import ScalarResult
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import settings
@@ -34,37 +35,55 @@ class QueryManager:
     def get(
         self,
         value: Any = None,
+        *,
         session: Session = None,
-        search_field: str = None,
         **kwargs,
-    ):
-        if kwargs:
-            text_ = " and ".join(
-                (
-                    f"{search_field}=:val{i}"
-                    for i, search_field in enumerate(kwargs.keys())
+    ) -> Type[BaseModel] | None:
+        """Return one instance of `self.model`."""
+        if value:
+            if primary_keys := [
+                attr_name
+                for attr_name, attr in self.model.__dict__.items()
+                if not attr_name.startswith("_")
+                and hasattr(attr, "primary_key")
+                and getattr(attr, "primary_key")
+            ]:
+                return session.get(self.model, {primary_keys[0]: value})
+            # maybe need to raise error in else clause
+
+        elif kwargs:
+            attr, value = list(kwargs.items())[0]
+            try:
+                return session.scalar(
+                    select(self.model)
+                    .filter(text(f"{attr}=:value"))
+                    .params(value=value)
                 )
+            except SQLAlchemyError:
+                return
+
+    @session_agnostic
+    def filter(
+        self,
+        session: Session = None,
+        to_list: bool = False,
+        **kwargs,
+    ) -> ScalarResult[Type[BaseModel]] | list[Type[BaseModel]]:
+        """Return queryset of `self.model` instances
+        either in list or in ScalarResult.
+        """
+        text_ = " and ".join(
+            (
+                f"{search_field}=:val{i}"
+                for i, search_field in enumerate(kwargs.keys())
             )
-            params_ = {
-                f"val{i}": value for i, value in enumerate(kwargs.values())
-            }
-            return session.scalar(
+        )
+        params_ = {f"val{i}": value for i, value in enumerate(kwargs.values())}
+        try:
+            qs = session.scalars(
                 select(self.model).filter(text(text_)).params(params_)
             )
+        except SQLAlchemyError:
+            return
 
-        if search_field is not None and hasattr(self.model, search_field):
-            return session.scalar(
-                select(self.model)
-                .filter(text(f"{search_field}=:value"))
-                .params(value=value)
-            )
-
-        primary_keys = [
-            attr_name
-            for attr_name, attr in self.model.__dict__.items()
-            if not attr_name.startswith("_")
-            and hasattr(attr, "primary_key")
-            and getattr(attr, "primary_key")
-        ]
-        if search_field is None and primary_keys:
-            return session.get(self.model, {primary_keys[0]: value})
+        return qs.all() if to_list else qs
