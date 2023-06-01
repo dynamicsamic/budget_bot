@@ -32,11 +32,27 @@ class QueryManager:
 
     @session_agnostic
     def get(
-        self, value: Any, session: Session = None, search_field: str = None
+        self,
+        value: Any = None,
+        session: Session = None,
+        search_field: str = None,
+        **kwargs,
     ):
+        if kwargs:
+            text_ = " and ".join(
+                (
+                    f"{search_field}=:val{i}"
+                    for i, search_field in enumerate(kwargs.keys())
+                )
+            )
+            params_ = {
+                f"val{i}": value for i, value in enumerate(kwargs.values())
+            }
+            return session.scalar(
+                select(self.model).filter(text(text_)).params(params_)
+            )
+
         if search_field is not None and hasattr(self.model, search_field):
-            print("HEHEH")
-            search_query = f"{self.model.__name__}.{search_field}==name1"
             return session.scalar(
                 select(self.model)
                 .filter(text(f"{search_field}=:value"))
