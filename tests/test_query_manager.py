@@ -213,6 +213,20 @@ def test_get_method_sessionless_with_kwargs_uses_only_first_kwarg():
     assert obj.name != second_obj_name
 
 
+def test_get_method_bound_session_with_unexisting_kwarg_value_return_none(
+    db_session,
+):
+    invalid_kwargs = {"name": "invalid"}
+    obj = MockModel.queries.get(session=db_session, **invalid_kwargs)
+    assert obj is None
+
+
+def test_get_method_sessionless_with_unexisting_kwarg_value_return_none():
+    invalid_kwargs = {"name": "invalid"}
+    obj = MockModel.queries.get(**invalid_kwargs)
+    assert obj is None
+
+
 def test_get_method_bound_session_with_invalid_kwarg_return_none(
     db_session,
 ):
@@ -225,6 +239,14 @@ def test_get_method_sessionless_with_invalid_kwarg_return_none():
     invalid_kwargs = {"invalid": "invalid"}
     obj = MockModel.queries.get(**invalid_kwargs)
     assert obj is None
+
+
+def test_get_method_bound_session_without_args_return_none(db_session):
+    assert MockModel.queries.get(session=db_session) == None
+
+
+def test_get_method_sessionless_without_args_return_none():
+    assert MockModel.queries.get() == None
 
 
 def test_teardown(db_session):
