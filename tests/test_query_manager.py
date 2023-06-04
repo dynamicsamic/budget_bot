@@ -61,7 +61,7 @@ def create_tables():
 
 
 @pytest.fixture(scope="module")
-def db_session():
+def db_session() -> Session:
     """Create db tables and share session across all tests in module."""
     MockBase.metadata.create_all(bind=test_engine)
     session = Session(bind=test_engine)
@@ -87,6 +87,7 @@ def populate_db(db_session: Session):
         db_session.close()
 
 
+@pytest.mark.current
 def test_setup(db_session, populate_db):
     pass
 
@@ -249,5 +250,62 @@ def test_get_method_sessionless_without_args_return_none():
     assert MockModel.queries.get() == None
 
 
+def test_filter_method_bound_session_return_scalar_result(
+    db_session,
+):
+    from sqlalchemy.engine.result import ScalarResult
+
+    filtered = MockModel.queries.filter(db_session)
+    assert isinstance(filtered, ScalarResult)
+
+
+def test_filter_method_sessionless_return_scalar_result():
+    from sqlalchemy.engine.result import ScalarResult
+
+    filtered = MockModel.queries.filter()
+    assert isinstance(filtered, ScalarResult)
+
+
+def test_filter_method_bound_session_with_to_list_arg_return_list(
+    db_session,
+):
+    filtered = MockModel.queries.filter(db_session, to_list=True)
+    assert isinstance(filtered, list)
+
+
+def test_filter_method_sessionless_with_to_list_arg_return_list():
+    filtered = MockModel.queries.filter(to_list=True)
+    assert isinstance(filtered, list)
+
+
+def test_filter_method_bound_session_without_filter_args_return_all_instances(
+    db_session,
+):
+    filtered = MockModel.queries.filter(db_session, to_list=True)
+    all = MockModel.queries.all(db_session, to_list=True)
+    assert filtered == all
+
+
+def test_filter_method_sessionless_without_filter_args_return_all_instances():
+    filtered = MockModel.queries.filter(to_list=True)
+    all = MockModel.queries.all(to_list=True)
+    assert filtered == all
+
+
+def test_filter_method_bound_session_with_valid_filter_args_return_filtered_result(
+    db_session,
+):
+    id_ = 1
+    filtered = MockModel.queries.filter(
+        session=db_session, to_list=True, id=id_
+    )
+    assert len(filtered) == 1
+
+    filtered_obj = filtered[0]
+    assert isinstance(filtered_obj, MockModel)
+    assert filtered_obj.id == id_
+
+
+@pytest.mark.current
 def test_teardown(db_session):
     MockBase.metadata.drop_all(bind=test_engine)
