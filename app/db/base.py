@@ -46,7 +46,7 @@ class Base(DeclarativeBase):
     pass
 
 
-class BaseModel(Base, ModelFieldsDetails):
+class AbstractBaseModel(Base, ModelFieldsDetails):
     __abstract__ = True
 
     id: Mapped[int] = mapped_column(primary_key=True)
