@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import BaseModel
+from .base import AbstractBaseModel
 from .managers import QueryManager
 
 
@@ -15,7 +15,7 @@ class Currency(enum.Enum):
     EUR = "EUR"
 
 
-class User(BaseModel):
+class User(AbstractBaseModel):
     __tablename__ = "user"
 
     tg_id: Mapped[int] = mapped_column(unique=True)
@@ -38,7 +38,7 @@ class User(BaseModel):
         )
 
 
-class Budget(BaseModel):
+class Budget(AbstractBaseModel):
     __tablename__ = "budget"
 
     name: Mapped[str] = mapped_column(String(length=256), unique=True)
@@ -57,7 +57,7 @@ class Budget(BaseModel):
         )
 
 
-class EntryCategory(BaseModel):
+class EntryCategory(AbstractBaseModel):
     __tablename__ = "entry_category"
 
     name: Mapped[str] = mapped_column(String(length=128), unique=True)
@@ -67,7 +67,7 @@ class EntryCategory(BaseModel):
         return f"{self.__class__.__name__}(Id={self.id}, Name={self.name})"
 
 
-class Entry(BaseModel):
+class Entry(AbstractBaseModel):
     __tablename__ = "entry"
 
     budget_id: Mapped[int] = mapped_column(ForeignKey("budget.id"))
