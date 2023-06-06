@@ -1,9 +1,10 @@
+from dataclasses import dataclass
 from typing import Any, Type
 
 from sqlalchemy import func, select, text
 from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, scoped_session
 
 from app import settings
 from app.utils import session_agnostic
@@ -91,3 +92,14 @@ class QueryManager:
             return
 
         return qs.all() if to_list else qs
+
+
+@dataclass
+class ModelManager:
+    model: Type[AbstractBaseModel]
+    session: Session | scoped_session
+
+    def count(self) -> int:
+        """Calculate number of all `self.model` objects."""
+        query = select(func.count(self.model.id))
+        return self.session.scalar(query)
