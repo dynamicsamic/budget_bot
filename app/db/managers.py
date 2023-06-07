@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Type
 
@@ -95,11 +96,82 @@ class QueryManager:
 
 
 @dataclass
-class ModelManager:
+class AbstractModelManager(ABC):
     model: Type[AbstractBaseModel]
     session: Session | scoped_session
+
+    @abstractmethod
+    def get(self):
+        pass
+
+    @abstractmethod
+    def all(self):
+        pass
+
+    @abstractmethod
+    def update(self):
+        pass
+
+    @abstractmethod
+    def delete(self):
+        pass
+
+    @abstractmethod
+    def count(self):
+        pass
+
+    @abstractmethod
+    def exists(self):
+        pass
+
+    @abstractmethod
+    def find_by(self):
+        pass
+
+
+class BaseModelManager(AbstractModelManager):
+    def get(self, id: int) -> Type[AbstractBaseModel] | None:
+        """Retrieve `self.model` object."""
+        return self.session.get(self.model, id)
+
+    def all(
+        self, to_list: bool = False
+    ) -> ScalarResult[Type[AbstractBaseModel]] | list[Type[AbstractBaseModel]]:
+        """Retrieve all `self.model` objets
+        either in `ScalarResult` or `list` form.
+        """
+        qs = self.session.scalars(select(self.model))
+        return qs.all() if to_list else qs
+
+    def update(
+        self,
+        id: int = None,
+        **kwargs,
+    ) -> True:
+        """Update `self.model` object."""
+        pass
+
+    def delete(self, id: int):
+        """Delete `self.model` object."""
+        pass
 
     def count(self) -> int:
         """Calculate number of all `self.model` objects."""
         query = select(func.count(self.model.id))
         return self.session.scalar(query)
+
+    def exists(self, id: int) -> bool:
+        return self.session.query(self.model.id).filter_by(id=id).first()
+
+    def find_by(self, **kwargs) -> Type[AbstractBaseModel] | None:
+        """Retrieve `self.model` object filtered by kwargs."""
+        if valid_kwargs := {
+            fieldname: value
+            for fieldname, value in kwargs.items()
+            if fieldname in self.model.fieldnames
+        }:
+            return (
+                self.session.query(self.model)
+                .filter_by(**valid_kwargs)
+                .first()
+            )
