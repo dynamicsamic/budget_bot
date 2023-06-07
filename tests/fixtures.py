@@ -10,6 +10,48 @@ user_data = {
     "test_user": {"id": 999, "tg_username": "test_user", "tg_id": 999}
 }
 
+import datetime as dt
+from functools import cache
+from typing import Any, Self, Type
+
+import pytest
+from sqlalchemy import DateTime, String, create_engine, func, select, text
+from sqlalchemy.engine.result import ScalarResult
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    Session,
+    mapped_column,
+    scoped_session,
+    sessionmaker,
+)
+
+from app import settings
+from app.db import base, test_engine
+from app.db.managers import BaseModelManager
+
+from .conf import constants
+
+
+class TestBase(DeclarativeBase):
+    pass
+
+
+class TestModel(TestBase, base.ModelFieldsDetails):
+    __tablename__ = "testmodel"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column()
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
+    )
+    last_updated: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=dt.datetime.now(settings.TIME_ZONE),
+        onupdate=dt.datetime.now(settings.TIME_ZONE),
+    )
+
 
 @pytest.fixture(scope="session")
 def engine():
@@ -18,9 +60,9 @@ def engine():
 
 @pytest.fixture(scope="session")
 def create_tables(engine):
-    models.Base.metadata.create_all(bind=engine)
+    TestBase.metadata.create_all(bind=engine)
     yield
-    models.Base.metadata.drop_all(bind=engine)
+    TestBase.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture
@@ -37,11 +79,16 @@ def db_session(engine, create_tables) -> Session:
 
 
 @pytest.fixture
-def users(db_session: Session):
+def populate_db(db_session: Session):
     db_session.add_all(
         [
-            models.User(id=i, tg_id=1000 + i, tg_username=f"tg_user{i}")
-            for i in range(1, constants["USER_NUM"] + 1)
+            TestModel(id=i, name=f"obj{i}")
+            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
     )
     db_session.commit()
+
+
+@pytest.fixture
+def test_manager(db_session, populate_db) -> BaseModelManager:
+    return BaseModelManager(TestModel, db_session)
