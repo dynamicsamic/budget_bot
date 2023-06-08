@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Type
+from typing import Any, Iterable, Type
 
 from sqlalchemy import func, select, text
 from sqlalchemy.engine.result import ScalarResult
@@ -97,35 +97,44 @@ class QueryManager:
 
 @dataclass
 class AbstractModelManager(ABC):
+    """Interface for creating model managers."""
+
     model: Type[AbstractBaseModel]
     session: Session | scoped_session
 
     @abstractmethod
-    def get(self):
+    def get(self, id: int) -> Type[AbstractBaseModel] | None:
+        """Select one `self.model` object by it's id."""
         pass
 
     @abstractmethod
-    def all(self):
+    def get_by(self, **kwargs) -> Type[AbstractBaseModel] | None:
+        """Select one `self.model` object by kwargs."""
         pass
 
     @abstractmethod
-    def update(self):
+    def all(self, **kwargs) -> Iterable[Type[AbstractBaseModel]]:
+        """Select all `self.model` objects."""
         pass
 
     @abstractmethod
-    def delete(self):
+    def update(self, id: int, **kwargs) -> bool:
+        """Update one `self.model` object with given id with given kwargs."""
         pass
 
     @abstractmethod
-    def count(self):
+    def delete(self, id: int) -> bool:
+        """Delete one `self.model` object with given id."""
         pass
 
     @abstractmethod
-    def exists(self):
+    def count(self) -> int:
+        """Count number of all `self.model` objects."""
         pass
 
     @abstractmethod
-    def find_by(self):
+    def exists(self, id: int) -> bool:
+        """Tell wether `self.model` object with given id exists or not."""
         pass
 
 
@@ -133,6 +142,15 @@ class BaseModelManager(AbstractModelManager):
     def get(self, id: int) -> Type[AbstractBaseModel] | None:
         """Retrieve `self.model` object."""
         return self.session.get(self.model, id)
+
+    def get_by(self, **kwargs) -> Type[AbstractBaseModel] | None:
+        """Retrieve `self.model` object filtered by kwargs."""
+        if valid_kwargs := self.clean_kwargs(kwargs):
+            return (
+                self.session.query(self.model)
+                .filter_by(**valid_kwargs)
+                .first()
+            )
 
     def all(
         self, to_list: bool = False
@@ -145,13 +163,13 @@ class BaseModelManager(AbstractModelManager):
 
     def update(
         self,
-        id: int = None,
+        id: int,
         **kwargs,
-    ) -> True:
+    ) -> bool:
         """Update `self.model` object."""
         pass
 
-    def delete(self, id: int):
+    def delete(self, id: int) -> bool:
         """Delete `self.model` object."""
         pass
 
@@ -163,15 +181,9 @@ class BaseModelManager(AbstractModelManager):
     def exists(self, id: int) -> bool:
         return self.session.query(self.model.id).filter_by(id=id).first()
 
-    def find_by(self, **kwargs) -> Type[AbstractBaseModel] | None:
-        """Retrieve `self.model` object filtered by kwargs."""
-        if valid_kwargs := {
+    def clean_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        return {
             fieldname: value
             for fieldname, value in kwargs.items()
             if fieldname in self.model.fieldnames
-        }:
-            return (
-                self.session.query(self.model)
-                .filter_by(**valid_kwargs)
-                .first()
-            )
+        }

@@ -43,38 +43,38 @@ def test_get_method_with_invalid_id_return_none(test_manager):
     assert test_manager.get("invalid") is None
 
 
-def test_find_by_method_with_name_kwarg_find_obj_by_name(test_manager):
+def test_get_by_method_with_name_kwarg_find_obj_by_name(test_manager):
     name = "obj1"
-    obj = test_manager.find_by(name=name)
+    obj = test_manager.get_by(name=name)
     assert isinstance(obj, TestModel)
     assert obj.name == name
 
 
-def test_find_by_method_uses_several_kwargs_to_find_obj(test_manager):
+def test_get_by_method_uses_several_kwargs_to_find_obj(test_manager):
     id_ = 1
     name = "obj1"
-    obj = test_manager.find_by(id=id_, name=name)
+    obj = test_manager.get_by(id=id_, name=name)
     assert obj.id == id_
     assert obj.name == name
 
 
-def test_find_by_method_with_unrelated_kwargs_return_none(test_manager):
+def test_get_by_method_with_unrelated_kwargs_return_none(test_manager):
     first_obj_id = 1
     second_obj_name = "obj2"
-    assert test_manager.find_by(id=first_obj_id, name=second_obj_name) is None
+    assert test_manager.get_by(id=first_obj_id, name=second_obj_name) is None
 
 
-def test_find_by_method_with_valid_kwarg_name_and_unexisting_kwarg_value_return_none(
+def test_get_by_method_with_valid_kwarg_name_and_unexisting_kwarg_value_return_none(
     test_manager,
 ):
     invalid_kwargs = {"name": "invalid"}
-    assert test_manager.find_by(**invalid_kwargs) is None
+    assert test_manager.get_by(**invalid_kwargs) is None
 
 
-def test_find_by_method_with_invalid_kwarg_return_none(test_manager):
+def test_get_by_method_with_invalid_kwarg_return_none(test_manager):
     invalid_kwargs = {"invalid": "invalid"}
-    assert test_manager.find_by(**invalid_kwargs) is None
+    assert test_manager.get_by(**invalid_kwargs) is None
 
 
 def test_get_method_without_kwargs_return_none(test_manager):
-    assert test_manager.find_by() == None
+    assert test_manager.get_by() == None
