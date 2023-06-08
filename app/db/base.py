@@ -58,3 +58,6 @@ class AbstractBaseModel(Base, ModelFieldsDetails):
         default=dt.datetime.now(settings.TIME_ZONE),
         onupdate=dt.datetime.now(settings.TIME_ZONE),
     )
+
+    def __repr__(self) -> str:
+        pass

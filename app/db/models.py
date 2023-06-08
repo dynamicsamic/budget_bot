@@ -1,12 +1,10 @@
 import enum
-from functools import cache
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import AbstractBaseModel
-from .managers import QueryManager
 
 
 class Currency(enum.Enum):
@@ -24,12 +22,6 @@ class User(AbstractBaseModel):
         back_populates="user",
         cascade="all, delete-orphan",
     )
-
-    @classmethod
-    @property
-    @cache
-    def queries(cls):
-        return QueryManager(cls)
 
     def __repr__(self) -> str:
         return (
