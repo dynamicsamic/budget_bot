@@ -164,10 +164,21 @@ class BaseModelManager(AbstractModelManager):
     def update(
         self,
         id: int,
+        *,
+        commit: bool = True,
         **kwargs,
     ) -> bool:
         """Update `self.model` object."""
-        pass
+        if valid_kwargs := self.clean_kwargs(kwargs):
+            updated = bool(
+                self.session.query(self.model)
+                .filter_by(id=id)
+                .update(valid_kwargs)
+            )
+            if updated and commit:
+                self.session.commit()
+            return updated
+        return False
 
     def delete(self, id: int) -> bool:
         """Delete `self.model` object."""
@@ -175,8 +186,7 @@ class BaseModelManager(AbstractModelManager):
 
     def count(self) -> int:
         """Calculate number of all `self.model` objects."""
-        query = select(func.count(self.model.id))
-        return self.session.scalar(query)
+        return self.session.query(self.model.id).count()
 
     def exists(self, id: int) -> bool:
         return self.session.query(self.model.id).filter_by(id=id).first()
