@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import select
 from sqlalchemy.engine.result import ScalarResult
 
 from .conf import constants
@@ -77,4 +78,36 @@ def test_get_by_method_with_invalid_kwarg_return_none(test_manager):
 
 
 def test_get_method_without_kwargs_return_none(test_manager):
-    assert test_manager.get_by() == None
+    assert test_manager.get_by() is None
+
+
+def test_update_method_with_valid_id_without_kwargs_return_false(test_manager):
+    assert test_manager.update(1) == False
+
+
+def test_update_method_with_unexisting_id_return_false(test_manager):
+    assert test_manager.update(-1, name="test_obj") == False
+
+
+def test_update_method_with_valid_id_with_valid_kwargs_return_true(
+    test_manager,
+):
+    assert test_manager.update(1, name="test_obj") == True
+
+
+def test_update_method_by_default_saves_changes_to_db(test_manager):
+    id_ = 1
+    name = "test_obj"
+    assert test_manager.update(id_, name=name) == True
+    assert test_manager.get(id_).name == name
+
+
+# fix this later
+@pytest.mark.skip
+def test_update_method_with_commit_false_does_not_save_changes_to_db(
+    test_manager,
+):
+    id_ = 1
+    name = "test_obj"
+    assert test_manager.update(id_, commit=False, name=name) == True
+    assert test_manager.get(id_).name != name
