@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.engine.result import ScalarResult
 
 from app.db.managers import BaseModelManager
+from tests.conf import constants
 
-from .conf import constants
 from .fixtures import (
     TestModel,
     create_tables,
@@ -97,7 +97,9 @@ def test_update_method_with_unexisting_id_return_false(test_manager):
 def test_update_method_with_valid_id_with_valid_kwargs_return_true(
     test_manager,
 ):
-    assert test_manager.update(1, name="test_obj") == True
+    updated = test_manager.update(1, name="test_obj")
+    assert isinstance(updated, bool)
+    assert updated == True
 
 
 def test_update_method_by_default_saves_changes_to_db(test_manager):

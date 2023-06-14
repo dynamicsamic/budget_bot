@@ -1,15 +1,3 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, scoped_session, sessionmaker
-
-from app.db import models
-
-from .conf import constants
-
-user_data = {
-    "test_user": {"id": 999, "tg_username": "test_user", "tg_id": 999}
-}
-
 import datetime as dt
 from functools import cache
 from typing import Any, Self, Type
@@ -28,10 +16,13 @@ from sqlalchemy.orm import (
 )
 
 from app import settings
-from app.db import base, test_engine
+from app.db import base, models, test_engine
 from app.db.managers import BaseModelManager
+from tests.conf import constants
 
-from .conf import constants
+user_data = {
+    "test_user": {"id": 999, "tg_username": "test_user", "tg_id": 999}
+}
 
 
 class TestBase(DeclarativeBase):
