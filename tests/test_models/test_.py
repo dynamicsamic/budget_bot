@@ -29,8 +29,17 @@ def test_user_class_has_expected_fields():
     assert expected_fieldnames == set(actual_fieldnames)
 
 
-@pytest.mark.current
-def test_create_user_with_valid_data_success(db_session, user_manager):
+def test_user_has_expected_str_representation(user_manager):
+    user = user_manager.get(1)
+    expected_str = (
+        f"{user.__class__.__name__}(Id={user.id} "
+        f"TelegramName={user.tg_username}, TelegramId={user.tg_id})"
+    )
+
+    assert str(user) == expected_str
+
+
+def test_user_create_with_valid_data_success(db_session, user_manager):
     inital_user_num = user_manager.count()
 
     db_session.add(models.User(**user_data["test_user"]))
@@ -45,7 +54,26 @@ def test_create_user_with_valid_data_success(db_session, user_manager):
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_create_duplicate_user_raises_error(db_session):
+def test_user_unique_tg_id_constarint_raises_error(db_session, user_manager):
+    user = user_manager.get(1)
+    payload = {"tg_id": user.tg_id, "tg_username": "new_user_name"}
+    db_session.add(models.User(**payload))
+    db_session.commit()
+
+
+@pytest.mark.current
+@pytest.mark.xfail(raises=IntegrityError, strict=True)
+def test_user_unique_tg_username_constarint_raises_error(
+    db_session, user_manager
+):
+    user = user_manager.get(1)
+    payload = {"tg_id": 100001001, "tg_username": user.tg_username}
+    db_session.add(models.User(**payload))
+    db_session.commit()
+
+
+@pytest.mark.xfail(raises=IntegrityError, strict=True)
+def test_user_create_duplicate_raises_error(db_session):
     db_session.add_all(
         [
             models.User(**user_data["test_user"]),

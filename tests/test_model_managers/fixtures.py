@@ -17,7 +17,7 @@ from sqlalchemy.orm import (
 
 from app import settings
 from app.db import base, models, test_engine
-from app.db.managers import BaseModelManager
+from app.db.managers import BaseModelManager, DateQueryManager
 from tests.conf import constants
 
 user_data = {
@@ -81,5 +81,10 @@ def populate_db(db_session: Session):
 
 
 @pytest.fixture
-def test_manager(db_session, populate_db) -> BaseModelManager:
+def base_manager(db_session, populate_db) -> BaseModelManager:
     return BaseModelManager(TestModel, db_session)
+
+
+@pytest.fixture
+def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
+    return DateQueryManager(TestModel, db_session)
