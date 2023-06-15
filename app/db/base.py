@@ -19,7 +19,8 @@ class ModelFieldsDetails:
             attr_name: attr_obj
             for attr_name, attr_obj in cls.__dict__.items()
             if not attr_name.startswith("_")
-            and hasattr(attr_obj, "primary_key")
+            # and hasattr(attr_obj, "primary_key")
+            and getattr(attr_obj, "is_attribute", None)
         }
 
     @classmethod
