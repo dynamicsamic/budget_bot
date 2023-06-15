@@ -114,3 +114,22 @@ class BaseModelManager(AbstractModelManager):
             for fieldname, value in kwargs.items()
             if fieldname in self.model.fieldnames
         }
+
+
+class DateQueryMixin:
+    def first(self) -> Type[AbstractBaseModel]:
+        return self.session.scalar(
+            select(self.model).order_by(self.model.created_at).limit(1)
+        )
+
+    def last(self) -> Type[AbstractBaseModel]:
+        return self.session.scalar(
+            select(self.model).order_by(self.model.created_at.desc()).limit(1)
+        )
+
+    def first_n(self):
+        pass
+
+
+class DateQueryManager(BaseModelManager, DateQueryMixin):
+    pass
