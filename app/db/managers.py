@@ -127,8 +127,10 @@ class DateQueryMixin:
             select(self.model).order_by(self.model.created_at.desc()).limit(1)
         )
 
-    def first_n(self):
-        pass
+    def first_n(self, n: int) -> ScalarResult[Type[AbstractBaseModel]]:
+        return self.session.scalars(
+            select(self.model).order_by(self.model.created_at).limit(n)
+        )
 
 
 class DateQueryManager(BaseModelManager, DateQueryMixin):
