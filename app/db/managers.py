@@ -117,20 +117,21 @@ class BaseModelManager(AbstractModelManager):
 
 
 class DateQueryMixin:
-    def first(self) -> Type[AbstractBaseModel]:
-        return self.session.scalar(
-            select(self.model).order_by(self.model.created_at).limit(1)
-        )
-
-    def last(self) -> Type[AbstractBaseModel]:
-        return self.session.scalar(
-            select(self.model).order_by(self.model.created_at.desc()).limit(1)
-        )
-
     def first_n(self, n: int) -> ScalarResult[Type[AbstractBaseModel]]:
         return self.session.scalars(
             select(self.model).order_by(self.model.created_at).limit(n)
         )
+
+    def first(self) -> Type[AbstractBaseModel]:
+        return self.first_n(1).first()
+
+    def last_n(self, n: int) -> ScalarResult[Type[AbstractBaseModel]]:
+        return self.session.scalars(
+            select(self.model).order_by(self.model.created_at.desc()).limit(n)
+        )
+
+    def last(self) -> Type[AbstractBaseModel]:
+        return self.last_n(1).first()
 
 
 class DateQueryManager(BaseModelManager, DateQueryMixin):
