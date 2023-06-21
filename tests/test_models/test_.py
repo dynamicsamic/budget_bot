@@ -24,9 +24,7 @@ def test_user_class_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    actual_fieldnames = models.User.fieldnames
-    assert isinstance(actual_fieldnames, list)
-    assert expected_fieldnames == set(actual_fieldnames)
+    assert models.User.fieldnames == expected_fieldnames
 
 
 def test_user_has_expected_str_representation(user_manager):
@@ -61,7 +59,6 @@ def test_user_unique_tg_id_constarint_raises_error(db_session, user_manager):
     db_session.commit()
 
 
-@pytest.mark.current
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
 def test_user_unique_tg_username_constarint_raises_error(
     db_session, user_manager
