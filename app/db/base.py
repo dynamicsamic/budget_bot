@@ -25,22 +25,22 @@ class ModelFieldsDetails:
 
     @classmethod
     @property
-    def fieldnames(cls) -> list[str]:
-        return list(cls.fields.keys())
+    def fieldnames(cls) -> set[str]:
+        return set(cls.fields.keys())
 
     @classmethod
     @property
-    def fieldtypes(cls) -> list[str]:
-        return [field.type for field in cls.fields.values()]
+    def fieldtypes(cls) -> set[str]:
+        return {field.type for field in cls.fields.values()}
 
     @classmethod
     @property
-    def primary_keys(cls) -> list[str]:
-        return [
+    def primary_keys(cls) -> set[str]:
+        return {
             fieldname
             for fieldname, field_obj in cls.fields.items()
             if getattr(field_obj, "primary_key")
-        ]
+        }
 
 
 class Base(DeclarativeBase):
