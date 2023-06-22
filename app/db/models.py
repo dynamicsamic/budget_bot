@@ -1,7 +1,15 @@
+import datetime as dt
 import enum
 from typing import List, Optional
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import AbstractBaseModel
@@ -11,6 +19,11 @@ class Currency(enum.Enum):
     RUB = "RUB"
     USD = "USD"
     EUR = "EUR"
+
+
+class EntryType(enum.Enum):
+    EXPENSES = "expenses"
+    INCOME = "income"
 
 
 class User(AbstractBaseModel):
@@ -34,7 +47,9 @@ class Budget(AbstractBaseModel):
     __tablename__ = "budget"
 
     name: Mapped[str] = mapped_column(String(length=256), unique=True)
-    currency: Mapped[Currency] = mapped_column(default=Currency.RUB)
+    currency: Mapped[Enum] = mapped_column(
+        Enum(Currency, create_constraint=True), default=Currency.RUB
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     user: Mapped["User"] = relationship(back_populates="budgets")
     entries: Mapped[List["Entry"]] = relationship(
@@ -53,10 +68,17 @@ class EntryCategory(AbstractBaseModel):
     __tablename__ = "entry_category"
 
     name: Mapped[str] = mapped_column(String(length=128), unique=True)
+    type: Mapped[Enum] = mapped_column(Enum(EntryType, create_constraint=True))
+    last_used: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime(year=1970, month=1, day=1)
+    )
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(Id={self.id}, Name={self.name})"
+        return (
+            f"{self.__class__.__name__}(Id={self.id}, "
+            f"Name={self.name}, Type={self.type})"
+        )
 
 
 class Entry(AbstractBaseModel):
