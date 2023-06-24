@@ -19,7 +19,6 @@ class ModelFieldsDetails:
             attr_name: attr_obj
             for attr_name, attr_obj in cls.__dict__.items()
             if not attr_name.startswith("_")
-            # and hasattr(attr_obj, "primary_key")
             and getattr(attr_obj, "is_attribute", None)
         }
 
@@ -27,11 +26,6 @@ class ModelFieldsDetails:
     @property
     def fieldnames(cls) -> set[str]:
         return set(cls.fields.keys())
-
-    @classmethod
-    @property
-    def fieldtypes(cls) -> set[str]:
-        return {field.type for field in cls.fields.values()}
 
     @classmethod
     @property
