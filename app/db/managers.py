@@ -1,10 +1,11 @@
+import datetime as dt
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Iterable, Type
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.engine.result import ScalarResult
-from sqlalchemy.orm import Session, scoped_session
+from sqlalchemy.orm import Query, Session, scoped_session
 
 from .base import AbstractBaseModel
 
@@ -116,23 +117,46 @@ class BaseModelManager(AbstractModelManager):
         }
 
 
-class DateQueryMixin:
-    def first_n(self, n: int) -> ScalarResult[Type[AbstractBaseModel]]:
-        return self.session.scalars(
-            select(self.model).order_by(self.model.created_at).limit(n)
+class DateQueryManager(BaseModelManager):
+    def first_n(self, n: int) -> Query[Type[AbstractBaseModel]]:
+        return self._fetch_n(n, self._order_by)
+
+    def last_n(self, n: int) -> Query[Type[AbstractBaseModel]]:
+        order_by = self._order_by + " desc"
+        return self._fetch_n(n, order_by)
+
+    def first(self) -> Type[AbstractBaseModel] | None:
+        return self.first_n(1).one_or_none()
+
+    def last(self) -> Type[AbstractBaseModel] | None:
+        return self.last_n(1).one_or_none()
+
+    def between(
+        self, start: dt.datetime | dt.date, end: dt.datetime | dt.date
+    ) -> Query[Type[AbstractBaseModel]]:
+        """Fetch all instances of `model` which were
+        created between given date borders.
+        """
+        if self._is_date_model:
+            return self._fetch(self._order_by).filter(
+                self.model.date.between(start, end)
+            )
+        return self._fetch(self._order_by).filter(
+            self.model.created_at.between(start, end)
         )
 
-    def first(self) -> Type[AbstractBaseModel]:
-        return self.first_n(1).first()
+    def _fetch(self, order_by: str = "") -> Query[Type[AbstractBaseModel]]:
+        return self.session.query(self.model).order_by(text(order_by))
 
-    def last_n(self, n: int) -> ScalarResult[Type[AbstractBaseModel]]:
-        return self.session.scalars(
-            select(self.model).order_by(self.model.created_at.desc()).limit(n)
-        )
+    def _fetch_n(
+        self, n: int, order_by: str = ""
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._fetch(order_by).limit(n)
 
-    def last(self) -> Type[AbstractBaseModel]:
-        return self.last_n(1).first()
+    @property
+    def _is_date_model(self) -> bool:
+        return hasattr(self.model, "date")
 
-
-class DateQueryManager(BaseModelManager, DateQueryMixin):
-    pass
+    @property
+    def _order_by(self) -> str:
+        return "date" if self._is_date_model else "created_at"
