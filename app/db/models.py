@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -90,6 +91,7 @@ class Entry(AbstractBaseModel):
     category: Mapped["EntryCategory"] = relationship(back_populates="entries")
     sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
     description: Mapped[Optional[str]]
+    date: Mapped[Date] = mapped_column(Date)
 
     def __repr__(self) -> str:
         return (
