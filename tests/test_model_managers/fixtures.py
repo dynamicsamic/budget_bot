@@ -29,7 +29,7 @@ class TestBase(DeclarativeBase):
     pass
 
 
-class TestModel(TestBase, base.ModelFieldsDetails):
+class MyTestModel(TestBase, base.ModelFieldsDetails):
     __tablename__ = "testmodel"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -73,7 +73,7 @@ def db_session(engine, create_tables) -> Session:
 def populate_db(db_session: Session):
     db_session.add_all(
         [
-            TestModel(id=i, name=f"obj{i}")
+            MyTestModel(id=i, name=f"obj{i}")
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
     )
@@ -82,9 +82,9 @@ def populate_db(db_session: Session):
 
 @pytest.fixture
 def base_manager(db_session, populate_db) -> BaseModelManager:
-    return BaseModelManager(TestModel, db_session)
+    return BaseModelManager(MyTestModel, db_session)
 
 
 @pytest.fixture
 def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
-    return DateQueryManager(TestModel, db_session)
+    return DateQueryManager(MyTestModel, db_session)
