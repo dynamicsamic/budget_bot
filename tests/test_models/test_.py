@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.db import models
+from app.utils import now
 from tests.conf import constants
 
 from .fixtures import (
@@ -78,6 +79,20 @@ def test_user_create_duplicate_raises_error(db_session):
         ]
     )
     db_session.commit()
+
+
+def test_budget_class_has_expected_fields():
+    expected_fieldnames = {
+        "name",
+        "currency",
+        "user",
+        "user_id",
+        "entries",
+        "id",
+        "created_at",
+        "last_updated",
+    }
+    assert models.Budget.fieldnames == expected_fieldnames
 
 
 def test_create_budget_without_currency_arg_sets_default(
