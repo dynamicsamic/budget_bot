@@ -1,3 +1,5 @@
+import random
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
@@ -41,6 +43,20 @@ def create_users(db_session):
     db_session.add_all(
         [
             models.User(tg_id=f"100{i}", tg_username=f"user{i}")
+            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
+        ]
+    )
+    db_session.commit()
+
+
+@pytest.fixture
+def create_budgets(db_session, create_users):
+    db_session.add_all(
+        [
+            models.Budget(
+                name=f"budget{i}",
+                user_id=random.randint(1, constants["TEST_SAMPLE_SIZE"] + 1),
+            )
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
     )

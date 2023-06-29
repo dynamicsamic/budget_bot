@@ -7,6 +7,7 @@ from app.utils import now
 from tests.conf import constants
 
 from .fixtures import (
+    create_budgets,
     create_tables,
     create_users,
     db_session,
@@ -93,6 +94,16 @@ def test_budget_class_has_expected_fields():
         "last_updated",
     }
     assert models.Budget.fieldnames == expected_fieldnames
+
+
+def test_budget_has_expected_str_representation(db_session, create_users):
+    expected_str = "Budget(Id=999, UserId=1, Cur=RUB, Name=test)"
+
+    db_session.add(models.Budget(id=999, name="test", user_id=1))
+    db_session.commit()
+
+    budget = db_session.get(models.Budget, 999)
+    assert str(budget) == expected_str
 
 
 def test_create_budget_without_currency_arg_sets_default(
