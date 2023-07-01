@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Type
 
 from sqlalchemy import select, text
-from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.orm import Query, Session, scoped_session
+
+from app.utils import today_
 
 from .base import AbstractBaseModel
 
@@ -54,6 +55,33 @@ class AbstractModelManager(ABC):
 
 
 class BaseModelManager(AbstractModelManager):
+    def __init__(
+        self,
+        model: Type[AbstractBaseModel],
+        session: Session | scoped_session = None,
+        /,
+    ) -> None:
+        self.model = model
+        self.session = session
+
+    def __call__(self, session: Session | scoped_session) -> None:
+        """Allow `session` be associated
+        with manager after it's creation.
+
+        #### Example:
+        create manger and leave it for later use
+        `manager = BaseManager(BaseModel)`
+
+        when you obtain session (e.g. via middleware)
+        associate it with manager
+        `manger(request.session)`
+        `manger.some_method()`
+        """
+        if self.session is None and isinstance(
+            session, (Session, scoped_session)
+        ):
+            self.session = session
+
     def get(self, id: int) -> Type[AbstractBaseModel] | None:
         """Retrieve `self.model` object."""
         return self.session.get(self.model, id)
@@ -67,14 +95,13 @@ class BaseModelManager(AbstractModelManager):
                 .first()
             )
 
-    def all(
-        self, to_list: bool = False
-    ) -> ScalarResult[Type[AbstractBaseModel]] | list[Type[AbstractBaseModel]]:
-        """Retrieve all `self.model` objets
-        either in `ScalarResult` or `list` form.
-        """
-        qs = self.session.scalars(select(self.model))
-        return qs.all() if to_list else qs
+    def all(self) -> Query[Type[AbstractBaseModel]]:
+        """Retrieve all `self.model` objets."""
+        return self.session.query(self.model)
+
+    def list(self) -> list[Type[AbstractBaseModel]]:
+        """Retrieve all `self.model` objets in list."""
+        return self.all().all()
 
     def update(
         self,
@@ -117,46 +144,95 @@ class BaseModelManager(AbstractModelManager):
         }
 
 
-class DateQueryManager(BaseModelManager):
+class OrderedQueryManager(BaseModelManager):
+    def __init__(self, *args, order_by: list[str]):
+        self._order_by = order_by
+        return super().__init__(*args)
+
+    def all(self, reverse: bool = False) -> Query[Type[AbstractBaseModel]]:
+        """Retrieve all `model` instances in ordered query.
+        Use `reverse=True` to sort query in descending order.
+        """
+        qs = super().all()
+        return (
+            qs.order_by(text(self.inverse_order_by))
+            if reverse
+            else qs.order_by(text(self.order_by))
+        )
+
+    def list(self, reverse: bool = False) -> list[Type[AbstractBaseModel]]:
+        """Retrieve all `self.model` objets in list."""
+        return self.all(reverse=reverse).all()
+
     def first_n(self, n: int) -> Query[Type[AbstractBaseModel]]:
-        return self._fetch_n(n, self._order_by)
+        """Retrieve specific number of `model` instances
+        sorted in ascending order.
+        """
+        return self._fetch_n(n, self.order_by)
 
     def last_n(self, n: int) -> Query[Type[AbstractBaseModel]]:
-        order_by = self._order_by + " desc"
-        return self._fetch_n(n, order_by)
+        """Retrieve specific number of `model` instances
+        sorted in descending order.
+        """
+        return self._fetch_n(n, self.inverse_order_by)
 
     def first(self) -> Type[AbstractBaseModel] | None:
+        """Retrieve first `model` instance in ascending query."""
         return self.first_n(1).one_or_none()
 
     def last(self) -> Type[AbstractBaseModel] | None:
+        """Retrieve last `model` instance in discending query."""
         return self.last_n(1).one_or_none()
-
-    def between(
-        self, start: dt.datetime | dt.date, end: dt.datetime | dt.date
-    ) -> Query[Type[AbstractBaseModel]]:
-        """Fetch all instances of `model` which were
-        created between given date borders.
-        """
-        if self._is_date_model:
-            return self._fetch(self._order_by).filter(
-                self.model.date.between(start, end)
-            )
-        return self._fetch(self._order_by).filter(
-            self.model.created_at.between(start, end)
-        )
-
-    def _fetch(self, order_by: str = "") -> Query[Type[AbstractBaseModel]]:
-        return self.session.query(self.model).order_by(text(order_by))
 
     def _fetch_n(
         self, n: int, order_by: str = ""
     ) -> Query[Type[AbstractBaseModel]]:
         return self._fetch(order_by).limit(n)
 
+    def _fetch(self, order_by: str = "") -> Query[Type[AbstractBaseModel]]:
+        return self.session.query(self.model).order_by(text(order_by))
+
+    @property
+    def order_by(self) -> str:
+        return ", ".join(self._order_by)
+
+    @property
+    def inverse_order_by(self):
+        return ", ".join(
+            (
+                item.removesuffix(" desc")
+                if item.endswith(" desc")
+                else item + " desc"
+                for item in self._order_by
+            )
+        )
+
+
+class DateQueryManager(OrderedQueryManager):
+    def between(
+        self,
+        start: dt.datetime | dt.date,
+        end: dt.datetime | dt.date,
+        reverse: bool = False,
+    ) -> Query[Type[AbstractBaseModel]]:
+        """Fetch all instances of `model` which were
+        created between given date borders.
+        """
+        order_by = self.inverse_order_by if reverse else self.order_by
+        if self._is_date_model:
+            return self._fetch(order_by).filter(
+                self.model.date.between(start, end)
+            )
+        return self._fetch(order_by).filter(
+            self.model.created_at.between(start, end)
+        )
+
+    def today(self) -> Query[Type[AbstractBaseModel]]:
+        timed = not self._is_date_model
+        start = today_(timed, "start")
+        end = today_(timed, "end")
+        return self.between(start, end)
+
     @property
     def _is_date_model(self) -> bool:
         return hasattr(self.model, "date")
-
-    @property
-    def _order_by(self) -> str:
-        return "date" if self._is_date_model else "created_at"
