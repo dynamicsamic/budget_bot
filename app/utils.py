@@ -31,17 +31,11 @@ def minute_before_now() -> dt.datetime:
 
 
 def timed_yesterday() -> dt.datetime:
-    t = now()
-    return dt.datetime(year=t.year, month=t.month, day=t.day - 1).astimezone(
-        settings.TIME_ZONE
-    )
+    return now() - dt.timedelta(days=1)
 
 
 def timed_tomorrow() -> dt.datetime:
-    t = now()
-    return dt.datetime(year=t.year, month=t.month, day=t.day + 1).astimezone(
-        settings.TIME_ZONE
-    )
+    return now() + dt.timedelta(days=1)
 
 
 def today() -> dt.date:
