@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import select
 from sqlalchemy.engine.result import ScalarResult
+from sqlalchemy.orm import Query
 
 from app.db.managers import BaseModelManager
 from tests.conf import constants
@@ -67,9 +68,9 @@ def test_get_by_method_without_kwargs_return_none(base_manager):
     assert base_manager.get_by() is None
 
 
-def test_all_method_without_args_return_scalar_result(base_manager):
+def test_all_method_return_query_result(base_manager):
     model_instances = base_manager.all()
-    assert isinstance(model_instances, ScalarResult)
+    assert isinstance(model_instances, Query)
 
 
 def test_all_method_without_args_result_is_iterable(base_manager):
@@ -77,13 +78,13 @@ def test_all_method_without_args_result_is_iterable(base_manager):
     assert all(isinstance(obj, MyTestModel) for obj in model_instances)
 
 
-def test_all_method_with_to_list_arg_return_list(base_manager):
-    model_instances = base_manager.all(to_list=True)
+def test_list_method_return_result_in_list(base_manager):
+    model_instances = base_manager.list()
     assert isinstance(model_instances, list)
 
 
-def test_all_method_return_empty_list_for_empty_table(db_session):
-    assert BaseModelManager(MyTestModel, db_session).all(to_list=True) == []
+def test_list_method_return_empty_list_for_empty_table(db_session):
+    assert BaseModelManager(MyTestModel, db_session).list() == []
 
 
 def test_update_method_with_valid_id_without_kwargs_return_false(base_manager):

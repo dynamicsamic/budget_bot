@@ -15,9 +15,9 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
-from app import settings
+from app import settings, utils
 from app.db import base, models, test_engine
-from app.db.managers import BaseModelManager, DateQueryManager
+from app.db.managers import BaseModelManager, OrderedQueryManager
 from tests.conf import constants
 
 user_data = {
@@ -73,7 +73,12 @@ def db_session(engine, create_tables) -> Session:
 def populate_db(db_session: Session):
     db_session.add_all(
         [
-            MyTestModel(id=i, name=f"obj{i}")
+            MyTestModel(
+                id=i,
+                name=f"obj{i}",
+                created_at=utils.now(),
+                last_updated=utils.now(),
+            )
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
     )
@@ -86,5 +91,7 @@ def base_manager(db_session, populate_db) -> BaseModelManager:
 
 
 @pytest.fixture
-def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
-    return DateQueryManager(MyTestModel, db_session)
+def ordered_manager(db_session, populate_db) -> Type[BaseModelManager]:
+    return OrderedQueryManager(
+        MyTestModel, db_session, order_by=["created_at", "id"]
+    )
