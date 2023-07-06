@@ -10,13 +10,6 @@ february_29th = dt.date(year=2020, month=2, day=29)
 february_28th = dt.date(year=2023, month=2, day=28)
 january_1st = dt.date(year=2023, month=1, day=1)
 december_31st = dt.date(year=2023, month=12, day=31)
-march_8th = dt.date(year=2023, month=3, day=8)
-april_30th = dt.date(year=2023, month=4, day=30)
-may_13th = dt.date(year=2023, month=5, day=13)
-august_10th = dt.date(year=2023, month=8, day=10)
-september_3rd = dt.date(year=2023, month=9, day=3)
-october_29th = dt.date(year=2023, month=10, day=29)
-november_17th = dt.date(year=2023, month=11, day=17)
 
 
 def test_flow_date_gen_for_full_month_date():
@@ -169,7 +162,7 @@ def test_flow_date_gen_for_december_31st():
     )
 
 
-def test_year_range_calculate_correctly_for_all_months():
+def test_date_year_range_calculate_correctly_for_all_months():
     for i in range(1, 13):
         date = dt.date(year=2023, month=i, day=1)
         dgen = DateGen(date)
@@ -181,7 +174,7 @@ def test_year_range_calculate_correctly_for_all_months():
         )
 
 
-def test_month_range_calculate_correctly_for_full_months():
+def test_date_month_range_calculate_correctly_for_full_months():
     full_month_ordinal = (1, 3, 5, 7, 8, 10, 12)
     for month in full_month_ordinal:
         date = dt.date(year=2023, month=month, day=10)
@@ -191,8 +184,7 @@ def test_month_range_calculate_correctly_for_full_months():
         assert dgen.month_range == (date.replace(day=1), date.replace(day=31))
 
 
-@pytest.mark.current
-def test_month_range_calculate_correctly_for_short_months():
+def test_date_month_range_calculate_correctly_for_short_months():
     short_month_ordinal = (4, 6, 9, 11)
     for month in short_month_ordinal:
         date = dt.date(year=2023, month=month, day=10)
@@ -202,7 +194,7 @@ def test_month_range_calculate_correctly_for_short_months():
         assert dgen.month_range == (date.replace(day=1), date.replace(day=30))
 
 
-week_ranges = (
+date_week_ranges = (
     (
         dt.date(year=2023, month=1, day=10),
         dt.date(year=2023, month=1, day=9),
@@ -280,12 +272,139 @@ week_range_test_ids = (
 )
 
 
-@pytest.mark.current
 @pytest.mark.parametrize(
-    "date,week_start,week_end", week_ranges, ids=week_range_test_ids
+    "date,week_start,week_end", date_week_ranges, ids=week_range_test_ids
 )
-def test_week_range_calculate_correctly_for_all_months(
+def test_date_week_range_calculate_correctly_for_all_months(
     date, week_start, week_end
 ):
     dgen = DateGen(date)
+    assert dgen.week_range == (week_start, week_end)
+
+
+end_of_the_day = {
+    "hour": 23,
+    "minute": 59,
+    "second": 59,
+    "microsecond": 999999,
+}
+
+
+@pytest.mark.current
+def test_datetime_year_range_calculate_correctly_for_all_months():
+    for i in range(1, 13):
+        datetime = dt.datetime(year=2023, month=i, day=1)
+        dgen = DateGen(datetime)
+        assert dgen.year_start == datetime.replace(month=1, day=1)
+        assert dgen.year_end == datetime.replace(
+            month=12, day=31, hour=23, minute=59, second=59, microsecond=999999
+        )
+        assert dgen.year_range == (
+            datetime.replace(month=1, day=1),
+            datetime.replace(month=12, day=31, **end_of_the_day),
+        )
+
+
+@pytest.mark.current
+def test_datetim_month_range_calculate_correctly_for_full_months():
+    full_month_ordinal = (1, 3, 5, 7, 8, 10, 12)
+    for month in full_month_ordinal:
+        datetime = dt.datetime(year=2023, month=month, day=10)
+        dgen = DateGen(datetime)
+        assert dgen.month_start == datetime.replace(day=1)
+        assert dgen.month_end == datetime.replace(day=31, **end_of_the_day)
+        assert dgen.month_range == (
+            datetime.replace(day=1),
+            datetime.replace(day=31, **end_of_the_day),
+        )
+
+
+@pytest.mark.current
+def test_datetime_month_range_calculate_correctly_for_short_months():
+    short_month_ordinal = (4, 6, 9, 11)
+    for month in short_month_ordinal:
+        datetime = dt.datetime(year=2023, month=month, day=10)
+        dgen = DateGen(datetime)
+        assert dgen.month_start == datetime.replace(day=1)
+        assert dgen.month_end == datetime.replace(day=30, **end_of_the_day)
+        assert dgen.month_range == (
+            datetime.replace(day=1),
+            datetime.replace(day=30, **end_of_the_day),
+        )
+
+
+datetime_week_ranges = (
+    (
+        dt.datetime(year=2023, month=1, day=10),
+        dt.datetime(year=2023, month=1, day=9),
+        dt.datetime(year=2023, month=1, day=15, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=2, day=17),
+        dt.datetime(year=2023, month=2, day=13),
+        dt.datetime(year=2023, month=2, day=19, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=3, day=8),
+        dt.datetime(year=2023, month=3, day=6),
+        dt.datetime(year=2023, month=3, day=12, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=4, day=1),
+        dt.datetime(year=2023, month=3, day=27),
+        dt.datetime(year=2023, month=4, day=2, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=5, day=9),
+        dt.datetime(year=2023, month=5, day=8),
+        dt.datetime(year=2023, month=5, day=14, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=6, day=12),
+        dt.datetime(year=2023, month=6, day=12),
+        dt.datetime(year=2023, month=6, day=18, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=7, day=23),
+        dt.datetime(year=2023, month=7, day=17),
+        dt.datetime(year=2023, month=7, day=23, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=8, day=11),
+        dt.datetime(year=2023, month=8, day=7),
+        dt.datetime(year=2023, month=8, day=13, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=9, day=21),
+        dt.datetime(year=2023, month=9, day=18),
+        dt.datetime(year=2023, month=9, day=24, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=10, day=4),
+        dt.datetime(year=2023, month=10, day=2),
+        dt.datetime(year=2023, month=10, day=8, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=11, day=28),
+        dt.datetime(year=2023, month=11, day=27),
+        dt.datetime(year=2023, month=12, day=3, **end_of_the_day),
+    ),
+    (
+        dt.datetime(year=2023, month=12, day=30),
+        dt.datetime(year=2023, month=12, day=25),
+        dt.datetime(year=2023, month=12, day=31, **end_of_the_day),
+    ),
+)
+
+
+@pytest.mark.current
+@pytest.mark.parametrize(
+    "datetime,week_start,week_end",
+    datetime_week_ranges,
+    ids=week_range_test_ids,
+)
+def test_datetime_week_range_calculate_correctly_for_all_months(
+    datetime, week_start, week_end
+):
+    dgen = DateGen(datetime)
     assert dgen.week_range == (week_start, week_end)
