@@ -7,7 +7,7 @@ from app import settings
 class DateGen:
     # TODO: add middleware var `date_info`
     days_in_month = {
-        1: 30,
+        1: 31,
         2: lambda year: 29 if calendar.isleap(year) else 28,
         3: 31,
         4: 30,
@@ -43,31 +43,33 @@ class DateGen:
     def year_range(
         self,
     ) -> tuple[dt.date | dt.datetime, dt.date | dt.datetime]:
-        return self.year_start(), self.year_end()
+        return self.year_start, self.year_end
 
     @property
     def month_range(
         self,
     ) -> tuple[dt.date | dt.datetime, dt.date | dt.datetime]:
-        return self.month_start(), self.month_end()
+        return self.month_start, self.month_end
 
     @property
     def week_range(
         self,
     ) -> tuple[dt.date | dt.datetime, dt.date | dt.datetime]:
-        return self.week_start(), self.week_end()
+        return self.week_start, self.week_end
 
     @property
     def date_range(
         self,
-    ) -> tuple[dt.date | dt.datetime, dt.date | dt.datetime]:
-        return self.date_start(), self.date_end()
+    ) -> tuple[dt.datetime, dt.datetime]:
+        if self.is_datetime:
+            return self.date_start, self.date_end
 
     def num_days(self, month_ordinal: int) -> int:
         if month_ordinal == 2:
             return self.days_in_month[month_ordinal](self.year)
         return self.days_in_month.get(month_ordinal, 30)
 
+    @property
     def year_start(self) -> dt.date | dt.datetime:
         year_start_kwargs = {"year": self.year, "month": 1, "day": 1}
         return (
@@ -76,6 +78,7 @@ class DateGen:
             else dt.date(**year_start_kwargs)
         )
 
+    @property
     def year_end(self) -> dt.date | dt.datetime:
         date_kwargs = {"year": self.year, "month": 12, "day": 31}
         datetime_kwargs = {
@@ -90,28 +93,34 @@ class DateGen:
             else dt.date(**date_kwargs)
         )
 
+    @property
     def month_start(self) -> dt.date | dt.datetime:
-        return self.year_start().replace(month=self.month)
+        return self.year_start.replace(month=self.month)
 
+    @property
     def month_end(self) -> dt.date | dt.datetime:
-        return self.year_end().replace(
+        return self.year_end.replace(
             month=self.month, day=self.num_days(self.month)
         )
 
+    @property
     def week_start(self) -> dt.date | dt.datetime:
         weekday = self.date.weekday()
-        return self.date_start() - dt.timedelta(days=weekday)
+        return self.date_start - dt.timedelta(days=weekday)
 
+    @property
     def week_end(self) -> dt.date | dt.datetime:
         days_in_week = 6
         weekday = self.date.weekday()
-        return self.date_end() + dt.timedelta(days=days_in_week - weekday)
+        return self.date_end + dt.timedelta(days=days_in_week - weekday)
 
+    @property
     def date_start(self) -> dt.date | dt.datetime:
-        return self.month_start().replace(day=self.date.day)
+        return self.month_start.replace(day=self.date.day)
 
+    @property
     def date_end(self) -> dt.date | dt.datetime:
-        return self.month_end().replace(day=self.date.day)
+        return self.month_end.replace(day=self.date.day)
 
 
 def gen_date(today: dt.date | dt.datetime, date_descr: str):
