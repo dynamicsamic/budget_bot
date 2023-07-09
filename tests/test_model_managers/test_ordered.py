@@ -1,12 +1,6 @@
-import datetime as dt
-
-import pytest
-from sqlalchemy import select
 from sqlalchemy.orm import Query
 
-from app import settings
-from app.utils import minute_before_now, now, timed_tomorrow, timed_yesterday
-from tests.conf import constants
+from app.utils import timed_tomorrow, timed_yesterday
 
 from .fixtures import (
     MyTestModel,
@@ -170,59 +164,3 @@ def test_last_n_return_empty_result_for_zero_arg(ordered_manager):
     last_n_from_db = ordered_manager.last_n(0)
     assert isinstance(last_n_from_db, Query)
     assert last_n_from_db.all() == []
-
-
-@pytest.mark.skip
-def test_between_return_query_result_with_test_instances(ordered_manager):
-    query = ordered_manager.between(minute_before_now(), timed_tomorrow())
-    assert isinstance(query, Query)
-    assert all(isinstance(obj, MyTestModel) for obj in query)
-
-
-@pytest.mark.skip
-def test_between_with_broad_gap_return_all_instances(ordered_manager):
-    assert (
-        len(
-            ordered_manager.between(
-                minute_before_now(), timed_tomorrow()
-            ).all()
-        )
-        == constants["TEST_SAMPLE_SIZE"]
-    )
-
-
-@pytest.mark.skip
-def test_between_with_narrow_gap_return_empty_query(ordered_manager):
-    assert ordered_manager.between(now(), now()).all() == []
-
-
-@pytest.mark.skip
-def test_between_with_tomorrow_gap_return_instances_created_tommorrow(
-    db_session, ordered_manager
-):
-    sample_size = 5
-    test_names = [f"new_obj{i}" for i in range(sample_size)]
-
-    db_session.add_all(
-        [
-            MyTestModel(name=test_name, created_at=timed_tomorrow())
-            for test_name in test_names
-        ]
-    )
-    db_session.commit()
-
-    tomorrow = timed_tomorrow()
-    overmorrow = tomorrow + dt.timedelta(days=1)
-    query = ordered_manager.between(tomorrow, overmorrow).all()
-
-    assert len(query) == sample_size
-
-    names_from_query = [obj.name for obj in query]
-    assert names_from_query == test_names
-
-
-@pytest.mark.skip
-def test_between_with_twisted_gap_return_empty_query(ordered_manager):
-    query = ordered_manager.between(timed_tomorrow(), timed_yesterday())
-    assert isinstance(query, Query)
-    assert query.all() == []
