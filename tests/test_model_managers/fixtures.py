@@ -17,7 +17,11 @@ from sqlalchemy.orm import (
 
 from app import settings, utils
 from app.db import base, models, test_engine
-from app.db.managers import BaseModelManager, OrderedQueryManager
+from app.db.managers import (
+    BaseModelManager,
+    DateQueryManager,
+    OrderedQueryManager,
+)
 from tests.conf import constants
 
 user_data = {
@@ -93,5 +97,12 @@ def base_manager(db_session, populate_db) -> BaseModelManager:
 @pytest.fixture
 def ordered_manager(db_session, populate_db) -> Type[BaseModelManager]:
     return OrderedQueryManager(
+        MyTestModel, db_session, order_by=["created_at", "id"]
+    )
+
+
+@pytest.fixture
+def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
+    return DateQueryManager(
         MyTestModel, db_session, order_by=["created_at", "id"]
     )
