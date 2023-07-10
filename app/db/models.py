@@ -39,7 +39,7 @@ class User(AbstractBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id} "
+            f"{self.__class__.__name__}(Id={self.id}, "
             f"TelegramName={self.tg_username}, TelegramId={self.tg_id})"
         )
 
@@ -51,11 +51,15 @@ class Budget(AbstractBaseModel):
     currency: Mapped[Enum] = mapped_column(
         Enum(Currency, create_constraint=True), default=Currency.RUB
     )
-    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
-    user: Mapped["User"] = relationship(back_populates="budgets")
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE")
+    )
+    user: Mapped["User"] = relationship(
+        back_populates="budgets", lazy="joined"
+    )
     entries: Mapped[List["Entry"]] = relationship(
         back_populates="budget",
-        cascade="all, delete",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
@@ -78,14 +82,16 @@ class EntryCategory(AbstractBaseModel):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, "
-            f"Name={self.name}, Type={self.type})"
+            f"Name={self.name}, Type={self.type.value})"
         )
 
 
 class Entry(AbstractBaseModel):
     __tablename__ = "entry"
 
-    budget_id: Mapped[int] = mapped_column(ForeignKey("budget.id"))
+    budget_id: Mapped[int] = mapped_column(
+        ForeignKey("budget.id", ondelete="CASCADE")
+    )
     budget: Mapped["Budget"] = relationship(back_populates="entries")
     category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
     category: Mapped["EntryCategory"] = relationship(back_populates="entries")
@@ -95,7 +101,7 @@ class Entry(AbstractBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id}, Sum={self.sum}, "
-            f"CategoryId={self.category_id}, BudgetId={self.budget_id}), "
-            f"Description={self.description}"
+            f"{self.__class__.__name__}(Id={self.id}, Date={self.date}, "
+            f"Sum={self.sum}, CategoryId={self.category_id}, "
+            f"BudgetId={self.budget_id}, Description={self.description})"
         )
