@@ -6,7 +6,7 @@ from typing import Any, Iterable, Type
 from sqlalchemy import select, text
 from sqlalchemy.orm import Query, Session, scoped_session
 
-from app.utils import today_
+from app.utils import DateGen, today_
 
 from .base import AbstractBaseModel
 
@@ -124,7 +124,12 @@ class BaseModelManager(AbstractModelManager):
 
     def delete(self, id: int) -> bool:
         """Delete `self.model` object."""
-        return bool(self.session.query(self.model).filter_by(id=id).delete())
+        # emits separate select and delete queries
+        # for self.model and each foreign key
+        # which is inefficient. Need to implement
+        # more efficient algorithm.
+        self.session.delete(self.get(id))
+        self.session.commit()
 
     def count(self) -> int:
         """Calculate number of all `self.model` objects."""
@@ -209,7 +214,29 @@ class OrderedQueryManager(BaseModelManager):
 
 
 class DateQueryManager(OrderedQueryManager):
-    def between(
+    # TODO: `date_info` must be added via middleware
+
+    def today(
+        self, date_info: DateGen, reverse: bool = False
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._between(*date_info.date_range, reverse)
+
+    def this_week(
+        self, date_info: DateGen, reverse: bool = False
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._between(*date_info.week_range, reverse)
+
+    def this_month(
+        self, date_info: DateGen, reverse: bool = False
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._between(*date_info.month_range, reverse)
+
+    def this_year(
+        self, date_info: DateGen, reverse: bool = False
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._between(*date_info.year_range, reverse)
+
+    def _between(
         self,
         start: dt.datetime | dt.date,
         end: dt.datetime | dt.date,
@@ -226,12 +253,6 @@ class DateQueryManager(OrderedQueryManager):
         return self._fetch(order_by).filter(
             self.model.created_at.between(start, end)
         )
-
-    def today(self) -> Query[Type[AbstractBaseModel]]:
-        timed = not self._is_date_model
-        start = today_(timed, "start")
-        end = today_(timed, "end")
-        return self.between(start, end)
 
     @property
     def _is_date_model(self) -> bool:
