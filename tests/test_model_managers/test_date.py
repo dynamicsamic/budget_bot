@@ -15,7 +15,7 @@ from app.utils import (
 from tests.conf import constants
 
 from .fixtures import (
-    MyTestModel,
+    BaseTestModel,
     create_tables,
     date_manager,
     db_session,
@@ -27,7 +27,7 @@ from .fixtures import (
 def test_between_return_query_result_with_test_instances(date_manager):
     query = date_manager._between(minute_before_now(), timed_tomorrow())
     assert isinstance(query, Query)
-    assert all(isinstance(obj, MyTestModel) for obj in query)
+    assert all(isinstance(obj, BaseTestModel) for obj in query)
 
 
 def test_between_with_broad_gap_return_all_instances(date_manager):
@@ -50,7 +50,7 @@ def test_between_with_tomorrow_gap_return_instances_created_tommorrow(
 
     db_session.add_all(
         [
-            MyTestModel(name=test_name, created_at=tomorrow)
+            BaseTestModel(name=test_name, created_at=tomorrow)
             for test_name in test_names
         ]
     )
@@ -80,13 +80,13 @@ def test_today_return_instances_created_today(db_session, date_manager):
 
     db_session.add_all(
         [
-            MyTestModel(
+            BaseTestModel(
                 name="test1",
                 created_at=datetime.replace(
                     hour=0, minute=0, second=0, microsecond=0
                 ),
             ),
-            MyTestModel(
+            BaseTestModel(
                 name="test2",
                 created_at=datetime.replace(
                     hour=23, minute=59, second=59, microsecond=999999
@@ -100,8 +100,8 @@ def test_today_return_instances_created_today(db_session, date_manager):
     # Instaces created tomorrow and yesterday aren't included in today query.
     db_session.add_all(
         [
-            MyTestModel(name="test01", created_at=timed_tomorrow()),
-            MyTestModel(name="test02", created_at=timed_yesterday()),
+            BaseTestModel(name="test01", created_at=timed_tomorrow()),
+            BaseTestModel(name="test02", created_at=timed_yesterday()),
         ]
     )
     db_session.commit()
@@ -122,16 +122,16 @@ def test_this_year_return_instances_created_within_this_year(
 
     db_session.add_all(
         [
-            MyTestModel(name="test1"),
-            MyTestModel(name="test2", created_at=timed_tomorrow()),
-            MyTestModel(name="test3", created_at=timed_yesterday()),
-            MyTestModel(
+            BaseTestModel(name="test1"),
+            BaseTestModel(name="test2", created_at=timed_tomorrow()),
+            BaseTestModel(name="test3", created_at=timed_yesterday()),
+            BaseTestModel(
                 name="test4",
                 created_at=datetime.replace(
                     month=1, day=1, hour=0, minute=0, second=0, microsecond=0
                 ),
             ),
-            MyTestModel(
+            BaseTestModel(
                 name="test5",
                 created_at=datetime.replace(
                     month=12,
@@ -150,11 +150,11 @@ def test_this_year_return_instances_created_within_this_year(
     # Instaces created last or next year aren't included in this year query
     db_session.add_all(
         [
-            MyTestModel(
+            BaseTestModel(
                 name="test1",
                 created_at=datetime - dt.timedelta(days=365),
             ),
-            MyTestModel(
+            BaseTestModel(
                 name="test2",
                 created_at=datetime - dt.timedelta(days=365),
             ),
@@ -178,16 +178,16 @@ def test_this_month_return_instances_created_within_this_month(
 
     db_session.add_all(
         [
-            MyTestModel(name="test1"),
-            MyTestModel(name="test2", created_at=timed_tomorrow()),
-            MyTestModel(name="test3", created_at=timed_yesterday()),
-            MyTestModel(
+            BaseTestModel(name="test1"),
+            BaseTestModel(name="test2", created_at=timed_tomorrow()),
+            BaseTestModel(name="test3", created_at=timed_yesterday()),
+            BaseTestModel(
                 name="test4",
                 created_at=datetime.replace(
                     day=1, hour=0, minute=0, second=0, microsecond=0
                 ),
             ),
-            MyTestModel(
+            BaseTestModel(
                 name="test5",
                 created_at=datetime.replace(
                     day=30
@@ -209,10 +209,10 @@ def test_this_month_return_instances_created_within_this_month(
     # Instaces created last or next month aren't included in this month query
     db_session.add_all(
         [
-            MyTestModel(
+            BaseTestModel(
                 name="test1", created_at=datetime - dt.timedelta(days=31)
             ),
-            MyTestModel(
+            BaseTestModel(
                 name="test2", created_at=datetime + dt.timedelta(days=31)
             ),
         ]
@@ -239,16 +239,16 @@ def test_this_week_return_instances_created_within_this_week(
 
     db_session.add_all(
         [
-            MyTestModel(name="test1", created_at=datetime),
-            MyTestModel(name="test2", created_at=timed_tomorrow()),
-            MyTestModel(name="test3", created_at=timed_yesterday()),
-            MyTestModel(
+            BaseTestModel(name="test1", created_at=datetime),
+            BaseTestModel(name="test2", created_at=timed_tomorrow()),
+            BaseTestModel(name="test3", created_at=timed_yesterday()),
+            BaseTestModel(
                 name="test4",
                 created_at=datetime.replace(
                     day=3, hour=0, minute=0, second=0, microsecond=0
                 ),
             ),
-            MyTestModel(
+            BaseTestModel(
                 name="test5",
                 created_at=datetime.replace(
                     day=9,
@@ -266,11 +266,11 @@ def test_this_week_return_instances_created_within_this_week(
     # Instaces created last or next week aren't included in this week query
     db_session.add_all(
         [
-            MyTestModel(
+            BaseTestModel(
                 name="test1",
                 created_at=datetime - dt.timedelta(weeks=1),
             ),
-            MyTestModel(
+            BaseTestModel(
                 name="test2",
                 created_at=datetime + dt.timedelta(weeks=1),
             ),

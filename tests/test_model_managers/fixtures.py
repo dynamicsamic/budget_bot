@@ -33,7 +33,7 @@ class TestBase(DeclarativeBase):
     pass
 
 
-class MyTestModel(TestBase, base.ModelFieldsDetails):
+class BaseTestModel(TestBase, base.ModelFieldsDetails):
     __tablename__ = "testmodel"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -77,7 +77,7 @@ def db_session(engine, create_tables) -> Session:
 def populate_db(db_session: Session):
     db_session.add_all(
         [
-            MyTestModel(
+            BaseTestModel(
                 id=i,
                 name=f"obj{i}",
                 created_at=utils.now(),
@@ -91,18 +91,18 @@ def populate_db(db_session: Session):
 
 @pytest.fixture
 def base_manager(db_session, populate_db) -> BaseModelManager:
-    return BaseModelManager(MyTestModel, db_session)
+    return BaseModelManager(BaseTestModel, db_session)
 
 
 @pytest.fixture
 def ordered_manager(db_session, populate_db) -> Type[BaseModelManager]:
     return OrderedQueryManager(
-        MyTestModel, db_session, order_by=["created_at", "id"]
+        BaseTestModel, db_session, order_by=["created_at", "id"]
     )
 
 
 @pytest.fixture
 def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
     return DateQueryManager(
-        MyTestModel, db_session, order_by=["created_at", "id"]
+        BaseTestModel, db_session, order_by=["created_at", "id"]
     )

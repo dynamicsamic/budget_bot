@@ -3,7 +3,7 @@ from sqlalchemy.orm import Query
 from app.utils import timed_tomorrow, timed_yesterday
 
 from .fixtures import (
-    MyTestModel,
+    BaseTestModel,
     create_tables,
     db_session,
     engine,
@@ -15,9 +15,9 @@ from .fixtures import (
 def test_flow_create_ordered_manager_without_session(db_session):
     from app.db.managers import OrderedQueryManager
 
-    mgr = OrderedQueryManager(MyTestModel, order_by=["created_at", "id"])
+    mgr = OrderedQueryManager(BaseTestModel, order_by=["created_at", "id"])
     assert isinstance(mgr, OrderedQueryManager)
-    assert mgr.model is MyTestModel
+    assert mgr.model is BaseTestModel
     assert mgr.session is None
 
     # associate session with manager
@@ -89,20 +89,20 @@ def test_list_method_with_reverse_arg_return_query_in_descending_order(
 
 
 def test_first_method_return_first_added_instance(db_session, ordered_manager):
-    db_session.add(MyTestModel(name="new_obj", created_at=timed_yesterday()))
+    db_session.add(BaseTestModel(name="new_obj", created_at=timed_yesterday()))
     db_session.commit()
 
     first_from_db = ordered_manager.first()
-    assert isinstance(first_from_db, MyTestModel)
+    assert isinstance(first_from_db, BaseTestModel)
     assert first_from_db.name == "new_obj"
 
 
 def test_last_method_return_last_added_instance(db_session, ordered_manager):
-    db_session.add(MyTestModel(name="new_obj", created_at=timed_tomorrow()))
+    db_session.add(BaseTestModel(name="new_obj", created_at=timed_tomorrow()))
     db_session.commit()
 
     last_from_db = ordered_manager.last()
-    assert isinstance(last_from_db, MyTestModel)
+    assert isinstance(last_from_db, BaseTestModel)
     assert last_from_db.name == "new_obj"
 
 
@@ -114,7 +114,7 @@ def test_first_n_return_given_number_of_first_added_instances(
 
     db_session.add_all(
         [
-            MyTestModel(name=test_name, created_at=timed_yesterday())
+            BaseTestModel(name=test_name, created_at=timed_yesterday())
             for test_name in test_names
         ]
     )
@@ -144,7 +144,7 @@ def test_last_n_return_given_number_of_last_added_instances(
 
     db_session.add_all(
         [
-            MyTestModel(name=test_name, created_at=timed_tomorrow())
+            BaseTestModel(name=test_name, created_at=timed_tomorrow())
             for test_name in test_names
         ]
     )

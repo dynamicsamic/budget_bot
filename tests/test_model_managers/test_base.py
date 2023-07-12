@@ -7,7 +7,7 @@ from app.db.managers import BaseModelManager
 from tests.conf import constants
 
 from .fixtures import (
-    MyTestModel,
+    BaseTestModel,
     base_manager,
     create_tables,
     db_session,
@@ -19,7 +19,7 @@ from .fixtures import (
 def test_get_method_with_valid_id_find_obj(base_manager):
     id_ = 1
     obj = base_manager.get(id_)
-    assert isinstance(obj, MyTestModel)
+    assert isinstance(obj, BaseTestModel)
     assert obj.id == id_
 
 
@@ -34,7 +34,7 @@ def test_get_method_with_invalid_id_return_none(base_manager):
 def test_get_by_method_with_name_kwarg_find_obj_by_name(base_manager):
     name = "obj1"
     obj = base_manager.get_by(name=name)
-    assert isinstance(obj, MyTestModel)
+    assert isinstance(obj, BaseTestModel)
     assert obj.name == name
 
 
@@ -75,7 +75,7 @@ def test_all_method_return_query_result(base_manager):
 
 def test_all_method_without_args_result_is_iterable(base_manager):
     model_instances = base_manager.all()
-    assert all(isinstance(obj, MyTestModel) for obj in model_instances)
+    assert all(isinstance(obj, BaseTestModel) for obj in model_instances)
 
 
 def test_list_method_return_result_in_list(base_manager):
@@ -84,7 +84,7 @@ def test_list_method_return_result_in_list(base_manager):
 
 
 def test_list_method_return_empty_list_for_empty_table(db_session):
-    assert BaseModelManager(MyTestModel, db_session).list() == []
+    assert BaseModelManager(BaseTestModel, db_session).list() == []
 
 
 def test_update_method_with_valid_id_without_kwargs_return_false(base_manager):
