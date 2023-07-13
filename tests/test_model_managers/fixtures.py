@@ -3,7 +3,15 @@ from functools import cache
 from typing import Any, Self, Type
 
 import pytest
-from sqlalchemy import DateTime, String, create_engine, func, select, text
+from sqlalchemy import (
+    Date,
+    DateTime,
+    String,
+    create_engine,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import (
@@ -46,6 +54,12 @@ class BaseTestModel(TestBase, base.ModelFieldsDetails):
         default=dt.datetime.now(settings.TIME_ZONE),
         onupdate=dt.datetime.now(settings.TIME_ZONE),
     )
+
+
+class OrderByDateTestModel(BaseTestModel):
+    __tablename__ = "date_testmodel"
+
+    date: Mapped[Date] = mapped_column(Date)
 
 
 @pytest.fixture(scope="session")
@@ -102,7 +116,14 @@ def ordered_manager(db_session, populate_db) -> Type[BaseModelManager]:
 
 
 @pytest.fixture
-def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
+def created_at_manager(db_session, populate_db) -> Type[BaseModelManager]:
     return DateQueryManager(
         BaseTestModel, db_session, order_by=["created_at", "id"]
+    )
+
+
+@pytest.fixture
+def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
+    return DateQueryManager(
+        OrderByDateTestModel, db_session, order_by=["date", "created_at", "id"]
     )
