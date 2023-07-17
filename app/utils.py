@@ -61,8 +61,7 @@ class DateGen:
     def date_range(
         self,
     ) -> tuple[dt.datetime, dt.datetime]:
-        if self.is_datetime:
-            return self.date_start, self.date_end
+        return self.date_start, self.date_end
 
     def num_days(self, month_ordinal: int) -> int:
         if month_ordinal == 2:
