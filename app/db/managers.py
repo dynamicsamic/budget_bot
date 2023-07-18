@@ -3,8 +3,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Iterable, Type
 
-from sqlalchemy import select, text
+from sqlalchemy import and_, select, text
 from sqlalchemy.orm import Query, Session, scoped_session
+from sqlalchemy.sql import column
 
 from app.utils import DateGen, today_
 
@@ -123,13 +124,18 @@ class BaseModelManager(AbstractModelManager):
         return False
 
     def delete(self, id: int) -> bool:
-        """Delete `self.model` object."""
+        """Delete `self.model` object with given `id`."""
+        # TODO: improve this damn thing!
         # emits separate select and delete queries
         # for self.model and each foreign key
         # which is inefficient. Need to implement
         # more efficient algorithm.
-        self.session.delete(self.get(id))
-        self.session.commit()
+        try:
+            self.session.delete(self.get(id))
+            self.session.commit()
+            return True
+        except Exception:
+            return False
 
     def count(self) -> int:
         """Calculate number of all `self.model` objects."""
@@ -214,6 +220,10 @@ class OrderedQueryManager(BaseModelManager):
 
 
 class DateQueryManager(OrderedQueryManager):
+    def __init__(self, *args, datefield: str, **kwargs):
+        self._datefield = datefield
+        return super().__init__(*args, **kwargs)
+
     # TODO: `date_info` must be added via middleware
 
     def today(
@@ -242,18 +252,10 @@ class DateQueryManager(OrderedQueryManager):
         end: dt.datetime | dt.date,
         reverse: bool = False,
     ) -> Query[Type[AbstractBaseModel]]:
-        """Fetch all instances of `model` which were
-        created between given date borders.
+        """Fetch all instances of `model` filtered
+        between given borders.
         """
         order_by = self.inverse_order_by if reverse else self.order_by
-        if self._is_date_model:
-            return self._fetch(order_by).filter(
-                self.model.date.between(start, end)
-            )
         return self._fetch(order_by).filter(
-            self.model.created_at.between(start, end)
+            column(self._datefield).between(start, end)
         )
-
-    @property
-    def _is_date_model(self) -> bool:
-        return hasattr(self.model, "date")
