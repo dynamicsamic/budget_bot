@@ -46,7 +46,7 @@ def test_between_with_broad_gap_return_all_instances(created_at_manager):
     assert (
         len(
             created_at_manager._between(
-                minute_before_now(), timed_tomorrow()
+                timed_yesterday(), timed_tomorrow()
             ).all()
         )
         == constants["TEST_SAMPLE_SIZE"]
@@ -255,33 +255,40 @@ def test_this_week_return_instances_created_within_this_week(
         month=7,
         day=5,
     )
+
+    created_this_week = [
+        BaseTestModel(name="today", created_at=datetime),
+        BaseTestModel(
+            name="tomorrow", created_at=datetime + dt.timedelta(days=1)
+        ),
+        BaseTestModel(
+            name="yesterday", created_at=datetime - dt.timedelta(days=1)
+        ),
+        BaseTestModel(
+            name="weekstart",
+            created_at=datetime.replace(
+                day=3, hour=0, minute=0, second=0, microsecond=0
+            ),
+        ),
+        BaseTestModel(
+            name="weekend",
+            created_at=datetime.replace(
+                day=9,
+                hour=23,
+                minute=59,
+                second=5,
+                microsecond=999999,
+            ),
+        ),
+    ]
+    db_session.add_all(created_this_week)
+    db_session.commit()
+
     dateinfo = DateGen(datetime)
 
-    db_session.add_all(
-        [
-            BaseTestModel(name="test1", created_at=datetime),
-            BaseTestModel(name="test2", created_at=timed_tomorrow()),
-            BaseTestModel(name="test3", created_at=timed_yesterday()),
-            BaseTestModel(
-                name="test4",
-                created_at=datetime.replace(
-                    day=3, hour=0, minute=0, second=0, microsecond=0
-                ),
-            ),
-            BaseTestModel(
-                name="test5",
-                created_at=datetime.replace(
-                    day=9,
-                    hour=23,
-                    minute=59,
-                    second=59,
-                    microsecond=999999,
-                ),
-            ),
-        ]
+    assert len(created_at_manager.this_week(dateinfo).all()) == len(
+        created_this_week
     )
-    db_session.commit()
-    assert len(created_at_manager.this_week(dateinfo).all()) == initial_num + 5
 
     # Instaces created last or next week aren't included in this week query
     db_session.add_all(
@@ -297,7 +304,9 @@ def test_this_week_return_instances_created_within_this_week(
         ]
     )
     db_session.commit()
-    assert len(created_at_manager.this_week(dateinfo).all()) == initial_num + 5
+    assert len(created_at_manager.this_week(dateinfo).all()) == len(
+        created_this_week
+    )
 
     # Check all instances were added.
     assert created_at_manager.count() == initial_num + 7
@@ -312,7 +321,6 @@ def test_this_week_return_instances_created_within_this_week(
 #############
 
 
-@pytest.mark.current
 def test_today_return_instances_with_today_date(db_session, date_manager):
     initial_num = date_manager.count()
     assert initial_num == 0
@@ -343,7 +351,6 @@ def test_today_return_instances_with_today_date(db_session, date_manager):
         ]
     )
     db_session.commit()
-
     assert len(date_manager.today(dateinfo).all()) == initial_num + 2
 
     # Check all instances were added.
