@@ -4,7 +4,6 @@ from typing import List, Optional
 
 from sqlalchemy import (
     CheckConstraint,
-    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -12,6 +11,8 @@ from sqlalchemy import (
     String,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app import settings
 
 from .base import AbstractBaseModel
 
@@ -97,11 +98,13 @@ class Entry(AbstractBaseModel):
     category: Mapped["EntryCategory"] = relationship(back_populates="entries")
     sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
     description: Mapped[Optional[str]]
-    date: Mapped[Date] = mapped_column(Date)
+    transaction_date: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
+    )
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id}, Date={self.date}, "
-            f"Sum={self.sum}, CategoryId={self.category_id}, "
+            f"{self.__class__.__name__}(Id={self.id}, Sum={self.sum}, "
+            f"Date={self.transaction_date}, CategoryId={self.category_id}, "
             f"BudgetId={self.budget_id}, Description={self.description})"
         )
