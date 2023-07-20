@@ -1,19 +1,8 @@
 import datetime as dt
-from functools import cache
-from typing import Any, Self, Type
+from typing import Type
 
 import pytest
-from sqlalchemy import (
-    Date,
-    DateTime,
-    String,
-    create_engine,
-    func,
-    select,
-    text,
-)
-from sqlalchemy.engine.result import ScalarResult
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import DateTime, create_engine
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -24,7 +13,7 @@ from sqlalchemy.orm import (
 )
 
 from app import settings, utils
-from app.db import base, models, test_engine
+from app.db import base
 from app.db.managers import (
     BaseModelManager,
     DateQueryManager,
@@ -41,8 +30,8 @@ class TestBase(DeclarativeBase):
     pass
 
 
-class BaseTestModel(TestBase, base.ModelFieldsDetails):
-    __tablename__ = "testmodel"
+class AbstractTestModel(TestBase, base.ModelFieldsDetails):
+    __abstract__ = True
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column()
@@ -56,10 +45,17 @@ class BaseTestModel(TestBase, base.ModelFieldsDetails):
     )
 
 
-class OrderByDateTestModel(BaseTestModel):
-    __tablename__ = "date_testmodel"
+class BaseTestModel(AbstractTestModel):
+    __tablename__ = "testmodel"
 
-    date: Mapped[Date] = mapped_column(Date)
+
+class CustomDateTestModel(AbstractTestModel):
+    __tablename__ = "custom_date_testmodel"
+
+    custom_datefield: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=dt.datetime.now(settings.TIME_ZONE),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -116,14 +112,19 @@ def ordered_manager(db_session, populate_db) -> Type[BaseModelManager]:
 
 
 @pytest.fixture
-def created_at_manager(db_session, populate_db) -> Type[BaseModelManager]:
+def basic_date_manager(db_session, populate_db) -> Type[BaseModelManager]:
     return DateQueryManager(
-        BaseTestModel, db_session, order_by=["created_at", "id"]
+        BaseTestModel,
+        db_session,
+        order_by=["created_at", "id"],
     )
 
 
 @pytest.fixture
-def date_manager(db_session, populate_db) -> Type[BaseModelManager]:
+def custom_date_manager(db_session) -> Type[BaseModelManager]:
     return DateQueryManager(
-        OrderByDateTestModel, db_session, order_by=["date", "created_at", "id"]
+        CustomDateTestModel,
+        db_session,
+        datefield="custom_datefield",
+        order_by=["custom_datefield", "created_at", "id"],
     )
