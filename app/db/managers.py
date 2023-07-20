@@ -3,11 +3,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Iterable, Type
 
-from sqlalchemy import and_, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.sql import column
 
-from app.utils import DateGen, today_
+from app.utils import DateGen
 
 from .base import AbstractBaseModel
 
@@ -220,7 +220,7 @@ class OrderedQueryManager(BaseModelManager):
 
 
 class DateQueryManager(OrderedQueryManager):
-    def __init__(self, *args, datefield: str, **kwargs):
+    def __init__(self, *args, datefield: str = "created_at", **kwargs):
         self._datefield = datefield
         return super().__init__(*args, **kwargs)
 
@@ -230,6 +230,11 @@ class DateQueryManager(OrderedQueryManager):
         self, date_info: DateGen, reverse: bool = False
     ) -> Query[Type[AbstractBaseModel]]:
         return self._between(*date_info.date_range, reverse)
+
+    def yesterday(
+        self, date_info: DateGen, reverse: bool = False
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._between(*date_info.yesterday_range, reverse)
 
     def this_week(
         self, date_info: DateGen, reverse: bool = False
