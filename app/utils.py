@@ -63,6 +63,12 @@ class DateGen:
     ) -> tuple[dt.datetime, dt.datetime]:
         return self.date_start, self.date_end
 
+    @property
+    def yesterday_range(
+        self,
+    ) -> tuple[dt.datetime, dt.datetime]:
+        return self.yesterday_start, self.yesterday_end
+
     def num_days(self, month_ordinal: int) -> int:
         if month_ordinal == 2:
             return self.days_in_month[month_ordinal](self.year)
@@ -120,6 +126,14 @@ class DateGen:
     @property
     def date_end(self) -> dt.date | dt.datetime:
         return self.month_end.replace(day=self.date.day)
+
+    @property
+    def yesterday_start(self) -> dt.date | dt.datetime:
+        return self.date_start - dt.timedelta(days=1)
+
+    @property
+    def yesterday_end(self) -> dt.date | dt.datetime:
+        return self.date_end - dt.timedelta(days=1)
 
 
 def gen_date(today: dt.date | dt.datetime, date_descr: str):
