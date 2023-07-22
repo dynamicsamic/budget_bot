@@ -218,7 +218,7 @@ def test_entry_model_has_expected_fields():
         "category",
         "sum",
         "description",
-        "date",
+        "transaction_date",
         "id",
         "created_at",
         "last_updated",
