@@ -96,15 +96,24 @@ class Entry(AbstractBaseModel):
     budget: Mapped["Budget"] = relationship(back_populates="entries")
     category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
     category: Mapped["EntryCategory"] = relationship(back_populates="entries")
+
+    # sum is an integer thus:
+    # multiply by 100 before insert opeartions
+    # and divide by 100 after select operations
     sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
     description: Mapped[Optional[str]]
     transaction_date: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
     )
 
+    @property
+    def _sum(self) -> str:
+        return f"{self.sum / 100:.2f}"
+
     def __repr__(self) -> str:
+        trunc_date = f"{self.transaction_date:%Y-%m-%d %H:%M:%S}"
         return (
-            f"{self.__class__.__name__}(Id={self.id}, Sum={self.sum}, "
-            f"Date={self.transaction_date}, CategoryId={self.category_id}, "
+            f"{self.__class__.__name__}(Id={self.id}, Sum={self._sum}, "
+            f"Date={trunc_date}, CategoryId={self.category_id}, "
             f"BudgetId={self.budget_id}, Description={self.description})"
         )
