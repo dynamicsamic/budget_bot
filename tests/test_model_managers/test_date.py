@@ -4,7 +4,6 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Query
 
-from app import settings
 from app.utils import (
     DateGen,
     minute_before_now,
@@ -375,6 +374,67 @@ def test_this_week_return_instances_created_within_this_week(
     assert basic_date_manager.count() == initial_num + 7
 
 
+@pytest.mark.current
+def test_yesterday_return_instances_created_yesterday(
+    db_session, basic_date_manager
+):
+    initial_num = basic_date_manager.count()
+    assert initial_num == constants["TEST_SAMPLE_SIZE"]
+
+    yesterday = timed_yesterday()
+    dateinfo = DateGen(now())
+
+    created_yesterday = [
+        BaseTestModel(
+            name="yesterday",
+            created_at=yesterday,
+        ),
+        BaseTestModel(
+            name="yesterday_start",
+            created_at=yesterday.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ),
+        ),
+        BaseTestModel(
+            name="yesterday_end",
+            created_at=yesterday.replace(
+                hour=23,
+                minute=59,
+                second=5,
+                microsecond=999999,
+            ),
+        ),
+    ]
+    db_session.add_all(created_yesterday)
+    db_session.commit()
+
+    assert len(basic_date_manager.yesterday(dateinfo).all()) == len(
+        created_yesterday
+    )
+
+    # Instaces created 2 days ago or tomorrow
+    # aren't included in yesterday query
+    db_session.add_all(
+        [
+            BaseTestModel(
+                name="two_days_ago",
+                created_at=yesterday - dt.timedelta(days=1),
+            ),
+            BaseTestModel(
+                name="tomorrow",
+                created_at=yesterday + dt.timedelta(days=2),
+            ),
+        ]
+    )
+    db_session.commit()
+    assert len(basic_date_manager.yesterday(dateinfo).all()) == len(
+        created_yesterday
+    )
+
+    # Check all instances were added.
+    assert basic_date_manager.count() == initial_num + 5
+
+
 #############
 # TESTS FOR #
 # MANAGERS  #
@@ -658,7 +718,6 @@ def test_this_week_return_instances_selected_by_custom_field(
     assert custom_date_manager.count() == initial_num + 7
 
 
-@pytest.mark.current
 def test_yesterday_return_instances_selected_by_custom_field(
     db_session, custom_date_manager
 ):
