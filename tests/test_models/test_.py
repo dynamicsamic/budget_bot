@@ -9,6 +9,7 @@ from tests.conf import constants
 
 from .fixtures import (
     create_budgets,
+    create_categories,
     create_tables,
     create_users,
     db_session,
@@ -209,7 +210,6 @@ def test_category_sets_last_used_attr_to_default(db_session):
     assert category.last_used == dt.datetime(year=1970, month=1, day=1)
 
 
-@pytest.mark.current
 def test_entry_model_has_expected_fields():
     expected_fieldnames = {
         "budget_id",
@@ -224,3 +224,27 @@ def test_entry_model_has_expected_fields():
         "last_updated",
     }
     assert models.Entry.fieldnames == expected_fieldnames
+
+
+@pytest.mark.current
+def test_entry_has_expected_str_representation(db_session, create_categories):
+    e = {
+        "id": 1,
+        "sum": 100000,
+        "transaction_date": now(),
+        "category_id": 1,
+        "budget_id": 1,
+        "description": "test",
+    }
+    expected_str = (
+        f"Entry(Id={e['id']}, Sum={e['sum']/100:.2f}, "
+        f"Date={e['transaction_date']:%Y-%m-%d %H:%M:%S}, "
+        f"CategoryId={e['category_id']}, BudgetId={e['budget_id']}, "
+        f"Description={e['description']})"
+    )
+
+    db_session.add(models.Entry(**e))
+    db_session.commit()
+
+    entry = db_session.get(models.Entry, e["id"])
+    assert str(entry) == expected_str

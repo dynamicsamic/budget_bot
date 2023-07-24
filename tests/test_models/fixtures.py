@@ -64,5 +64,21 @@ def create_budgets(db_session, create_users):
 
 
 @pytest.fixture
+def create_categories(db_session, create_budgets):
+    db_session.add_all(
+        [
+            models.EntryCategory(
+                name=f"category{i}",
+                type=random.choice(
+                    list(models.EntryType.__members__.values())
+                ),
+            )
+            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
+        ]
+    )
+    db_session.commit()
+
+
+@pytest.fixture
 def user_manager(db_session, create_users):
     return BaseModelManager(models.User, db_session)
