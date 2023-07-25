@@ -226,7 +226,6 @@ def test_entry_model_has_expected_fields():
     assert models.Entry.fieldnames == expected_fieldnames
 
 
-@pytest.mark.current
 def test_entry_has_expected_str_representation(db_session, create_categories):
     e = {
         "id": 1,
@@ -248,3 +247,35 @@ def test_entry_has_expected_str_representation(db_session, create_categories):
 
     entry = db_session.get(models.Entry, e["id"])
     assert str(entry) == expected_str
+
+
+@pytest.mark.xfail(raises=IntegrityError, strict=True)
+def test_entry_with_zero_sum_raises_error(db_session, create_categories):
+    e = {
+        "id": 1,
+        "sum": 0,
+        "transaction_date": now(),
+        "category_id": 1,
+        "budget_id": 1,
+        "description": "test",
+    }
+    db_session.add(models.Entry(**e))
+    db_session.commit()
+
+
+@pytest.mark.current
+def test_entry_without_description_sets_it_to_none(
+    db_session, create_categories
+):
+    e = {
+        "id": 1,
+        "sum": 100000,
+        "transaction_date": now(),
+        "category_id": 1,
+        "budget_id": 1,
+    }
+    db_session.add(models.Entry(**e))
+    db_session.commit()
+
+    entry = db_session.get(models.Entry, e["id"])
+    assert entry.description == None
