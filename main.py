@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from app.bot import bot, dp
-from app.bot.handlers import register_budget_handlers, register_common_handlers
+from app.bot.handlers import register_command_handlers
 
 logging.basicConfig(level=logging.INFO)
 
@@ -12,6 +12,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    register_common_handlers(dp)
-    register_budget_handlers(dp)
+    register_command_handlers(dp)
     asyncio.run(main())
