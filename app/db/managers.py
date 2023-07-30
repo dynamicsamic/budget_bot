@@ -7,9 +7,11 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.sql import column
 
+from app.db.base import AbstractBaseModel
 from app.utils import DateGen
 
 from .base import AbstractBaseModel
+from .models import Entry
 
 
 @dataclass
@@ -224,8 +226,6 @@ class DateQueryManager(OrderedQueryManager):
         self._datefield = datefield
         return super().__init__(*args, **kwargs)
 
-    # TODO: `date_info` must be added via middleware
-
     def today(
         self, date_info: DateGen, reverse: bool = False
     ) -> Query[Type[AbstractBaseModel]]:
@@ -264,3 +264,24 @@ class DateQueryManager(OrderedQueryManager):
         return self._fetch(order_by).filter(
             column(self._datefield).between(start, end)
         )
+
+
+class EntryManager(DateQueryManager):
+    def income(
+        self, method_name: str, *args, **kwargs
+    ) -> Query[Type[AbstractBaseModel]]:
+        q = getattr(self, method_name)(*args, **kwargs)
+        return q.filter(self.model.sum > 0)
+
+    def expenses(
+        self, method_name: str, *args, **kwargs
+    ) -> Query[Type[AbstractBaseModel]]:
+        q = getattr(self, method_name)(*args, **kwargs)
+        return q.filter(self.model.sum < 0)
+
+
+entry_manager = EntryManager(
+    Entry,
+    datefield="transaction_date",
+    order_by=["transaction_date", "created_at"],
+)
