@@ -19,12 +19,14 @@ from tests.conf import constants
 from .fixtures import (
     BaseTestModel,
     CustomDateTestModel,
+    SumTestModel,
     basic_date_manager,
     create_tables,
     custom_date_manager,
     db_session,
     engine,
     populate_db,
+    sum_manager,
 )
 
 ##############
@@ -128,7 +130,6 @@ def test_today_return_instances_created_today(db_session, basic_date_manager):
     assert basic_date_manager.count() == initial_num + 4
 
 
-@pytest.mark.current
 def test_yesterday_return_instances_created_yesterday(
     db_session, basic_date_manager
 ):
@@ -374,7 +375,6 @@ def test_this_week_return_instances_created_within_this_week(
     assert basic_date_manager.count() == initial_num + 7
 
 
-@pytest.mark.current
 def test_yesterday_return_instances_created_yesterday(
     db_session, basic_date_manager
 ):
@@ -782,3 +782,54 @@ def test_yesterday_return_instances_selected_by_custom_field(
 
     # Check all instances were added.
     assert custom_date_manager.count() == initial_num + 5
+
+
+@pytest.mark.current
+def test_foo(db_session, sum_manager):
+    initial_num = sum_manager.count()
+    assert initial_num == 0
+
+    yesterday = timed_yesterday()
+    dateinfo = DateGen(now())
+
+    positive_sum = [
+        SumTestModel(name="yesterday", created_at=yesterday, sum=1),
+        SumTestModel(
+            name="yesterday_start",
+            created_at=yesterday.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ),
+            sum=999999999,
+        ),
+        SumTestModel(
+            name="yesterday_end",
+            created_at=yesterday.replace(
+                hour=23,
+                minute=59,
+                second=5,
+                microsecond=999999,
+            ),
+            sum=1000,
+        ),
+    ]
+    db_session.add_all(positive_sum)
+    db_session.commit()
+
+    assert len(sum_manager.income("yesterday", dateinfo).all()) == len(
+        positive_sum
+    )
+
+    # Instaces with negative sum aren't included in income query
+    db_session.add_all(
+        [
+            SumTestModel(name="two_days_ago", created_at=yesterday, sum=-1),
+            SumTestModel(name="tomorrow", created_at=yesterday, sum=-9999999),
+        ]
+    )
+    db_session.commit()
+    assert len(sum_manager.income("yesterday", dateinfo).all()) == len(
+        positive_sum
+    )
+
+    # Check all instances were added.
+    assert sum_manager.count() == initial_num + 5

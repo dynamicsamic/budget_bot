@@ -263,7 +263,6 @@ def test_entry_with_zero_sum_raises_error(db_session, create_categories):
     db_session.commit()
 
 
-@pytest.mark.current
 def test_entry_without_description_sets_it_to_none(
     db_session, create_categories
 ):
