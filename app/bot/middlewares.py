@@ -1,3 +1,4 @@
+import datetime as dt
 from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
@@ -14,10 +15,11 @@ class DateInfoMiddleware(BaseMiddleware):
         event: CallbackQuery | Message,
         data: Dict[str, Any],
     ) -> Any:
-        datetime = (
-            event.message.date
-            if isinstance(event, CallbackQuery)
-            else event.date
-        )
+        if isinstance(event, Message):
+            datetime = event.date
+        elif isinstance(event, CallbackQuery):
+            datetime = event.message.date
+        else:
+            datetime = dt.datetime.now()
         data["date_info"] = DateGen(datetime.astimezone(settings.TIME_ZONE))
         return await handler(event, data)
