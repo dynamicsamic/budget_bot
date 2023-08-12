@@ -1,7 +1,7 @@
 import datetime as dt
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Iterable, Type
+from typing import Any, Callable, Iterable, Type
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Query, Session, scoped_session
@@ -11,7 +11,7 @@ from app.db.base import AbstractBaseModel
 from app.utils import DateGen
 
 from .base import AbstractBaseModel
-from .models import Entry
+from .models import Entry, User
 
 
 @dataclass
@@ -77,8 +77,8 @@ class BaseModelManager(AbstractModelManager):
 
         when you obtain session (e.g. via middleware)
         associate it with manager
-        `manger(request.session)`
-        `manger.some_method()`
+        `manager(request.session)`
+        `manager.some_method()`
         """
         if self.session is None and isinstance(
             session, (Session, scoped_session)
@@ -158,7 +158,9 @@ class BaseModelManager(AbstractModelManager):
 
 
 class OrderedQueryManager(BaseModelManager):
-    def __init__(self, *args, order_by: list[str]):
+    def __init__(
+        self, *args, order_by: list[str] = ["created_at", "last_updated", "id"]
+    ):
         self._order_by = order_by
         return super().__init__(*args)
 
@@ -266,19 +268,37 @@ class DateQueryManager(OrderedQueryManager):
         )
 
 
+def extend_query_methods(func: Callable[..., Query]) -> Query:
+    """Extend return value of a function
+    with income` and `expenses` attributes.
+    """
+
+    def inner(*args, **kwargs):
+        query = func(*args, **kwargs)
+        setattr(query, "income", query.filter(column("sum") > 0))
+        setattr(query, "expenses", query.filter(column("sum") < 0))
+        return query
+
+    return inner
+
+
 class EntryManager(DateQueryManager):
-    def income(
-        self, method_name: str, *args, **kwargs
-    ) -> Query[Type[AbstractBaseModel]]:
-        q = getattr(self, method_name)(*args, **kwargs)
-        return q.filter(self.model.sum > 0)
+    def __getattribute__(self, __name: str) -> Any:
+        """Make methods that return `Query` provide
+        additional `income` and `expenses` attributes,
+        so you can do:
+            `query = self.method(*args, **kwargs).income`
+        """
+        attr = super().__getattribute__(__name)
 
-    def expenses(
-        self, method_name: str, *args, **kwargs
-    ) -> Query[Type[AbstractBaseModel]]:
-        q = getattr(self, method_name)(*args, **kwargs)
-        return q.filter(self.model.sum < 0)
+        if callable(attr):
+            return_type = attr.__annotations__.get("return")
+            if return_type is Query:
+                return extend_query_methods(attr)
+        return attr
 
+
+user_manager = DateQueryManager(User)
 
 entry_manager = EntryManager(
     Entry,
