@@ -98,7 +98,7 @@ class Entry(AbstractBaseModel):
     category: Mapped["EntryCategory"] = relationship(back_populates="entries")
 
     # sum is an integer thus:
-    # multiply by 100 before insert opeartions
+    # multiply float number by 100 before insert opeartions
     # and divide by 100 after select operations
     sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
     description: Mapped[Optional[str]]
