@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Type
 
+from sqlalchemy import func as sql_func
 from sqlalchemy import select, text
 from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.sql import column
@@ -275,11 +276,48 @@ def extend_query_methods(func: Callable[..., Query]) -> Query:
 
     def inner(*args, **kwargs):
         query = func(*args, **kwargs)
-        setattr(query, "income", query.filter(column("sum") > 0))
+        setattr(query, "income", lambda: query.filter(column("sum") > 0))
         setattr(query, "expenses", query.filter(column("sum") < 0))
+        # setattr(
+        #     query,
+        #     "sum",
+        #     query.with_entities(sql_func.sum(column("sum"))).scalar(),
+        # )
         return query
 
     return inner
+
+
+class Income:
+    def __init__(self, manager, query) -> None:
+        self.manager = manager
+        self.query = query
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        return self.query.filter(self.manager.model.sum > 0)
+
+    def sum(self):
+        return self.query.with_entities(
+            sql_func.sum(self.manager.model.sum).filter(
+                self.manager.model.sum > 0
+            )
+        ).scalar()
+
+
+class Expenses:
+    def __init__(self, manager, query) -> None:
+        self.manager = manager
+        self.query = query
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        return self.query.filter(self.manager.model.sum < 0)
+
+    def sum(self):
+        return self.query.with_entities(
+            sql_func.sum(self.manager.model.sum).filter(
+                self.manager.model.sum < 0
+            )
+        ).scalar()
 
 
 class EntryManager(DateQueryManager):
@@ -294,8 +332,18 @@ class EntryManager(DateQueryManager):
         if callable(attr):
             return_type = attr.__annotations__.get("return")
             if return_type is Query:
-                return extend_query_methods(attr)
+                return self.extend_query(attr)
+
         return attr
+
+    def extend_query(self, f: Callable):
+        def inner(*args, **kwargs):
+            query = f(*args, **kwargs)
+            setattr(query, "expenses", Expenses(self, query))
+            setattr(query, "income", Income(self, query))
+            return query
+
+        return inner
 
 
 user_manager = DateQueryManager(User)
