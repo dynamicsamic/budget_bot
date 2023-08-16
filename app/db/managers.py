@@ -1,7 +1,8 @@
 import datetime as dt
+import operator
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Type
+from typing import Any, Callable, Iterable, Literal, Type
 
 from sqlalchemy import func as sql_func
 from sqlalchemy import select, text
@@ -269,53 +270,43 @@ class DateQueryManager(OrderedQueryManager):
         )
 
 
-def extend_query_methods(func: Callable[..., Query]) -> Query:
-    """Extend return value of a function
-    with income` and `expenses` attributes.
-    """
+@dataclass
+class ExtendedQuery:
+    manager: "EntryManager"
+    query: Query
+    type: Literal["exp", "inc"] = None
 
-    def inner(*args, **kwargs):
-        query = func(*args, **kwargs)
-        setattr(query, "income", lambda: query.filter(column("sum") > 0))
-        setattr(query, "expenses", query.filter(column("sum") < 0))
-        # setattr(
-        #     query,
-        #     "sum",
-        #     query.with_entities(sql_func.sum(column("sum"))).scalar(),
-        # )
-        return query
+    @property
+    def _operator(self) -> Callable:
+        return operator.lt if self.type == "exp" else operator.gt
 
-    return inner
+    def __call__(self) -> Query:
+        """Get extended query when calling class instance.
+        Examples:
+        manager.today(date).expenses() -> query for today expenses.
+        manager.this_week(date).income() -> query for this week income.
+        manager.yesterday(date).total() -> query for all yesterday operations.
+        """
+        if self.type is None:
+            return self.query
+        return self.query.filter(self._operator(self.manager.model.sum, 0))
 
+    def sum(self) -> int:
+        """Sum all `model.sum` fields in resulting query.
+        When calling this method do not call the instance.
 
-class Income:
-    def __init__(self, manager, query) -> None:
-        self.manager = manager
-        self.query = query
-
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        return self.query.filter(self.manager.model.sum > 0)
-
-    def sum(self):
+        Examples:
+        manager.today(date).expenses.sum() -> sum of today expenses.
+        manager.this_week(date).income.sum() -> sum of this week income.
+        manager.yesterday(date).total.sum() -> sum of all yesterday operations.
+        """
+        if self.type is None:
+            return self.query.with_entities(
+                sql_func.sum(self.manager.model.sum)
+            ).scalar()
         return self.query.with_entities(
             sql_func.sum(self.manager.model.sum).filter(
-                self.manager.model.sum > 0
-            )
-        ).scalar()
-
-
-class Expenses:
-    def __init__(self, manager, query) -> None:
-        self.manager = manager
-        self.query = query
-
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        return self.query.filter(self.manager.model.sum < 0)
-
-    def sum(self):
-        return self.query.with_entities(
-            sql_func.sum(self.manager.model.sum).filter(
-                self.manager.model.sum < 0
+                self._operator(self.manager.model.sum, 0)
             )
         ).scalar()
 
@@ -323,7 +314,7 @@ class Expenses:
 class EntryManager(DateQueryManager):
     def __getattribute__(self, __name: str) -> Any:
         """Make methods that return `Query` provide
-        additional `income` and `expenses` attributes,
+        additional `income`, `expenses` and `total` attributes,
         so you can do:
             `query = self.method(*args, **kwargs).income`
         """
@@ -332,15 +323,18 @@ class EntryManager(DateQueryManager):
         if callable(attr):
             return_type = attr.__annotations__.get("return")
             if return_type is Query:
-                return self.extend_query(attr)
-
+                try:
+                    return self.extend_query(attr)
+                except Exception:
+                    return attr
         return attr
 
     def extend_query(self, f: Callable):
         def inner(*args, **kwargs):
             query = f(*args, **kwargs)
-            setattr(query, "expenses", Expenses(self, query))
-            setattr(query, "income", Income(self, query))
+            setattr(query, "expenses", ExtendedQuery(self, query, "exp"))
+            setattr(query, "income", ExtendedQuery(self, query, "inc"))
+            setattr(query, "total", ExtendedQuery(self, query))
             return query
 
         return inner
