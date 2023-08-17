@@ -58,6 +58,11 @@ class SumTestModel(AbstractTestModel):
 
     sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(Id={self.id}, CAT={self.created_at})"
+        )
+
 
 @pytest.fixture(scope="session")
 def engine():
@@ -85,7 +90,7 @@ def db_session(engine, create_tables) -> Session:
 
 
 @pytest.fixture
-def populate_db(db_session: Session):
+def add_basic_items(db_session: Session):
     db_session.add_all(
         [
             BaseTestModel(
@@ -101,13 +106,13 @@ def populate_db(db_session: Session):
 
 
 @pytest.fixture
-def base_manager(db_session, populate_db) -> managers.BaseModelManager:
+def base_manager(db_session, add_basic_items) -> managers.BaseModelManager:
     return managers.BaseModelManager(BaseTestModel, db_session)
 
 
 @pytest.fixture
 def ordered_manager(
-    db_session, populate_db
+    db_session, add_basic_items
 ) -> Type[managers.BaseModelManager]:
     return managers.OrderedQueryManager(
         BaseTestModel, db_session, order_by=["created_at", "id"]
@@ -116,7 +121,7 @@ def ordered_manager(
 
 @pytest.fixture
 def basic_date_manager(
-    db_session, populate_db
+    db_session, add_basic_items
 ) -> Type[managers.BaseModelManager]:
     return managers.DateQueryManager(
         BaseTestModel,
