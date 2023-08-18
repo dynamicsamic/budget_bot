@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Literal, Type
 
+from sqlalchemy import and_
 from sqlalchemy import func as sql_func
 from sqlalchemy import select, text
 from sqlalchemy.orm import Query, Session, scoped_session
@@ -172,7 +173,7 @@ class OrderedQueryManager(BaseModelManager):
         """
         qs = super().all()
         return (
-            qs.order_by(text(self.inverse_order_by))
+            qs.order_by(text(self.reverse_order_by))
             if reverse
             else qs.order_by(text(self.order_by))
         )
@@ -186,12 +187,6 @@ class OrderedQueryManager(BaseModelManager):
         sorted in ascending order.
         """
         return self._fetch_n(n, self.order_by)
-
-    def last_n(self, n: int) -> Query[Type[AbstractBaseModel]]:
-        """Retrieve specific number of `model` instances
-        sorted in descending order.
-        """
-        return self._fetch_n(n, self.inverse_order_by)
 
     def first(self) -> Type[AbstractBaseModel] | None:
         """Retrieve first `model` instance in ascending query."""
@@ -214,7 +209,7 @@ class OrderedQueryManager(BaseModelManager):
         return ", ".join(self._order_by)
 
     @property
-    def inverse_order_by(self):
+    def reverse_order_by(self):
         return ", ".join(
             (
                 item.removesuffix(" desc")
@@ -264,7 +259,7 @@ class DateQueryManager(OrderedQueryManager):
         """Fetch all instances of `model` filtered
         between given borders.
         """
-        order_by = self.inverse_order_by if reverse else self.order_by
+        order_by = self.reverse_order_by if reverse else self.order_by
         return self._fetch(order_by).filter(
             column(self._datefield).between(start, end)
         )
@@ -274,41 +269,22 @@ class DateQueryManager(OrderedQueryManager):
 class ExtendedQuery:
     manager: "EntryManager"
     query: Query
-    type: Literal["exp", "inc"] = None
 
-    @property
-    def _operator(self) -> Callable:
-        return operator.lt if self.type == "exp" else operator.gt
+    def income(self) -> Query:
+        q = self.query.filter(self.manager.model.sum > 0)
+        setattr(q, "sum", lambda: self._sum(q))
+        return q
 
-    def __call__(self) -> Query:
-        """Get extended query when calling class instance.
-        Examples:
-        manager.today(date).expenses() -> query for today expenses.
-        manager.this_week(date).income() -> query for this week income.
-        manager.yesterday(date).total() -> query for all yesterday operations.
-        """
-        if self.type is None:
-            return self.query
-        return self.query.filter(self._operator(self.manager.model.sum, 0))
+    def expenses(self) -> Query:
+        q = self.query.filter(self.manager.model.sum < 0)
+        setattr(q, "sum", lambda: self._sum(q))
+        return q
 
-    def sum(self) -> int:
-        """Sum all `model.sum` fields in resulting query.
-        When calling this method do not call the instance.
+    def total_sum(self) -> int:
+        return self._sum(self.query)
 
-        Examples:
-        manager.today(date).expenses.sum() -> sum of today expenses.
-        manager.this_week(date).income.sum() -> sum of this week income.
-        manager.yesterday(date).total.sum() -> sum of all yesterday operations.
-        """
-        if self.type is None:
-            return self.query.with_entities(
-                sql_func.sum(self.manager.model.sum)
-            ).scalar()
-        return self.query.with_entities(
-            sql_func.sum(self.manager.model.sum).filter(
-                self._operator(self.manager.model.sum, 0)
-            )
-        ).scalar()
+    def _sum(self, q: Query) -> int:
+        return q.with_entities(sql_func.sum(self.manager.model.sum)).scalar()
 
 
 class EntryManager(DateQueryManager):
@@ -332,9 +308,7 @@ class EntryManager(DateQueryManager):
     def extend_query(self, f: Callable):
         def inner(*args, **kwargs):
             query = f(*args, **kwargs)
-            setattr(query, "expenses", ExtendedQuery(self, query, "exp"))
-            setattr(query, "income", ExtendedQuery(self, query, "inc"))
-            setattr(query, "total", ExtendedQuery(self, query))
+            setattr(query, "ext", ExtendedQuery(self, query))
             return query
 
         return inner
