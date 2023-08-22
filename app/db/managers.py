@@ -15,7 +15,12 @@ from app.db.base import AbstractBaseModel
 from app.utils import DateGen
 
 from .base import AbstractBaseModel
-from .exceptions import InvalidDatefield, InvalidFilter, InvalidOrderByValue
+from .exceptions import (
+    InvalidDateField,
+    InvalidFilter,
+    InvalidOrderByValue,
+    InvalidSumField,
+)
 from .models import Entry, User
 
 
@@ -224,6 +229,8 @@ class ModelManager:
 
         self._validate_filters(filters)
 
+        # TODO: need to include filter value in quotes
+        # to avoid weird bugs with dates
         return and_(True, *[text(filter) for filter in filters])
 
     def _validate(self):
@@ -277,11 +284,11 @@ class ModelManager:
         datefield_ = datefield_ or self._datefield
         if datefield := getattr(self.model, datefield_, None):
             if not isinstance(datefield.type, (Date, DateTime)):
-                raise InvalidDatefield(
+                raise InvalidDateField(
                     "Datefield must be of sqlalchemy `Date` or `Datetime` types."
                 )
         else:
-            raise InvalidDatefield(
+            raise InvalidDateField(
                 f"""Model `{self.model}`
                     does not have `{datefield_}` atribute."""
             )
@@ -296,12 +303,10 @@ class DateQueryManager(ModelManager):
     def yesterday(
         self,
         date_info: DateGen,
-        filter_expr: str = None,
         reverse: bool = False,
+        *filters: str,
     ) -> Query[Type[AbstractBaseModel]]:
-        return self._new_between(
-            *date_info.yesterday_range, filter_expr, reverse
-        )
+        return self._new_between(*date_info.yesterday_range, reverse, *filters)
 
     def this_week(
         self, date_info: DateGen, reverse: bool = False
@@ -349,18 +354,28 @@ class DateQueryManager(ModelManager):
         )
 
 
-@dataclass
 class ExtendedQuery:
-    manager: "EntryManager"
-    query: Query
+    def __init__(
+        self, model: AbstractBaseModel, sum_field__: str, query: Query
+    ) -> None:
+        sum_field = getattr(model, sum_field__, None)
+
+        if not sum_field:
+            raise InvalidSumField(
+                f"Model {model} does not have {sum_field__} attribute."
+            )
+
+        self.model = model
+        self.sum_field = sum_field
+        self.query = query
 
     def income(self) -> Query:
-        q = self.query.filter(self.manager.model.sum > 0)
+        q = self.query.filter(self.sum_field > 0)
         setattr(q, "sum", lambda: self._sum(q))
         return q
 
     def expenses(self) -> Query:
-        q = self.query.filter(self.manager.model.sum < 0)
+        q = self.query.filter(self.sum_field < 0)
         setattr(q, "sum", lambda: self._sum(q))
         return q
 
@@ -368,7 +383,7 @@ class ExtendedQuery:
         return self._sum(self.query)
 
     def _sum(self, q: Query) -> int:
-        return q.with_entities(sql_func.sum(self.manager.model.sum)).scalar()
+        return q.with_entities(sql_func.sum(self.sum_field)).scalar()
 
 
 class EntryManager(DateQueryManager):
@@ -392,7 +407,7 @@ class EntryManager(DateQueryManager):
     def extend_query(self, f: Callable):
         def inner(*args, **kwargs):
             query = f(*args, **kwargs)
-            setattr(query, "ext", ExtendedQuery(self, query))
+            setattr(query, "ext", ExtendedQuery(self.model, "sum", query))
             return query
 
         return inner
