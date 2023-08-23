@@ -1,5 +1,5 @@
 import datetime as dt
-import operator
+import operator as operators
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -29,7 +29,7 @@ class ModelManager:
         self,
         model: Type[AbstractBaseModel],
         session: Session | scoped_session = None,
-        order_by: Sequence[str] = ["created_at", "last_updated", "id"],
+        order_by: Sequence[str] = ["created_at", "id"],
         filters: Sequence[str] = None,  #  like ["id>2", "sum == 1"]
         datefield: str = "created_at",
     ) -> None:
@@ -144,10 +144,11 @@ class ModelManager:
 
     def select(
         self,
+        *,
+        filters: Sequence[str],
         reverse: bool = False,
-        *filters: str,
     ) -> Query[Type[AbstractBaseModel]]:
-        return self._fetch(reverse, *filters)
+        return self._fetch(filters, reverse)
 
     def count(self) -> int:
         """Calculate number of all `self.model` objects."""
@@ -159,25 +160,33 @@ class ModelManager:
             self.session.scalar(select(self.model.id).filter_by(id=id))
         )
 
-    def first(self, *filters: str) -> Type[AbstractBaseModel] | None:
+    def first(
+        self, *, filters: Sequence[str] = None
+    ) -> Type[AbstractBaseModel] | None:
         """Retrieve first `model` instance in ascending query."""
-        return self.first_n(1, *filters).one_or_none()
+        return self.first_n(1, filters).one_or_none()
 
-    def last(self, *filters: str) -> Type[AbstractBaseModel] | None:
+    def last(
+        self, *, filters: Sequence[str] = None
+    ) -> Type[AbstractBaseModel] | None:
         """Retrieve last `model` instance in discending query."""
-        return self.last_n(1, *filters).one_or_none()
+        return self.last_n(1, filters).one_or_none()
 
-    def first_n(self, n: int, *filters: str) -> Query[Type[AbstractBaseModel]]:
+    def first_n(
+        self, n: int, *, filters: Sequence[str] = None
+    ) -> Query[Type[AbstractBaseModel]]:
         """Retrieve specific number of `model` instances
         sorted in ascending order.
         """
-        return self._fetch_n(n, *filters)
+        return self._fetch_n(n, filters)
 
-    def last_n(self, n: int, *filters: str) -> Query[Type[AbstractBaseModel]]:
+    def last_n(
+        self, n: int, *, filters: Sequence[str] = None
+    ) -> Query[Type[AbstractBaseModel]]:
         """Retrieve specific number of `model` instances
         sorted in descending order.
         """
-        return self._fetch_n(n, True, *filters)
+        return self._fetch_n(n, filters, True)
 
     def _clean_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -187,7 +196,7 @@ class ModelManager:
         }
 
     def _fetch(
-        self, reverse: bool = False, *filters: str
+        self, filters: Sequence[str] = None, reverse: bool = False
     ) -> Query[Type[AbstractBaseModel]]:
         q = self.session.query(self.model).order_by(
             text(self._compile_order_by(reverse))
@@ -199,9 +208,9 @@ class ModelManager:
         return q
 
     def _fetch_n(
-        self, n: int, reverse: bool = False, *filters: str
+        self, n: int, filters: Sequence[str] = None, reverse: bool = False
     ) -> Query[Type[AbstractBaseModel]]:
-        return self._fetch(reverse, *filters).limit(n)
+        return self._fetch(filters, reverse).limit(n)
 
     def _compile_order_by(self, reverse=bool) -> str:
         return (
@@ -227,11 +236,9 @@ class ModelManager:
         if not filters:
             return
 
-        self._validate_filters(filters)
-
-        # TODO: need to include filter value in quotes
-        # to avoid weird bugs with dates
-        return and_(True, *[text(filter) for filter in filters])
+        return and_(
+            True, *self._validate_filters(filters, return_filters=True)
+        )
 
     def _validate(self):
         self._validate_order_by()
@@ -247,8 +254,12 @@ class ModelManager:
                 used as `order_by` args: {', '.join(invalid_fields)}."""
             )
 
-    def _validate_filters(self, filters: Sequence[str] = None):
+    def _validate_filters(
+        self, filters: Sequence[str] = None, return_filters: bool = False
+    ):
         filters = filters or self.filters
+
+        validated = []
         if filters:
             valid_signs = {
                 ">": "gt",
@@ -260,7 +271,7 @@ class ModelManager:
             }
             for filter in filters:
                 try:
-                    attr, sign, value = re.split("([<>!=]+)", filter)
+                    attr_, sign, value = re.split("([<>!=]+)", filter)
                 except ValueError:
                     raise InvalidFilter(
                         """Filter should follow pattern:
@@ -268,17 +279,28 @@ class ModelManager:
                           Example: `sum>1`, `id == 2`"""
                     )
 
-                if not hasattr(self.model, attr.strip()):
+                attr = getattr(self.model, attr_.strip(), None)
+                operator = getattr(
+                    operators, valid_signs.get(sign, "None"), None
+                )
+
+                if attr is None:
                     raise InvalidFilter(
                         f"""Model `{self.model}` 
-                        does not have `{attr}` atribute."""
+                        does not have `{attr_}` atribute."""
                     )
 
-                elif not hasattr(operator, valid_signs.get(sign, "None")):
+                elif operator is None:
                     raise InvalidFilter(f"Invalid comparing sign: `{sign}`")
 
                 elif not value:
                     raise InvalidFilter("Filter must have a value.")
+
+                if return_filters:
+                    validated.append(operator(attr, value.strip()))
+
+        if return_filters:
+            return validated
 
     def _validate_datefield(self, datefield_: str = None):
         datefield_ = datefield_ or self._datefield
@@ -303,10 +325,11 @@ class DateQueryManager(ModelManager):
     def yesterday(
         self,
         date_info: DateGen,
+        *,
+        filters: Sequence[str] = None,
         reverse: bool = False,
-        *filters: str,
     ) -> Query[Type[AbstractBaseModel]]:
-        return self._new_between(*date_info.yesterday_range, reverse, *filters)
+        return self._new_between(*date_info.yesterday_range, filters, reverse)
 
     def this_week(
         self, date_info: DateGen, reverse: bool = False
@@ -343,13 +366,13 @@ class DateQueryManager(ModelManager):
         self,
         start: dt.datetime | dt.date,
         end: dt.datetime | dt.date,
+        filters: Sequence[str] = None,
         reverse: bool = False,
-        *filters: str,
     ) -> Query[Type[AbstractBaseModel]]:
         """Fetch all instances of `model` filtered
         between given borders.
         """
-        return self._fetch(reverse, *filters).filter(
+        return self._fetch(filters, reverse).filter(
             column(self._datefield).between(start, end)
         )
 
