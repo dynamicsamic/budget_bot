@@ -241,12 +241,11 @@ class ModelManager:
         )
 
     def _validate(self):
-        self._validate_order_by()
+        self._validate_order_by(self._order_by)
         self._validate_filters()
-        self._validate_datefield()
+        self._validate_datefield(self._datefield)
 
-    def _validate_order_by(self, order_by: Sequence[str] = None):
-        order_by = order_by or self.order_by
+    def _validate_order_by(self, order_by: Sequence[str]):
         cleaned_values = {val.strip() for val in order_by}
         if invalid_fields := cleaned_values - self.model.fieldnames:
             raise InvalidOrderByValue(
@@ -302,8 +301,7 @@ class ModelManager:
         if return_filters:
             return validated
 
-    def _validate_datefield(self, datefield_: str = None):
-        datefield_ = datefield_ or self._datefield
+    def _validate_datefield(self, datefield_: str):
         if datefield := getattr(self.model, datefield_, None):
             if not isinstance(datefield.type, (Date, DateTime)):
                 raise InvalidDateField(
@@ -318,9 +316,13 @@ class ModelManager:
 
 class DateQueryManager(ModelManager):
     def today(
-        self, date_info: DateGen, reverse: bool = False
+        self,
+        date_info: DateGen,
+        *,
+        filters: Sequence[str] = None,
+        reverse: bool = False,
     ) -> Query[Type[AbstractBaseModel]]:
-        return self._between(*date_info.date_range, reverse)
+        return self._between(*date_info.date_range, filters, reverse)
 
     def yesterday(
         self,
@@ -329,40 +331,36 @@ class DateQueryManager(ModelManager):
         filters: Sequence[str] = None,
         reverse: bool = False,
     ) -> Query[Type[AbstractBaseModel]]:
-        return self._new_between(*date_info.yesterday_range, filters, reverse)
+        return self._between(*date_info.yesterday_range, filters, reverse)
 
     def this_week(
-        self, date_info: DateGen, reverse: bool = False
-    ) -> Query[Type[AbstractBaseModel]]:
-        return self._between(*date_info.week_range, reverse)
-
-    def this_month(
-        self, date_info: DateGen, reverse: bool = False
-    ) -> Query[Type[AbstractBaseModel]]:
-        return self._between(*date_info.month_range, reverse)
-
-    def this_year(
-        self, date_info: DateGen, reverse: bool = False
-    ) -> Query[Type[AbstractBaseModel]]:
-        return self._between(*date_info.year_range, reverse)
-
-    def _between(
         self,
-        start: dt.datetime | dt.date,
-        end: dt.datetime | dt.date,
+        date_info: DateGen,
+        *,
+        filters: Sequence[str] = None,
         reverse: bool = False,
     ) -> Query[Type[AbstractBaseModel]]:
-        """Fetch all instances of `model` filtered
-        between given borders.
-        """
-        order_by = (
-            self._reverse_order_by if reverse else self._prepare_order_by
-        )
-        return self._fetch(order_by).filter(
-            column(self._datefield).between(start, end)
-        )
+        return self._between(*date_info.week_range, filters, reverse)
 
-    def _new_between(
+    def this_month(
+        self,
+        date_info: DateGen,
+        *,
+        filters: Sequence[str] = None,
+        reverse: bool = False,
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._between(*date_info.month_range, filters, reverse)
+
+    def this_year(
+        self,
+        date_info: DateGen,
+        *,
+        filters: Sequence[str] = None,
+        reverse: bool = False,
+    ) -> Query[Type[AbstractBaseModel]]:
+        return self._between(*date_info.year_range, filters, reverse)
+
+    def _between(
         self,
         start: dt.datetime | dt.date,
         end: dt.datetime | dt.date,
@@ -372,8 +370,9 @@ class DateQueryManager(ModelManager):
         """Fetch all instances of `model` filtered
         between given borders.
         """
+        date_column = getattr(self.model, self.datefield)
         return self._fetch(filters, reverse).filter(
-            column(self._datefield).between(start, end)
+            date_column.between(start, end)
         )
 
 
@@ -406,15 +405,13 @@ class ExtendedQuery:
         return self._sum(self.query)
 
     def _sum(self, q: Query) -> int:
-        return q.with_entities(sql_func.sum(self.sum_field)).scalar()
+        return q.with_entities(sql_func.sum(self.sum_field)).scalar() or 0
 
 
 class EntryManager(DateQueryManager):
     def __getattribute__(self, __name: str) -> Any:
-        """Make methods that return `Query` provide
-        additional `income`, `expenses` and `total` attributes,
-        so you can do:
-            `query = self.method(*args, **kwargs).income`
+        """Decorate methods that return `Query` with
+        `self.extend_query` decorator.
         """
         attr = super().__getattribute__(__name)
 
@@ -427,7 +424,11 @@ class EntryManager(DateQueryManager):
                     return attr
         return attr
 
-    def extend_query(self, f: Callable):
+    def extend_query(self, f: Callable[..., Query]):
+        """Add `ExtendedQuery` methods as `ext` attribute
+        to a query.
+        """
+
         def inner(*args, **kwargs):
             query = f(*args, **kwargs)
             setattr(query, "ext", ExtendedQuery(self.model, "sum", query))
