@@ -1,7 +1,6 @@
 import datetime as dt
 import operator as operators
 import re
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Literal, Sequence, Type
 
@@ -134,13 +133,13 @@ class ModelManager:
                 .first()
             )
 
-    def all(self) -> Query[Type[AbstractBaseModel]]:
+    def all(self, reverse: bool = False) -> Query[Type[AbstractBaseModel]]:
         """Retrieve all `self.model` objets."""
-        return self._fetch()
+        return self._fetch(reverse=reverse)
 
-    def list(self) -> list[Type[AbstractBaseModel]]:
+    def list(self, reverse: bool = False) -> list[Type[AbstractBaseModel]]:
         """Retrieve all `self.model` objets in list."""
-        return self._fetch().all()
+        return self._fetch(reverse=reverse).all()
 
     def select(
         self,
@@ -164,13 +163,13 @@ class ModelManager:
         self, *, filters: Sequence[str] = None
     ) -> Type[AbstractBaseModel] | None:
         """Retrieve first `model` instance in ascending query."""
-        return self.first_n(1, filters).one_or_none()
+        return self.first_n(1, filters=filters).one_or_none()
 
     def last(
         self, *, filters: Sequence[str] = None
     ) -> Type[AbstractBaseModel] | None:
         """Retrieve last `model` instance in discending query."""
-        return self.last_n(1, filters).one_or_none()
+        return self.last_n(1, filters=filters).one_or_none()
 
     def first_n(
         self, n: int, *, filters: Sequence[str] = None
@@ -245,7 +244,15 @@ class ModelManager:
         self._validate_filters()
         self._validate_datefield(self._datefield)
 
+    @staticmethod
+    def _check_iterable(check_value: Any, exception: Exception):
+        if not hasattr(check_value, "__iter__"):
+            raise exception(
+                f"{check_value} must be a sequence, not a {type(check_value)}"
+            )
+
     def _validate_order_by(self, order_by: Sequence[str]):
+        self._check_iterable(order_by, InvalidOrderByValue)
         cleaned_values = {val.strip() for val in order_by}
         if invalid_fields := cleaned_values - self.model.fieldnames:
             raise InvalidOrderByValue(
@@ -260,6 +267,7 @@ class ModelManager:
 
         validated = []
         if filters:
+            self._check_iterable(filters, InvalidFilter)
             valid_signs = {
                 ">": "gt",
                 ">=": "ge",
@@ -312,6 +320,15 @@ class ModelManager:
                 f"""Model `{self.model}`
                     does not have `{datefield_}` atribute."""
             )
+
+    def _set_default_order_by(self):
+        self._order_by = ["created_at", "id"]
+
+    def _reset_filters(self):
+        self._filters = None
+
+    def _set_default_datefield(self):
+        self._datefield = "created_at"
 
 
 class DateQueryManager(ModelManager):
