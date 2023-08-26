@@ -10,5 +10,9 @@ class InvalidFilter(BudgetBotDataBaseException):
     pass
 
 
-class InvalidDatefield(BudgetBotDataBaseException):
+class InvalidDateField(BudgetBotDataBaseException):
+    pass
+
+
+class InvalidSumField(BudgetBotDataBaseException):
     pass
