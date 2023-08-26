@@ -1,7 +1,5 @@
 import datetime as dt
 
-import pytest
-from sqlalchemy import select
 from sqlalchemy.orm import Query
 
 from app.utils import (
@@ -10,23 +8,18 @@ from app.utils import (
     now,
     timed_tomorrow,
     timed_yesterday,
-    today,
-    tomorrow,
-    yesterday,
 )
 from tests.conf import constants
 
 from .fixtures import (
-    BaseTestModel,
-    CustomDateTestModel,
-    SumTestModel,
-    basic_date_manager,
+    GenericTestModel,
     create_tables,
-    custom_date_manager,
+    custom_datefield_manager,
     db_session,
+    default_datefield_manager,
     engine,
-    populate_db,
-    sum_manager,
+    generic_manager,
+    populate_tables,
 )
 
 ##############
@@ -39,29 +32,33 @@ from .fixtures import (
 ##############
 
 
-def test_between_return_query_result_with_test_instances(basic_date_manager):
-    query = basic_date_manager._between(minute_before_now(), timed_tomorrow())
+def test_between_return_query_result_with_test_instances(
+    default_datefield_manager,
+):
+    query = default_datefield_manager._between(
+        minute_before_now(), timed_tomorrow()
+    )
     assert isinstance(query, Query)
-    assert all(isinstance(obj, BaseTestModel) for obj in query)
+    assert all(isinstance(obj, GenericTestModel) for obj in query)
 
 
-def test_between_with_broad_gap_return_all_instances(basic_date_manager):
+def test_between_with_broad_gap_return_all_instances(
+    default_datefield_manager,
+):
     assert (
-        len(
-            basic_date_manager._between(
-                timed_yesterday(), timed_tomorrow()
-            ).all()
-        )
+        default_datefield_manager._between(
+            timed_yesterday(), timed_tomorrow()
+        ).count()
         == constants["TEST_SAMPLE_SIZE"]
     )
 
 
-def test_between_with_narrow_gap_return_empty_query(basic_date_manager):
-    assert basic_date_manager._between(now(), now()).all() == []
+def test_between_with_narrow_gap_return_empty_query(default_datefield_manager):
+    assert default_datefield_manager._between(now(), now()).all() == []
 
 
 def test_between_with_tomorrow_gap_return_instances_created_tommorrow(
-    db_session, basic_date_manager
+    db_session, default_datefield_manager
 ):
     tomorrow = timed_tomorrow()
     sample_size = 5
@@ -69,14 +66,14 @@ def test_between_with_tomorrow_gap_return_instances_created_tommorrow(
 
     db_session.add_all(
         [
-            BaseTestModel(name=test_name, created_at=tomorrow)
+            GenericTestModel(name=test_name, created_at=tomorrow)
             for test_name in test_names
         ]
     )
     db_session.commit()
 
     overmorrow = tomorrow + dt.timedelta(days=1)
-    query = basic_date_manager._between(tomorrow, overmorrow).all()
+    query = default_datefield_manager._between(tomorrow, overmorrow).all()
 
     assert len(query) == sample_size
 
@@ -84,14 +81,20 @@ def test_between_with_tomorrow_gap_return_instances_created_tommorrow(
     assert names_from_query == test_names
 
 
-def test_between_with_twisted_gap_return_empty_query(basic_date_manager):
-    query = basic_date_manager._between(timed_tomorrow(), timed_yesterday())
+def test_between_with_twisted_gap_return_empty_query(
+    default_datefield_manager,
+):
+    query = default_datefield_manager._between(
+        timed_tomorrow(), timed_yesterday()
+    )
     assert isinstance(query, Query)
     assert query.all() == []
 
 
-def test_today_return_instances_created_today(db_session, basic_date_manager):
-    initial_num = basic_date_manager.count()
+def test_today_return_instances_created_today(
+    db_session, default_datefield_manager
+):
+    initial_num = default_datefield_manager.count()
     assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = now()
@@ -99,13 +102,13 @@ def test_today_return_instances_created_today(db_session, basic_date_manager):
 
     db_session.add_all(
         [
-            BaseTestModel(
+            GenericTestModel(
                 name="test1",
                 created_at=datetime.replace(
                     hour=0, minute=0, second=0, microsecond=0
                 ),
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="test2",
                 created_at=datetime.replace(
                     hour=23, minute=59, second=59, microsecond=999999
@@ -114,43 +117,43 @@ def test_today_return_instances_created_today(db_session, basic_date_manager):
         ]
     )
     db_session.commit()
-    assert len(basic_date_manager.today(dateinfo).all()) == initial_num + 2
+    assert default_datefield_manager.today(dateinfo).count() == initial_num + 2
 
     # Instaces created tomorrow and yesterday aren't included in today query.
     db_session.add_all(
         [
-            BaseTestModel(name="test01", created_at=timed_tomorrow()),
-            BaseTestModel(name="test02", created_at=timed_yesterday()),
+            GenericTestModel(name="test01", created_at=timed_tomorrow()),
+            GenericTestModel(name="test02", created_at=timed_yesterday()),
         ]
     )
     db_session.commit()
-    assert len(basic_date_manager.today(dateinfo).all()) == initial_num + 2
+    assert default_datefield_manager.today(dateinfo).count() == initial_num + 2
 
     # Check all instances were added.
-    assert basic_date_manager.count() == initial_num + 4
+    assert default_datefield_manager.count() == initial_num + 4
 
 
 def test_yesterday_return_instances_created_yesterday(
-    db_session, basic_date_manager
+    db_session, default_datefield_manager
 ):
-    initial_num = basic_date_manager.count()
+    initial_num = default_datefield_manager.count()
     assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     yesterday = timed_yesterday()
     dateinfo = DateGen(now())
 
     created_yesterday = [
-        BaseTestModel(
+        GenericTestModel(
             name="yesterday",
             created_at=yesterday,
         ),
-        BaseTestModel(
+        GenericTestModel(
             name="yesterday_start",
             created_at=yesterday.replace(
                 hour=0, minute=0, second=0, microsecond=0
             ),
         ),
-        BaseTestModel(
+        GenericTestModel(
             name="yesterday_end",
             created_at=yesterday.replace(
                 hour=23,
@@ -163,7 +166,7 @@ def test_yesterday_return_instances_created_yesterday(
     db_session.add_all(created_yesterday)
     db_session.commit()
 
-    assert len(basic_date_manager.yesterday(dateinfo).all()) == len(
+    assert default_datefield_manager.yesterday(dateinfo).count() == len(
         created_yesterday
     )
 
@@ -171,29 +174,29 @@ def test_yesterday_return_instances_created_yesterday(
     # aren't included in yesterday query
     db_session.add_all(
         [
-            BaseTestModel(
+            GenericTestModel(
                 name="two_days_ago",
                 created_at=yesterday - dt.timedelta(days=1),
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="tomorrow",
                 created_at=yesterday + dt.timedelta(days=2),
             ),
         ]
     )
     db_session.commit()
-    assert len(basic_date_manager.yesterday(dateinfo).all()) == len(
+    assert default_datefield_manager.yesterday(dateinfo).count() == len(
         created_yesterday
     )
 
     # Check all instances were added.
-    assert basic_date_manager.count() == initial_num + 5
+    assert default_datefield_manager.count() == initial_num + 5
 
 
 def test_this_year_return_instances_created_within_this_year(
-    db_session, basic_date_manager
+    db_session, default_datefield_manager
 ):
-    initial_num = basic_date_manager.count()
+    initial_num = default_datefield_manager.count()
     assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = now()
@@ -201,16 +204,16 @@ def test_this_year_return_instances_created_within_this_year(
 
     db_session.add_all(
         [
-            BaseTestModel(name="test1"),
-            BaseTestModel(name="test2", created_at=timed_tomorrow()),
-            BaseTestModel(name="test3", created_at=timed_yesterday()),
-            BaseTestModel(
+            GenericTestModel(name="test1"),
+            GenericTestModel(name="test2", created_at=timed_tomorrow()),
+            GenericTestModel(name="test3", created_at=timed_yesterday()),
+            GenericTestModel(
                 name="test4",
                 created_at=datetime.replace(
                     month=1, day=1, hour=0, minute=0, second=0, microsecond=0
                 ),
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="test5",
                 created_at=datetime.replace(
                     month=12,
@@ -224,32 +227,38 @@ def test_this_year_return_instances_created_within_this_year(
         ]
     )
     db_session.commit()
-    assert len(basic_date_manager.this_year(dateinfo).all()) == initial_num + 5
+    assert (
+        default_datefield_manager.this_year(dateinfo).count()
+        == initial_num + 5
+    )
 
     # Instaces created last or next year aren't included in this year query
     db_session.add_all(
         [
-            BaseTestModel(
+            GenericTestModel(
                 name="test1",
                 created_at=datetime - dt.timedelta(days=366),
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="test2",
                 created_at=datetime + dt.timedelta(days=366),
             ),
         ]
     )
     db_session.commit()
-    assert len(basic_date_manager.this_year(dateinfo).all()) == initial_num + 5
+    assert (
+        default_datefield_manager.this_year(dateinfo).count()
+        == initial_num + 5
+    )
 
     # Check all instances were added.
-    assert basic_date_manager.count() == initial_num + 7
+    assert default_datefield_manager.count() == initial_num + 7
 
 
 def test_this_month_return_instances_created_within_this_month(
-    db_session, basic_date_manager
+    db_session, default_datefield_manager
 ):
-    initial_num = basic_date_manager.count()
+    initial_num = default_datefield_manager.count()
     assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = now().replace(day=15)  # set middlemonth
@@ -257,16 +266,16 @@ def test_this_month_return_instances_created_within_this_month(
 
     db_session.add_all(
         [
-            BaseTestModel(name="test1"),
-            BaseTestModel(name="test2", created_at=timed_tomorrow()),
-            BaseTestModel(name="test3", created_at=timed_yesterday()),
-            BaseTestModel(
+            GenericTestModel(name="test1"),
+            GenericTestModel(name="test2", created_at=timed_tomorrow()),
+            GenericTestModel(name="test3", created_at=timed_yesterday()),
+            GenericTestModel(
                 name="test4",
                 created_at=datetime.replace(
                     day=1, hour=0, minute=0, second=0, microsecond=0
                 ),
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="test5",
                 created_at=datetime.replace(
                     day=30
@@ -284,33 +293,35 @@ def test_this_month_return_instances_created_within_this_month(
     )
     db_session.commit()
     assert (
-        len(basic_date_manager.this_month(dateinfo).all()) == initial_num + 5
+        default_datefield_manager.this_month(dateinfo).count()
+        == initial_num + 5
     )
 
     # Instaces created last or next month aren't included in this month query
     db_session.add_all(
         [
-            BaseTestModel(
+            GenericTestModel(
                 name="test1", created_at=datetime - dt.timedelta(days=31)
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="test2", created_at=datetime + dt.timedelta(days=31)
             ),
         ]
     )
     db_session.commit()
     assert (
-        len(basic_date_manager.this_month(dateinfo).all()) == initial_num + 5
+        default_datefield_manager.this_month(dateinfo).count()
+        == initial_num + 5
     )
 
     # Check all instances were added.
-    assert basic_date_manager.count() == initial_num + 7
+    assert default_datefield_manager.count() == initial_num + 7
 
 
 def test_this_week_return_instances_created_within_this_week(
-    db_session, basic_date_manager
+    db_session, default_datefield_manager
 ):
-    initial_num = basic_date_manager.count()
+    initial_num = default_datefield_manager.count()
     assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = dt.datetime(
@@ -320,20 +331,20 @@ def test_this_week_return_instances_created_within_this_week(
     )
 
     created_this_week = [
-        BaseTestModel(name="today", created_at=datetime),
-        BaseTestModel(
+        GenericTestModel(name="today", created_at=datetime),
+        GenericTestModel(
             name="tomorrow", created_at=datetime + dt.timedelta(days=1)
         ),
-        BaseTestModel(
+        GenericTestModel(
             name="yesterday", created_at=datetime - dt.timedelta(days=1)
         ),
-        BaseTestModel(
+        GenericTestModel(
             name="weekstart",
             created_at=datetime.replace(
                 day=3, hour=0, minute=0, second=0, microsecond=0
             ),
         ),
-        BaseTestModel(
+        GenericTestModel(
             name="weekend",
             created_at=datetime.replace(
                 day=9,
@@ -349,53 +360,53 @@ def test_this_week_return_instances_created_within_this_week(
 
     dateinfo = DateGen(datetime)
 
-    assert len(basic_date_manager.this_week(dateinfo).all()) == len(
+    assert default_datefield_manager.this_week(dateinfo).count() == len(
         created_this_week
     )
 
     # Instaces created last or next week aren't included in this week query
     db_session.add_all(
         [
-            BaseTestModel(
+            GenericTestModel(
                 name="test1",
                 created_at=datetime - dt.timedelta(weeks=1),
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="test2",
                 created_at=datetime + dt.timedelta(weeks=1),
             ),
         ]
     )
     db_session.commit()
-    assert len(basic_date_manager.this_week(dateinfo).all()) == len(
+    assert default_datefield_manager.this_week(dateinfo).count() == len(
         created_this_week
     )
 
     # Check all instances were added.
-    assert basic_date_manager.count() == initial_num + 7
+    assert default_datefield_manager.count() == initial_num + 7
 
 
 def test_yesterday_return_instances_created_yesterday(
-    db_session, basic_date_manager
+    db_session, default_datefield_manager
 ):
-    initial_num = basic_date_manager.count()
+    initial_num = default_datefield_manager.count()
     assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     yesterday = timed_yesterday()
     dateinfo = DateGen(now())
 
     created_yesterday = [
-        BaseTestModel(
+        GenericTestModel(
             name="yesterday",
             created_at=yesterday,
         ),
-        BaseTestModel(
+        GenericTestModel(
             name="yesterday_start",
             created_at=yesterday.replace(
                 hour=0, minute=0, second=0, microsecond=0
             ),
         ),
-        BaseTestModel(
+        GenericTestModel(
             name="yesterday_end",
             created_at=yesterday.replace(
                 hour=23,
@@ -408,7 +419,7 @@ def test_yesterday_return_instances_created_yesterday(
     db_session.add_all(created_yesterday)
     db_session.commit()
 
-    assert len(basic_date_manager.yesterday(dateinfo).all()) == len(
+    assert default_datefield_manager.yesterday(dateinfo).count() == len(
         created_yesterday
     )
 
@@ -416,23 +427,23 @@ def test_yesterday_return_instances_created_yesterday(
     # aren't included in yesterday query
     db_session.add_all(
         [
-            BaseTestModel(
+            GenericTestModel(
                 name="two_days_ago",
                 created_at=yesterday - dt.timedelta(days=1),
             ),
-            BaseTestModel(
+            GenericTestModel(
                 name="tomorrow",
                 created_at=yesterday + dt.timedelta(days=2),
             ),
         ]
     )
     db_session.commit()
-    assert len(basic_date_manager.yesterday(dateinfo).all()) == len(
+    assert default_datefield_manager.yesterday(dateinfo).count() == len(
         created_yesterday
     )
 
     # Check all instances were added.
-    assert basic_date_manager.count() == initial_num + 5
+    assert default_datefield_manager.count() == initial_num + 5
 
 
 #############
@@ -445,10 +456,10 @@ def test_yesterday_return_instances_created_yesterday(
 
 
 def test_today_return_instances_selected_by_custom_datefield(
-    db_session, custom_date_manager
+    db_session, custom_datefield_manager
 ):
-    initial_num = custom_date_manager.count()
-    assert initial_num == 0
+    initial_num = custom_datefield_manager.count()
+    assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = now()
     dateinfo = DateGen(datetime)
@@ -456,12 +467,12 @@ def test_today_return_instances_selected_by_custom_datefield(
     # Add instances created_yesterday, but have today's datefield
     db_session.add_all(
         [
-            CustomDateTestModel(
+            GenericTestModel(
                 name="test1",
                 custom_datefield=datetime,
                 created_at=timed_yesterday(),
             ),
-            CustomDateTestModel(
+            GenericTestModel(
                 name="test2",
                 custom_datefield=datetime,
                 created_at=timed_yesterday(),
@@ -469,32 +480,30 @@ def test_today_return_instances_selected_by_custom_datefield(
         ]
     )
     db_session.commit()
-    assert len(custom_date_manager.today(dateinfo).all()) == initial_num + 2
+    assert custom_datefield_manager.today(dateinfo).count() == initial_num + 2
 
     # Instaces with tomorrow and yesterday dates aren't included in
     # today query.
     db_session.add_all(
         [
-            CustomDateTestModel(
+            GenericTestModel(
                 name="test01", custom_datefield=timed_yesterday()
             ),
-            CustomDateTestModel(
-                name="test02", custom_datefield=timed_tomorrow()
-            ),
+            GenericTestModel(name="test02", custom_datefield=timed_tomorrow()),
         ]
     )
     db_session.commit()
-    assert len(custom_date_manager.today(dateinfo).all()) == initial_num + 2
+    assert custom_datefield_manager.today(dateinfo).count() == initial_num + 2
 
     # Check all instances were added.
-    assert custom_date_manager.count() == initial_num + 4
+    assert custom_datefield_manager.count() == initial_num + 4
 
 
 def test_this_year_return_instances_selected_by_custom_field(
-    db_session, custom_date_manager
+    db_session, custom_datefield_manager
 ):
-    initial_num = custom_date_manager.count()
-    assert initial_num == 0
+    initial_num = custom_datefield_manager.count()
+    assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = now()
     dateinfo = DateGen(datetime)
@@ -503,25 +512,25 @@ def test_this_year_return_instances_selected_by_custom_field(
     # All instances have `created_at` field set to last year
     # to show that `custom_datefield` used instead.
     added_this_year = [
-        CustomDateTestModel(name="now", created_at=last_year),
-        CustomDateTestModel(
+        GenericTestModel(name="now", created_at=last_year),
+        GenericTestModel(
             name="tomorrow",
             custom_datefield=timed_tomorrow(),
             created_at=last_year,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="yesterday",
             custom_datefield=timed_yesterday(),
             created_at=last_year,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="yearstart",
             custom_datefield=datetime.replace(
                 month=1, day=1, hour=0, minute=0, second=0, microsecond=0
             ),
             created_at=last_year,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="yearend",
             custom_datefield=datetime.replace(
                 month=12,
@@ -537,18 +546,18 @@ def test_this_year_return_instances_selected_by_custom_field(
     db_session.add_all(added_this_year)
     db_session.commit()
     assert (
-        len(custom_date_manager.this_year(dateinfo).all()) == initial_num + 5
+        custom_datefield_manager.this_year(dateinfo).count() == initial_num + 5
     )
 
     # Instaces with last or next year custom_datefield
     # aren't included in this year query
     db_session.add_all(
         [
-            CustomDateTestModel(
+            GenericTestModel(
                 name="last_year",
                 custom_datefield=datetime - dt.timedelta(days=366),
             ),
-            CustomDateTestModel(
+            GenericTestModel(
                 name="next_year",
                 custom_datefield=datetime + dt.timedelta(days=366),
             ),
@@ -556,18 +565,18 @@ def test_this_year_return_instances_selected_by_custom_field(
     )
     db_session.commit()
     assert (
-        len(custom_date_manager.this_year(dateinfo).all()) == initial_num + 5
+        custom_datefield_manager.this_year(dateinfo).count() == initial_num + 5
     )
 
     # Check all instances were added.
-    assert custom_date_manager.count() == initial_num + 7
+    assert custom_datefield_manager.count() == initial_num + 7
 
 
 def test_this_month_return_instances_selected_by_custom_field(
-    db_session, custom_date_manager
+    db_session, custom_datefield_manager
 ):
-    initial_num = custom_date_manager.count()
-    assert initial_num == 0
+    initial_num = custom_datefield_manager.count()
+    assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = now().replace(day=15)  # set middlemonth
     dateinfo = DateGen(datetime)
@@ -576,25 +585,25 @@ def test_this_month_return_instances_selected_by_custom_field(
     # All instances have `created_at` field set to last month
     # to show that `custom_datefield` used instead.
     added_this_month = [
-        CustomDateTestModel(name="now", created_at=last_month),
-        CustomDateTestModel(
+        GenericTestModel(name="now", created_at=last_month),
+        GenericTestModel(
             name="tomorrow",
             custom_datefield=timed_tomorrow(),
             created_at=last_month,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="yesterday",
             custom_datefield=timed_yesterday(),
             created_at=last_month,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="month_start",
             custom_datefield=datetime.replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0
             ),
             created_at=last_month,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="month_end",
             custom_datefield=datetime.replace(
                 day=30
@@ -613,18 +622,19 @@ def test_this_month_return_instances_selected_by_custom_field(
     db_session.add_all(added_this_month)
     db_session.commit()
     assert (
-        len(custom_date_manager.this_month(dateinfo).all()) == initial_num + 5
+        custom_datefield_manager.this_month(dateinfo).count()
+        == initial_num + 5
     )
 
     # Instaces with last or next month custom_datefield
     # aren't included in this month query
     db_session.add_all(
         [
-            CustomDateTestModel(
+            GenericTestModel(
                 name="last_month",
                 custom_datefield=datetime - dt.timedelta(days=31),
             ),
-            CustomDateTestModel(
+            GenericTestModel(
                 name="next_month",
                 custom_datefield=datetime + dt.timedelta(days=31),
             ),
@@ -632,18 +642,19 @@ def test_this_month_return_instances_selected_by_custom_field(
     )
     db_session.commit()
     assert (
-        len(custom_date_manager.this_month(dateinfo).all()) == initial_num + 5
+        custom_datefield_manager.this_month(dateinfo).count()
+        == initial_num + 5
     )
 
     # Check all instances were added.
-    assert custom_date_manager.count() == initial_num + 7
+    assert custom_datefield_manager.count() == initial_num + 7
 
 
 def test_this_week_return_instances_selected_by_custom_field(
-    db_session, custom_date_manager
+    db_session, custom_datefield_manager
 ):
-    initial_num = custom_date_manager.count()
-    assert initial_num == 0
+    initial_num = custom_datefield_manager.count()
+    assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     datetime = dt.datetime(
         year=2023,
@@ -656,27 +667,27 @@ def test_this_week_return_instances_selected_by_custom_field(
     # All instances have `created_at` field set to last week
     # to show that `custom_datefield` used instead.
     added_this_week = [
-        CustomDateTestModel(
+        GenericTestModel(
             name="today", custom_datefield=datetime, created_at=last_week
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="tomorrow",
             custom_datefield=datetime + dt.timedelta(days=1),
             created_at=last_week,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="yesterday",
             custom_datefield=datetime - dt.timedelta(days=1),
             created_at=last_week,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="week_start",
             custom_datefield=datetime.replace(
                 day=3, hour=0, minute=0, second=0, microsecond=0
             ),
             created_at=last_week,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="week_end",
             custom_datefield=datetime.replace(
                 day=9,
@@ -691,7 +702,7 @@ def test_this_week_return_instances_selected_by_custom_field(
     db_session.add_all(added_this_week)
     db_session.commit()
 
-    assert len(custom_date_manager.this_week(dateinfo).all()) == len(
+    assert custom_datefield_manager.this_week(dateinfo).count() == len(
         added_this_week
     )
 
@@ -699,30 +710,30 @@ def test_this_week_return_instances_selected_by_custom_field(
     # aren't included in this week query
     db_session.add_all(
         [
-            CustomDateTestModel(
+            GenericTestModel(
                 name="last_week",
                 custom_datefield=datetime - dt.timedelta(weeks=1),
             ),
-            CustomDateTestModel(
+            GenericTestModel(
                 name="next_week",
                 custom_datefield=datetime + dt.timedelta(weeks=1),
             ),
         ]
     )
     db_session.commit()
-    assert len(custom_date_manager.this_week(dateinfo).all()) == len(
+    assert custom_datefield_manager.this_week(dateinfo).count() == len(
         added_this_week
     )
 
     # Check all instances were added.
-    assert custom_date_manager.count() == initial_num + 7
+    assert custom_datefield_manager.count() == initial_num + 7
 
 
 def test_yesterday_return_instances_selected_by_custom_field(
-    db_session, custom_date_manager
+    db_session, custom_datefield_manager
 ):
-    initial_num = custom_date_manager.count()
-    assert initial_num == 0
+    initial_num = custom_datefield_manager.count()
+    assert initial_num == constants["TEST_SAMPLE_SIZE"]
 
     yesterday = timed_yesterday()
     dateinfo = DateGen(now())
@@ -731,19 +742,19 @@ def test_yesterday_return_instances_selected_by_custom_field(
     # All instances have `created_at` field set to two days ago
     # to show that `custom_datefield` used instead.
     added_yesterday = [
-        CustomDateTestModel(
+        GenericTestModel(
             name="yesterday",
             custom_datefield=yesterday,
             created_at=two_days_ago,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="yesterday_start",
             custom_datefield=yesterday.replace(
                 hour=0, minute=0, second=0, microsecond=0
             ),
             created_at=two_days_ago,
         ),
-        CustomDateTestModel(
+        GenericTestModel(
             name="yesterday_end",
             custom_datefield=yesterday.replace(
                 hour=23,
@@ -757,7 +768,7 @@ def test_yesterday_return_instances_selected_by_custom_field(
     db_session.add_all(added_yesterday)
     db_session.commit()
 
-    assert len(custom_date_manager.yesterday(dateinfo).all()) == len(
+    assert custom_datefield_manager.yesterday(dateinfo).count() == len(
         added_yesterday
     )
 
@@ -765,71 +776,20 @@ def test_yesterday_return_instances_selected_by_custom_field(
     # aren't included in yesterday query
     db_session.add_all(
         [
-            CustomDateTestModel(
+            GenericTestModel(
                 name="two_days_ago",
                 custom_datefield=yesterday - dt.timedelta(days=1),
             ),
-            CustomDateTestModel(
+            GenericTestModel(
                 name="tomorrow",
                 custom_datefield=yesterday + dt.timedelta(days=2),
             ),
         ]
     )
     db_session.commit()
-    assert len(custom_date_manager.yesterday(dateinfo).all()) == len(
+    assert custom_datefield_manager.yesterday(dateinfo).count() == len(
         added_yesterday
     )
 
     # Check all instances were added.
-    assert custom_date_manager.count() == initial_num + 5
-
-
-@pytest.mark.current
-def test_foo(db_session, sum_manager):
-    initial_num = sum_manager.count()
-    assert initial_num == 0
-
-    yesterday = timed_yesterday()
-    dateinfo = DateGen(now())
-
-    positive_sum = [
-        SumTestModel(name="yesterday", created_at=yesterday, sum=1),
-        SumTestModel(
-            name="yesterday_start",
-            created_at=yesterday.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ),
-            sum=999999999,
-        ),
-        SumTestModel(
-            name="yesterday_end",
-            created_at=yesterday.replace(
-                hour=23,
-                minute=59,
-                second=5,
-                microsecond=999999,
-            ),
-            sum=1000,
-        ),
-    ]
-    db_session.add_all(positive_sum)
-    db_session.commit()
-
-    assert len(sum_manager.income("yesterday", dateinfo).all()) == len(
-        positive_sum
-    )
-
-    # Instaces with negative sum aren't included in income query
-    db_session.add_all(
-        [
-            SumTestModel(name="two_days_ago", created_at=yesterday, sum=-1),
-            SumTestModel(name="tomorrow", created_at=yesterday, sum=-9999999),
-        ]
-    )
-    db_session.commit()
-    assert len(sum_manager.income("yesterday", dateinfo).all()) == len(
-        positive_sum
-    )
-
-    # Check all instances were added.
-    assert sum_manager.count() == initial_num + 5
+    assert custom_datefield_manager.count() == initial_num + 5

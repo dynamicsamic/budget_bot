@@ -4,7 +4,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot.keyboards import cmd_report_kb
 
 
-@pytest.mark.current
 def test_cmd_report_kb():
     assert isinstance(cmd_report_kb, InlineKeyboardBuilder)
     buttons = list(cmd_report_kb.buttons)

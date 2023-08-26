@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import base, models
-from app.db.managers import BaseModelManager
+from app.db.managers import ModelManager
 from tests.conf import constants
 
 user_data = {
@@ -81,4 +81,4 @@ def create_categories(db_session, create_budgets):
 
 @pytest.fixture
 def user_manager(db_session, create_users):
-    return BaseModelManager(models.User, db_session)
+    return ModelManager(models.User, db_session)
