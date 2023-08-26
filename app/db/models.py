@@ -37,6 +37,10 @@ class User(AbstractBaseModel):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    categories: Mapped[List["EntryCategory"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return (
@@ -77,6 +81,12 @@ class EntryCategory(AbstractBaseModel):
     type: Mapped[Enum] = mapped_column(Enum(EntryType, create_constraint=True))
     last_used: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=dt.datetime(year=1970, month=1, day=1)
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE")
+    )
+    user: Mapped["User"] = relationship(
+        back_populates="categories", lazy="joined"
     )
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
 
