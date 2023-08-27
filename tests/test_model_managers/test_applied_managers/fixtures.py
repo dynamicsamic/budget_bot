@@ -53,6 +53,7 @@ def create_budgets(db_session, create_users):
     db_session.add_all(
         [
             models.Budget(
+                id=i,
                 name=f"budget{i}",
                 user_id=i,
             )
@@ -65,46 +66,66 @@ def create_budgets(db_session, create_users):
 @pytest.fixture
 def create_categories(db_session, create_budgets):
     salary = models.EntryCategory(
-        name="salary", type=models.EntryType.INCOME, user_id=1
+        id=1, name="salary", type=models.EntryType.INCOME, user_id=1
     )
     investment = models.EntryCategory(
-        name="investment", type=models.EntryType.INCOME, user_id=1
+        id=2, name="investment", type=models.EntryType.INCOME, user_id=1
     )
     products = models.EntryCategory(
-        name="products", type=models.EntryType.EXPENSES, user_id=1
+        id=3, name="products", type=models.EntryType.EXPENSES, user_id=1
     )
     sports = models.EntryCategory(
-        name="sports", type=models.EntryType.EXPENSES, user_id=1
+        id=4, name="sports", type=models.EntryType.EXPENSES, user_id=1
     )
     pets = models.EntryCategory(
-        name="pets", type=models.EntryType.EXPENSES, user_id=1
+        id=5, name="pets", type=models.EntryType.EXPENSES, user_id=1
     )
 
     db_session.add_all([salary, investment, products, sports, pets])
     db_session.commit()
 
 
+expenses = [
+    {"id": 1, "budget_id": 1, "category_id": 3, "sum": -200},
+    {"id": 2, "budget_id": 1, "category_id": 3, "sum": -1},
+    {"id": 3, "budget_id": 1, "category_id": 3, "sum": -10000},
+    {"id": 4, "budget_id": 1, "category_id": 4, "sum": -1000},
+    {"id": 5, "budget_id": 1, "category_id": 4, "sum": -100000},
+    {"id": 6, "budget_id": 1, "category_id": 5, "sum": -999999},
+    {"id": 12, "budget_id": 2, "category_id": 5, "sum": -999999},
+]
+income = [
+    {"id": 7, "budget_id": 1, "category_id": 1, "sum": 200},
+    {"id": 8, "budget_id": 1, "category_id": 1, "sum": 1},
+    {"id": 9, "budget_id": 1, "category_id": 1, "sum": 10000234},
+    {"id": 10, "budget_id": 1, "category_id": 2, "sum": 1000},
+    {"id": 11, "budget_id": 1, "category_id": 2, "sum": 993939919},
+    {"id": 13, "budget_id": 2, "category_id": 1, "sum": 9939},
+    {"id": 14, "budget_id": 2, "category_id": 2, "sum": 993939919},
+]
+
+
 @pytest.fixture
 def create_entries(db_session, create_categories):
-    expenses = [
-        models.Entry(budget_id=1, category_id=3, sum=-200),
-        models.Entry(budget_id=1, category_id=3, sum=-1),
-        models.Entry(budget_id=1, category_id=3, sum=-10000),
-        models.Entry(budget_id=1, category_id=4, sum=-1000),
-        models.Entry(budget_id=1, category_id=4, sum=-100000),
-        models.Entry(budget_id=1, category_id=5, sum=-999999),
-    ]
-    income = [
-        models.Entry(budget_id=1, category_id=1, sum=200),
-        models.Entry(budget_id=1, category_id=1, sum=1),
-        models.Entry(budget_id=1, category_id=1, sum=10000),
-        models.Entry(budget_id=1, category_id=2, sum=1000),
-        models.Entry(budget_id=1, category_id=2, sum=100000),
-    ]
-    db_session.add_all([*expenses, *income])
+    db_session.add_all(
+        [
+            *[models.Entry(**d) for d in expenses],
+            *[models.Entry(**d) for d in income],
+        ]
+    )
     db_session.commit()
 
 
 @pytest.fixture
 def user_manager(db_session, create_users):
     return managers.DateQueryManager(models.User, session=db_session)
+
+
+@pytest.fixture
+def entry_manager(db_session, create_entries):
+    return managers.EntryManager(
+        models.Entry,
+        db_session,
+        order_by=["transaction_date", "id"],
+        datefield="transaction_date",
+    )
