@@ -16,3 +16,7 @@ class InvalidDateField(BudgetBotDataBaseException):
 
 class InvalidSumField(BudgetBotDataBaseException):
     pass
+
+
+class ModelInstanceCreateError(BudgetBotDataBaseException):
+    pass
