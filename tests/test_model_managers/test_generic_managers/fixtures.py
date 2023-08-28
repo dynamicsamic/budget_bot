@@ -33,6 +33,13 @@ class GenericTestModel(TestBase, base.ModelFieldsDetails):
         default=dt.datetime.now(settings.TIME_ZONE),
     )
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(Id={self.id}, Name={self.name}, "
+            f"Created_at={self.created_at}, "
+            f"Custom_datefield={self.custom_datefield})"
+        )
+
 
 @pytest.fixture(scope="session")
 def engine():
