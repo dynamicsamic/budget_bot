@@ -7,6 +7,7 @@ from typing import Any, Callable, Iterable, Literal, Sequence, Type
 from sqlalchemy import Date, DateTime, and_
 from sqlalchemy import func as sql_func
 from sqlalchemy import select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.sql import column
 
@@ -19,6 +20,7 @@ from .exceptions import (
     InvalidFilter,
     InvalidOrderByValue,
     InvalidSumField,
+    ModelInstanceCreateError,
 )
 from .models import Entry, User
 
@@ -84,8 +86,21 @@ class ModelManager:
         self._validate_datefield(datefield_)
         self._datefield = datefield_
 
-    def create(self, **kwargs):
-        pass
+    def create(self, **kwargs) -> bool:
+        if invalid_kwargs := set(kwargs.keys()) - self.model.fieldnames:
+            raise ModelInstanceCreateError(
+                f"Invalid fields for {self.model.__name__}: {', '.join(invalid_kwargs)}"
+            )
+
+        self.session.add(self.model(**kwargs))
+        try:
+            self.session.commit()
+        except SQLAlchemyError:
+            raise ModelInstanceCreateError(
+                f"Can not create {self.model.__name__} instance. Check provided args."
+            )
+
+        return True
 
     def update(
         self,
@@ -153,11 +168,20 @@ class ModelManager:
         """Calculate number of all `self.model` objects."""
         return self.session.query(self.model.id).count()
 
-    def exists(self, id: int) -> bool:
+    def exists(self, id: int = None, **kwargs) -> bool:
         """Tell wether `self.model` object with given id exists or not."""
-        return bool(
-            self.session.scalar(select(self.model.id).filter_by(id=id))
-        )
+        if id:
+            kwargs["id"] = id
+
+        if not kwargs:
+            return False
+
+        try:
+            return bool(
+                self.session.scalar(select(self.model.id).filter_by(**kwargs))
+            )
+        except Exception:
+            return False
 
     def first(
         self, *, filters: Sequence[str] = None
