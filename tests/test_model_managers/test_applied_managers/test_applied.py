@@ -94,7 +94,6 @@ def test_entry_manager_filter_income_by_category_id(entry_manager):
     assert manager_income.count() == second_category_len
 
 
-@pytest.mark.current
 def test_entry_manager_sort_query_by_transaction_date(
     db_session, entry_manager
 ):
@@ -159,3 +158,16 @@ def test_entry_manager_calculate_income_sum_correctly(entry_manager):
     expected_sum = sum(item["sum"] for item in income)
     manager_sum = entry_manager.today(now_).ext.income().sum()
     assert manager_sum == expected_sum
+
+
+def test_entry_manager_calculate_total_sum_correctly(entry_manager):
+    expected_sum = sum(item["sum"] for item in income + expenses)
+    manager_sum = entry_manager.today(now_).ext.total_sum()
+    assert manager_sum == expected_sum
+
+
+def test_entry_manager_sum_return_zero_if_no_entries_found(entry_manager):
+    faulty_filter = ["budget_id==9999"]
+    assert (
+        entry_manager.today(now_, filters=faulty_filter).ext.total_sum() == 0
+    )
