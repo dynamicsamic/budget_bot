@@ -3,7 +3,7 @@ from sqlalchemy.orm import Query
 
 from app.db import exceptions
 from app.db.managers import ModelManager
-from app.utils import timed_tomorrow, timed_yesterday
+from app.utils import now, timed_tomorrow, timed_yesterday
 from tests.conf import constants
 
 from .fixtures import (
@@ -112,6 +112,32 @@ def test_reset_filters(generic_manager):
     generic_manager.filters = ["id>1"]
     generic_manager._reset_filters()
     generic_manager.filters == None
+
+
+def test_create_with_valid_args_return_true(generic_manager):
+    valid_args = {"id": 999999, "name": "new_user", "created_at": now()}
+    created = generic_manager.create(**valid_args)
+    assert isinstance(created, bool)
+    assert created == True
+
+    obj = generic_manager.last()
+    assert obj.id == valid_args["id"]
+    assert obj.name == valid_args["name"]
+
+
+@pytest.mark.xfail(raises=exceptions.ModelInstanceCreateError, strict=True)
+def test_create_with_missing_model_attribute_raises_error(generic_manager):
+    generic_manager.create(id=999999)
+
+
+@pytest.mark.xfail(raises=exceptions.ModelInstanceCreateError, strict=True)
+def test_create_with_invalid_model_attribute_raises_error(generic_manager):
+    generic_manager.create(id=999999, invalid="invalid")
+
+
+@pytest.mark.xfail(raises=exceptions.ModelInstanceCreateError, strict=True)
+def test_create_with_wrong_type_model_attribute_raises_error(generic_manager):
+    generic_manager.create(id=999999, name=["invalid"])
 
 
 def test_update_with_valid_id_without_kwargs_return_false(generic_manager):
@@ -305,6 +331,14 @@ def test_exists_with_invalid_id_return_false(generic_manager):
     exists = generic_manager.exists("hello")
     assert isinstance(exists, bool)
     assert exists == False
+
+
+@pytest.mark.current
+def test_exists_with_multiple_args(generic_manager):
+    assert generic_manager.exists(id=1, name="obj1") == True
+    assert generic_manager.exists(id=12, name="obj1") == False
+    assert generic_manager.exists(id=12, invalid_attr="obj1") == False
+    assert generic_manager.exists() == False
 
 
 def test_first_return_first_added_instance(db_session, generic_manager):
