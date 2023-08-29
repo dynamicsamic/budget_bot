@@ -32,7 +32,6 @@ class User(AbstractBaseModel):
     __tablename__ = "user"
 
     tg_id: Mapped[int] = mapped_column(unique=True)
-    tg_username: Mapped[str] = mapped_column(String(length=256), unique=True)
     budgets: Mapped[List["Budget"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
@@ -44,8 +43,7 @@ class User(AbstractBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id}, "
-            f"TelegramName={self.tg_username}, TelegramId={self.tg_id})"
+            f"{self.__class__.__name__}(Id={self.id}, TelegramId={self.tg_id})"
         )
 
 
