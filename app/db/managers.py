@@ -54,10 +54,12 @@ class ModelManager:
         `manager(request.session)`
         `manager.some_method()`
         """
-        if self.session is None and isinstance(
-            session, (Session, scoped_session)
+        if (
+            isinstance(session, (Session, scoped_session))
+            and session.is_active
         ):
             self.session = session
+            return self
 
     @property
     def order_by(self) -> Sequence[str]:
@@ -479,7 +481,7 @@ class EntryManager(DateQueryManager):
 
 
 user_manager = DateQueryManager(User)
-
+# user = user_manager
 entry_manager = EntryManager(
     Entry,
     datefield="transaction_date",
