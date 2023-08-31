@@ -1,10 +1,11 @@
 from typing import Type
 
-from aiogram import Router, types
+from aiogram import F, Router, types
 from aiogram.filters.command import Command
+from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 
-from app.bot.keyboards import signup_to_proceed
+from app.bot import keyboards
 from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import User
@@ -16,17 +17,7 @@ router.message.middleware(DataBaseSessionMiddleWare())
 
 
 @router.message(Command("budget_create"))
-async def cmd_create_budget(
-    message: types.Message, state: FSMContext, user: User
-):
-    if user is None:
-        await message.answer(
-            "Для продолжения необходимо зарегистрироваться. "
-            "От Вас не потребуется вводить никакие данные.",
-            reply_markup=signup_to_proceed,
-        )
-        return
-
+async def cmd_create_budget(message: types.Message, state: FSMContext):
     await message.answer(
         """Для того, чтобы создать бюджет, введите наименование валюты. 
             Наименование должно содержать только буквы (в любом регистре) 
@@ -57,8 +48,8 @@ async def create_budget_finish(
         return
     await state.clear()
 
-    mgr = model_managers["budget"]
-    created = mgr.create(
+    budgets = model_managers["budget"]
+    created = budgets.create(
         currency=currency, user_id=user.id, name=f"user{user.tg_id}_{currency}"
     )
     if created:
@@ -69,3 +60,11 @@ async def create_budget_finish(
         await message.answer(
             "Что-то пошло не так при создании нового бюджета. Обратитесь в поддержку"
         )
+
+
+@router.callback_query(Text("budget_menu"))
+async def budget_menu(callback: types.CallbackQuery):
+    await callback.message.answer(
+        "Управление бюджетами", reply_markup=keyboards.budget_menu.as_markup()
+    )
+    await callback.answer()
