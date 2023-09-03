@@ -14,6 +14,7 @@ from .states import BudgetState
 
 router = Router()
 router.message.middleware(DataBaseSessionMiddleWare())
+router.callback_query.middleware(DataBaseSessionMiddleWare())
 
 
 @router.message(Command("budget_create"))
@@ -68,3 +69,28 @@ async def budget_menu(callback: types.CallbackQuery):
         "Управление бюджетами", reply_markup=keyboards.budget_menu.as_markup()
     )
     await callback.answer()
+
+
+@router.callback_query(Text("budget_list"))
+async def budget_list(
+    callback: types.CallbackQuery,
+    user: User,
+):
+    await callback.message.answer(f"Ваши бюджеты: {user.budgets}")
+    await callback.answer()
+
+
+@router.callback_query(Text("budget_create"))
+async def budget_create(
+    callback: types.CallbackQuery,
+    user: User,
+):
+    pass
+
+
+@router.callback_query(Text("budget_delete"))
+async def budget_delete(
+    callback: types.CallbackQuery,
+    user: User,
+):
+    pass
