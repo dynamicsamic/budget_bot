@@ -22,7 +22,7 @@ from .exceptions import (
     InvalidSumField,
     ModelInstanceCreateError,
 )
-from .models import Entry, User
+from .models import Budget, Entry, User
 
 
 class ModelManager:
@@ -98,6 +98,7 @@ class ModelManager:
         try:
             self.session.commit()
         except SQLAlchemyError:
+            return False
             raise ModelInstanceCreateError(
                 f"Can not create {self.model.__name__} instance. Check provided args."
             )
@@ -481,6 +482,7 @@ class EntryManager(DateQueryManager):
 
 
 user_manager = DateQueryManager(User)
+budget_manager = DateQueryManager(Budget)
 # user = user_manager
 entry_manager = EntryManager(
     Entry,
