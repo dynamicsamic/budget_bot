@@ -57,9 +57,7 @@ class Budget(AbstractBaseModel):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE")
     )
-    user: Mapped["User"] = relationship(
-        back_populates="budgets", lazy="joined"
-    )
+    user: Mapped["User"] = relationship(back_populates="budgets")
     entries: Mapped[List["Entry"]] = relationship(
         back_populates="budget",
         cascade="all, delete-orphan",
