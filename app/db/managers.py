@@ -107,7 +107,7 @@ class ModelManager:
 
     def update(
         self,
-        id: int,
+        id_: int,
         *,
         commit: bool = True,
         **kwargs,
@@ -116,7 +116,7 @@ class ModelManager:
         if valid_kwargs := self._clean_kwargs(kwargs):
             updated = bool(
                 self.session.query(self.model)
-                .filter_by(id=id)
+                .filter_by(id=id_)
                 .update(valid_kwargs)
             )
             if updated and commit:
@@ -124,23 +124,20 @@ class ModelManager:
             return updated
         return False
 
-    def delete(self, id: int) -> bool:
+    def delete(self, **kwargs) -> bool:
         """Delete `self.model` object with given `id`."""
-        # TODO: improve this damn thing!
-        # emits separate select and delete queries
-        # for self.model and each foreign key
-        # which is inefficient. Need to implement
-        # more efficient algorithm.
         try:
-            self.session.delete(self.get(id))
-            self.session.commit()
-            return True
-        except Exception:
+            deleted = bool(
+                self.session.query(self.model).filter_by(**kwargs).delete()
+            )
+        except SQLAlchemyError:
             return False
+        self.session.commit()
+        return deleted
 
-    def get(self, id: int) -> Type[AbstractBaseModel] | None:
+    def get(self, id_: int) -> Type[AbstractBaseModel] | None:
         """Retrieve `self.model` object."""
-        return self.session.get(self.model, id)
+        return self.session.get(self.model, id_)
 
     def get_by(self, **kwargs) -> Type[AbstractBaseModel] | None:
         """Retrieve `self.model` object filtered by kwargs."""
@@ -171,10 +168,10 @@ class ModelManager:
         """Calculate number of all `self.model` objects."""
         return self.session.query(self.model.id).count()
 
-    def exists(self, id: int = None, **kwargs) -> bool:
+    def exists(self, id_: int = None, **kwargs) -> bool:
         """Tell wether `self.model` object with given id exists or not."""
-        if id:
-            kwargs["id"] = id
+        if id_:
+            kwargs["id"] = id_
 
         if not kwargs:
             return False
