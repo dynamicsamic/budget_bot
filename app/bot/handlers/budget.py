@@ -10,7 +10,7 @@ from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import User
 
-from .states import BudgetState
+from .states import BudgetCreatetState, BudgetDeleteState
 
 router = Router()
 router.message.middleware(DataBaseSessionMiddleWare())
@@ -26,10 +26,10 @@ async def cmd_create_budget(message: types.Message, state: FSMContext):
             например RUB или USD"""
     )
 
-    await state.set_state(BudgetState.currency)
+    await state.set_state(BudgetCreatetState.currency)
 
 
-@router.message(BudgetState.currency)
+@router.message(BudgetCreatetState.currency)
 async def create_budget_finish(
     message: types.Message,
     state: FSMContext,
@@ -89,8 +89,42 @@ async def budget_create(
 
 
 @router.callback_query(Text("budget_delete"))
-async def budget_delete(
-    callback: types.CallbackQuery,
-    user: User,
+async def budget_delete_recieve_id(
+    callback: types.CallbackQuery, state: FSMContext
 ):
-    pass
+    await callback.message.answer(
+        """Введите название или id бюджета, который должен быть удален."""
+    )
+    await state.set_state(BudgetDeleteState.id)
+    await callback.answer()
+
+
+@router.callback_query(BudgetDeleteState.id)
+async def budget_delete_finish(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    model_managers: dict[str, Type[ModelManager]],
+):
+    budgets = model_managers["budget"]
+    data = await state.get_data()
+    id_ = data.get("id", "")
+    if id_.isdigit():
+        deleted = budgets.delete(id=id_)
+    elif id_.isalnum():
+        deleted = budgets.delete(name=id_)
+    else:
+        await callback.message.answer(
+            """Неверный формат идентификатора бюджета. 
+                Необходимо ввести наименование бюджета или его id"""
+        )
+        return
+    if deleted:
+        await callback.message.answer(
+            f"Бюджет с идентификатором {id_} удален."
+        )
+    else:
+        await callback.message.answer(
+            f"Бюджет с идентификатором {id_} не найден. Проверьте корретность идентификатора и повторите попытку."
+        )
+    await state.clear()
+    await callback.answer()
