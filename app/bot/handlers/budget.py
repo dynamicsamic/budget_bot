@@ -10,7 +10,8 @@ from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import User
 
-from .states import BudgetCreatetState, BudgetDeleteState
+from .callback_data import BudgetItemActionData
+from .states import BudgetCreatetState, BudgetDeleteState, BudgetUpdateState
 
 router = Router()
 router.message.middleware(DataBaseSessionMiddleWare())
@@ -64,11 +65,90 @@ async def create_budget_finish(
 
 
 @router.callback_query(Text("budget_menu"))
-async def budget_menu(callback: types.CallbackQuery):
+async def budget_menu(
+    callback: types.CallbackQuery, user: User, state: FSMContext
+):
+    budgets = user.budgets
+    if not budgets:
+        await cmd_create_budget(callback.message, state)
+    else:
+        await callback.message.answer(
+            "Кликните на нужный бюджет, чтобы выбрать действие",
+            reply_markup=keyboards.budget_item_list_interactive(budgets),
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("budget_item"))
+async def budget_item_submenu(callback: types.CallbackQuery):
+    budget_id = callback.data.rsplit("_", maxsplit=1)[-1]
     await callback.message.answer(
-        "Управление бюджетами", reply_markup=keyboards.budget_menu.as_markup()
+        "Выберите действие",
+        reply_markup=keyboards.budget_item_choose_action(budget_id),
     )
     await callback.answer()
+
+
+@router.callback_query(BudgetItemActionData.filter(F.action == "delete"))
+async def budget_item_delete(
+    callback: types.CallbackQuery,
+    callback_data: BudgetItemActionData,
+    model_managers: dict[str, Type[ModelManager]],
+):
+    deleted = model_managers["budget"].delete(id=callback_data.budget_id)
+    if deleted:
+        await callback.message.answer("Бюджет был успешно удален")
+    else:
+        await callback.message.answer(
+            "Ошибка удаления бюджета. Бюджет отсутствует или был удален ранее."
+        )
+    await callback.answer()
+
+
+@router.callback_query(BudgetItemActionData.filter(F.action == "update"))
+async def budget_item_update_recieve_name(
+    callback: types.CallbackQuery,
+    callback_data: BudgetItemActionData,
+    state: FSMContext,
+):
+    await state.set_data({"budget_id": callback_data.budget_id})
+    await callback.message.answer(
+        "Введите новую валюту бюджета.Наименование должно содержать только буквы (в любом регистре) "
+        "и быть короче 10 символов. Отдавайте предпочтение общепринятым сокращениям, "
+        "например RUB или USD"
+    )
+    await state.set_state(BudgetUpdateState.currency)
+    await callback.answer()
+
+
+@router.message(BudgetUpdateState.currency)
+async def budget_item_update_finish(
+    message: types.Message,
+    state: FSMContext,
+    model_managers: dict[str, Type[ModelManager]],
+):
+    currency = message.text
+    if not currency.isalpha() or len(currency) > 10:
+        await message.answer(
+            """
+            Неверный формат обозначения валюты.
+            Наименование должно содержать только буквы (в любом регистре) 
+            и быть короче 10 символов. Отдавайте предпочтение общепринятым сокращениям, 
+            например RUB или USD
+            """
+        )
+        return
+
+    data = await state.get_data()
+    budget_id = data["budget_id"]
+    updated = model_managers["budget"].update(id_=budget_id, currency=currency)
+    if updated:
+        await message.answer("Бюджет был успешно обновлен")
+    else:
+        await message.answer(
+            "Ошибка обновления бюджета. Бюджет отсутствует или был удален ранее."
+        )
+    await state.clear()
 
 
 @router.callback_query(Text("budget_list"))

@@ -3,7 +3,10 @@ from typing import Literal
 from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.bot.handlers.callback_data import ReportTypeCallback
+from app.bot.handlers.callback_data import (
+    BudgetItemActionData,
+    ReportTypeCallback,
+)
 
 signup_to_proceed = types.InlineKeyboardMarkup(
     inline_keyboard=[
@@ -55,6 +58,42 @@ budget_menu = InlineKeyboardBuilder(
     ]
 )
 budget_menu.adjust(1)
+
+
+def budget_item_list_interactive(budgets: list):
+    kb = InlineKeyboardBuilder(
+        [
+            [
+                types.InlineKeyboardButton(
+                    text=f"{budget.currency}, {len(budget.entries)} операций",
+                    callback_data=f"budget_item_{budget.id}",
+                )
+                for budget in budgets
+            ]
+        ]
+    )
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def budget_item_choose_action(budget_id: str):
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Изменить",
+        callback_data=BudgetItemActionData(
+            budget_id=budget_id,
+            action="update",
+        ),
+    )
+    builder.button(
+        text="Удалить",
+        callback_data=BudgetItemActionData(
+            budget_id=budget_id, action="delete"
+        ),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
 
 cmd_report_kb = InlineKeyboardBuilder(
     [

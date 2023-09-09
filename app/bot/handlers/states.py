@@ -7,3 +7,7 @@ class BudgetCreatetState(StatesGroup):
 
 class BudgetDeleteState(StatesGroup):
     id = State()
+
+
+class BudgetUpdateState(StatesGroup):
+    currency = State()
