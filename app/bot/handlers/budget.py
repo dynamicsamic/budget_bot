@@ -64,23 +64,36 @@ async def create_budget_finish(
         )
 
 
-@router.callback_query(Text("budget_menu"))
-async def budget_menu(
-    callback: types.CallbackQuery, user: User, state: FSMContext
+@router.callback_query(Text("budget_create"))
+async def budget_create(callback: types.CallbackQuery, state: FSMContext):
+    await cmd_create_budget(callback.message, state)
+    await callback.answer()
+
+
+@router.message(Command("show_budgets"))
+async def cmd_show_budgets(
+    message: types.Message, user: User, state: FSMContext
 ):
     budgets = user.budgets
     if not budgets:
-        await cmd_create_budget(callback.message, state)
+        await cmd_create_budget(message, state)
     else:
-        await callback.message.answer(
+        await message.answer(
             "Кликните на нужный бюджет, чтобы выбрать действие",
             reply_markup=keyboards.budget_item_list_interactive(budgets),
         )
+
+
+@router.callback_query(Text("budget_menu"))
+async def show_budgets(
+    callback: types.CallbackQuery, user: User, state: FSMContext
+):
+    await cmd_show_budgets(callback.message, user, state)
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith("budget_item"))
-async def budget_item_submenu(callback: types.CallbackQuery):
+async def budget_item_show_options(callback: types.CallbackQuery):
     budget_id = callback.data.rsplit("_", maxsplit=1)[-1]
     await callback.message.answer(
         "Выберите действие",
@@ -149,62 +162,3 @@ async def budget_item_update_finish(
             "Ошибка обновления бюджета. Бюджет отсутствует или был удален ранее."
         )
     await state.clear()
-
-
-@router.callback_query(Text("budget_list"))
-async def budget_list(
-    callback: types.CallbackQuery,
-    user: User,
-):
-    await callback.message.answer(f"Ваши бюджеты: {user.budgets}")
-    await callback.answer()
-
-
-@router.callback_query(Text("budget_create"))
-async def budget_create(
-    callback: types.CallbackQuery,
-    user: User,
-):
-    pass
-
-
-@router.callback_query(Text("budget_delete"))
-async def budget_delete_recieve_id(
-    callback: types.CallbackQuery, state: FSMContext
-):
-    await callback.message.answer(
-        """Введите название или id бюджета, который должен быть удален."""
-    )
-    await state.set_state(BudgetDeleteState.id)
-    await callback.answer()
-
-
-@router.callback_query(BudgetDeleteState.id)
-async def budget_delete_finish(
-    callback: types.CallbackQuery,
-    state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
-):
-    budgets = model_managers["budget"]
-    data = await state.get_data()
-    id_ = data.get("id", "")
-    if id_.isdigit():
-        deleted = budgets.delete(id=id_)
-    elif id_.isalnum():
-        deleted = budgets.delete(name=id_)
-    else:
-        await callback.message.answer(
-            """Неверный формат идентификатора бюджета. 
-                Необходимо ввести наименование бюджета или его id"""
-        )
-        return
-    if deleted:
-        await callback.message.answer(
-            f"Бюджет с идентификатором {id_} удален."
-        )
-    else:
-        await callback.message.answer(
-            f"Бюджет с идентификатором {id_} не найден. Проверьте корретность идентификатора и повторите попытку."
-        )
-    await state.clear()
-    await callback.answer()

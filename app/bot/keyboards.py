@@ -72,6 +72,7 @@ def budget_item_list_interactive(budgets: list):
             ]
         ]
     )
+    kb.button(text="🟢 Создать новый бюджет", callback_data="budget_create")
     kb.adjust(1)
     return kb.as_markup()
 
