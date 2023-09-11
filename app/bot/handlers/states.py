@@ -5,9 +5,15 @@ class BudgetCreatetState(StatesGroup):
     currency = State()
 
 
-class BudgetDeleteState(StatesGroup):
-    id = State()
-
-
 class BudgetUpdateState(StatesGroup):
     currency = State()
+
+
+class CategoryCreateState(StatesGroup):
+    name = State()
+    type = State()
+
+
+class CategoryUpdateState(StatesGroup):
+    name = State()
+    type = State()

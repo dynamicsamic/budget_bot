@@ -96,6 +96,14 @@ def budget_item_choose_action(budget_id: str):
     return builder.as_markup()
 
 
+def choose_category_type():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Доходы")
+    builder.button(text="Расходы")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 cmd_report_kb = InlineKeyboardBuilder(
     [
         [
