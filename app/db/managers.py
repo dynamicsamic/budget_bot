@@ -22,7 +22,7 @@ from .exceptions import (
     InvalidSumField,
     ModelInstanceCreateError,
 )
-from .models import Budget, Entry, User
+from .models import Budget, Entry, EntryCategory, User
 
 
 class ModelManager:
@@ -480,7 +480,9 @@ class EntryManager(DateQueryManager):
 
 user_manager = DateQueryManager(User)
 budget_manager = DateQueryManager(Budget)
-# user = user_manager
+category_manager = DateQueryManager(
+    EntryCategory, order_by=["last_used", "id"]
+)
 entry_manager = EntryManager(
     Entry,
     datefield="transaction_date",
