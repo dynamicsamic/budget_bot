@@ -1,10 +1,12 @@
-from typing import Literal
+from typing import List, Literal, Optional
 
 from aiogram import types
+from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.handlers.callback_data import (
     BudgetItemActionData,
+    CategoryItemActionData,
     ReportTypeCallback,
 )
 
@@ -98,8 +100,72 @@ def budget_item_choose_action(budget_id: str):
 
 def choose_category_type():
     builder = InlineKeyboardBuilder()
-    builder.button(text="Доходы")
-    builder.button(text="Расходы")
+    builder.button(text="Доходы", callback_data="choose_entry_category_income")
+    builder.button(
+        text="Расходы", callback_data="choose_entry_category_expenses"
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def add_return_button(f):
+    def inner(*args, **kwargs):
+        builder = f(*args, **kwargs)
+        builder.button(
+            text="🔙 Вернуться в главное меню", callback_data="main_menu_return"
+        )
+        builder.adjust(1)
+        return builder.as_markup()
+
+    return inner
+
+
+@add_return_button
+def category_item_list_interactive(categories: list):
+    category_type = (
+        lambda category: "расходы"
+        if category.type.value == "expenses"
+        else "доходы"
+    )
+    kb = InlineKeyboardBuilder(
+        [
+            [
+                types.InlineKeyboardButton(
+                    text=(
+                        f"{category.name} ({category_type(category)}), "
+                        f"{len(category.entries)} операций"
+                    ),
+                    callback_data=f"category_item_{category.id}",
+                )
+                for category in categories
+            ]
+        ]
+    )
+    kb.button(
+        text="🟢 Создать новую категорию", callback_data="category_create"
+    )
+    # kb.button(
+    #     text="🔙 Вернуться в главное меню", callback_data="main_menu_return"
+    # )
+    kb.adjust(1)
+    return kb
+
+
+def category_item_choose_action(category_id: str):
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Изменить",
+        callback_data=CategoryItemActionData(
+            category_id=category_id,
+            action="update",
+        ),
+    )
+    builder.button(
+        text="Удалить",
+        callback_data=CategoryItemActionData(
+            category_id=category_id, action="delete"
+        ),
+    )
     builder.adjust(1)
     return builder.as_markup()
 

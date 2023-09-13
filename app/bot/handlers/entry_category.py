@@ -10,7 +10,6 @@ from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import EntryType, User
 
-from .callback_data import categoryItemActionData
 from .states import CategoryCreateState, CategoryUpdateState
 
 router = Router()
@@ -48,32 +47,80 @@ async def create_category_request_type(
     await state.set_state(CategoryCreateState.type)
 
 
-@router.message(CategoryCreateState.type, F.text.in_(["Доходы, Расходы"]))
+@router.callback_query(
+    CategoryCreateState.type, F.data.startswith("choose_entry_category")
+)
 async def create_category_finish(
-    message: types.Message,
+    callback: types.CallbackQuery,
     state: FSMContext,
     model_managers: dict[str, Type[ModelManager]],
     user: User,
 ):
-    type_ = message.text
-    if type_ == "Доходы":
+    *_, type_ = callback.data.rsplit("_", maxsplit=1)
+    if type_ == "income":
         category_type = EntryType.INCOME
-    elif type_ == "Расходы":
+    elif type_ == "expenses":
         category_type = EntryType.EXPENSES
-    await state.clear()
+    else:
+        await callback.message.answer(
+            "Для продолжения выберите тип категории, "
+            "нажав на одну из вышеуказанных кнопок."
+        )
+        return
     data = await state.get_data()
+    category_name = data["category_name"]
+    await state.clear()
 
     categories = model_managers["category"]
     created = categories.create(
-        name=data["category_name"],
+        name=category_name,
         type=category_type,
         user_id=user.id,
     )
     if created:
-        await message.answer(
-            f"Вы успешно создали новую категорию `{data['category_name']}`"
+        await callback.message.answer(
+            f"Вы успешно создали новую категорию `{category_name}`"
         )
     else:
-        await message.answer(
+        await callback.message.answer(
             "Что-то пошло не так при создании категории. Обратитесь в поддержку"
         )
+    await callback.answer()
+
+
+@router.callback_query(Text("category_create"))
+async def category_create(callback: types.CallbackQuery, state: FSMContext):
+    await cmd_create_category(callback.message, state)
+    await callback.answer()
+
+
+@router.message(Command("show_categories"))
+async def cmd_show_categories(
+    message: types.Message, user: User, state: FSMContext
+):
+    categories = user.categories
+    if not categories:
+        await cmd_create_category(message, state)
+    else:
+        await message.answer(
+            "Кликните на нужную категорию, чтобы выбрать действие",
+            reply_markup=keyboards.category_item_list_interactive(categories),
+        )
+
+
+@router.callback_query(Text("category_menu"))
+async def show_categories(
+    callback: types.CallbackQuery, user: User, state: FSMContext
+):
+    await cmd_show_categories(callback.message, user, state)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("category_item"))
+async def category_item_show_options(callback: types.CallbackQuery):
+    category_id = callback.data.rsplit("_", maxsplit=1)[-1]
+    await callback.message.answer(
+        "Выберите действие",
+        reply_markup=keyboards.category_item_choose_action(category_id),
+    )
+    await callback.answer()
