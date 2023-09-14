@@ -16,4 +16,3 @@ class CategoryCreateState(StatesGroup):
 
 class CategoryUpdateState(StatesGroup):
     name = State()
-    type = State()

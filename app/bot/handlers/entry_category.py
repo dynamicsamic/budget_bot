@@ -10,6 +10,7 @@ from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import EntryType, User
 
+from .callback_data import CategoryItemActionData
 from .states import CategoryCreateState, CategoryUpdateState
 
 router = Router()
@@ -21,9 +22,24 @@ router.callback_query.middleware(DataBaseSessionMiddleWare())
 async def cmd_create_category(message: types.Message, state: FSMContext):
     await message.answer(
         "Введите название категории "
-        "(название не должно быть длинее 128 символов)."
+        "(название не должно быть короче 5 и длинее 128 символов)."
     )
     await state.set_state(CategoryCreateState.name)
+
+
+def validate_category_name(category_name: str) -> tuple[bool, str]:
+    if not 4 < len(category_name) < 128:
+        error_message = (
+            "Недопустимая длина названия категории. "
+            "(название не должно быть короче 5 и длинее 128 символов)."
+        )
+        return False, error_message
+
+    if {"\\", "/"} & set(category_name):
+        error_message = "Недопустимые символы в названии"
+        return False, error_message
+
+    return True, ""
 
 
 @router.message(CategoryCreateState.name)
@@ -32,11 +48,9 @@ async def create_category_request_type(
     state: FSMContext,
 ):
     name = message.text
-    if len(name) > 128:
-        await message.answer(
-            "Слишком длинное название категории."
-            "Придумайте более короткое название."
-        )
+    name_validated, error_message = validate_category_name(name)
+    if not name_validated:
+        await message.answer(error_message)
         return
 
     await state.update_data(category_name=name)
@@ -79,7 +93,8 @@ async def create_category_finish(
     )
     if created:
         await callback.message.answer(
-            f"Вы успешно создали новую категорию `{category_name}`"
+            f"Вы успешно создали новую категорию `{category_name}`",
+            reply_markup=keyboards.show_categories_and_main_menu(),
         )
     else:
         await callback.message.answer(
@@ -124,3 +139,65 @@ async def category_item_show_options(callback: types.CallbackQuery):
         reply_markup=keyboards.category_item_choose_action(category_id),
     )
     await callback.answer()
+
+
+@router.callback_query(CategoryItemActionData.filter(F.action == "delete"))
+async def category_item_delete(
+    callback: types.CallbackQuery,
+    callback_data: CategoryItemActionData,
+    model_managers: dict[str, Type[ModelManager]],
+):
+    deleted = model_managers["category"].delete(id=callback_data.category_id)
+    if deleted:
+        await callback.message.answer(
+            "Категория была успешно удалена",
+            reply_markup=keyboards.show_categories_and_main_menu(),
+        )
+    else:
+        await callback.message.answer(
+            "Ошибка удаления категории. Категория отсутствует или была удалена ранее."
+        )
+    await callback.answer()
+
+
+@router.callback_query(CategoryItemActionData.filter(F.action == "update"))
+async def category_item_update_recieve_name(
+    callback: types.CallbackQuery,
+    callback_data: CategoryItemActionData,
+    state: FSMContext,
+):
+    await state.set_state(CategoryUpdateState.name)
+    await state.set_data({"category_id": callback_data.category_id})
+    await callback.message.answer(
+        "Введите новое название категории (не должно быть длинее 128 символов)"
+    )
+    await callback.answer()
+
+
+@router.message(CategoryUpdateState.name)
+async def category_item_update_recieve_type(
+    message: types.Message,
+    state: FSMContext,
+    model_managers: dict[str, Type[ModelManager]],
+):
+    category_name = message.text
+    name_validated, error_message = validate_category_name(category_name)
+    if not name_validated:
+        await message.answer(error_message)
+        return
+
+    data = await state.get_data()
+    category_id = data["category_id"]
+    updated = model_managers["category"].update(
+        id_=category_id, name=category_name
+    )
+    if updated:
+        await message.answer(
+            f"Название категории было изменено на: {category_name}",
+            reply_markup=keyboards.show_categories_and_main_menu(),
+        )
+    else:
+        await message.answer(
+            "Ошибка обновления категории. Категория отсутствует или была удалена ранее."
+        )
+    await state.clear()

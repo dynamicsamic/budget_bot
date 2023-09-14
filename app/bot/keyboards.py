@@ -170,6 +170,16 @@ def category_item_choose_action(category_id: str):
     return builder.as_markup()
 
 
+def show_categories_and_main_menu():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🗂️ Мои категории", callback_data="category_menu")
+    builder.button(
+        text="🔙 Вернуться в главное меню", callback_data="main_menu_return"
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 cmd_report_kb = InlineKeyboardBuilder(
     [
         [
