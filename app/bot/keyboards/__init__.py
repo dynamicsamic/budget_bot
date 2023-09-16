@@ -27,18 +27,10 @@ signup_to_proceed = types.InlineKeyboardMarkup(
 main_menu = InlineKeyboardBuilder(
     [
         [
-            types.InlineKeyboardButton(
-                text="💰 Мои бюджеты", callback_data="budget_menu"
-            ),
-            types.InlineKeyboardButton(
-                text="🗂️ Мои категории", callback_data="category_menu"
-            ),
-            types.InlineKeyboardButton(
-                text="💶 Мои транзакции", callback_data="entry_menu"
-            ),
-            types.InlineKeyboardButton(
-                text="📋 Отчеты", callback_data="report_menu"
-            ),
+            buttons.budget_menu,
+            buttons.category_menu,
+            buttons.entry_menu,
+            buttons.report_menu,
         ]
     ]
 )
@@ -134,18 +126,6 @@ def choose_category_type():
     return builder.as_markup()
 
 
-def add_return_button(f):
-    def inner(*args, **kwargs):
-        builder = f(*args, **kwargs)
-        builder.button(
-            text="🔙 Вернуться в главное меню", callback_data="main_menu_return"
-        )
-        builder.adjust(1)
-        return builder.as_markup()
-
-    return inner
-
-
 def category_item_choose_action(category_id: str):
     builder = InlineKeyboardBuilder()
     builder.button(
@@ -166,10 +146,8 @@ def category_item_choose_action(category_id: str):
 
 
 def show_categories_and_main_menu():
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🗂️ Мои категории", callback_data="category_menu")
-    builder.button(
-        text="🔙 Вернуться в главное меню", callback_data="main_menu_return"
+    builder = InlineKeyboardBuilder(
+        [[buttons.category_menu, buttons.main_menu]]
     )
     builder.adjust(1)
     return builder.as_markup()
