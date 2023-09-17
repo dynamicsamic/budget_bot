@@ -153,6 +153,25 @@ def show_categories_and_main_menu():
     return builder.as_markup()
 
 
+def create_entry_show_budgets(
+    budgets: list[models.Budget],
+) -> InlineKeyboardBuilder:
+    return interactive_item_list(
+        budgets, render_budget_item, "entry_budget_item", [buttons.main_menu]
+    )
+
+
+def create_entry_show_categories(
+    categories: list[models.EntryCategory],
+) -> InlineKeyboardBuilder:
+    return interactive_item_list(
+        categories,
+        render_category_item,
+        "entry_category_item",
+        [buttons.main_menu],
+    )
+
+
 cmd_report_kb = InlineKeyboardBuilder(
     [
         [

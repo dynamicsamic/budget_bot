@@ -16,3 +16,11 @@ class CategoryCreateState(StatesGroup):
 
 class CategoryUpdateState(StatesGroup):
     name = State()
+
+
+class EntryCreateState(StatesGroup):
+    budget_id = State()
+    category_id = State()
+    sum = State()
+    transcation_date = State()
+    description = State()
