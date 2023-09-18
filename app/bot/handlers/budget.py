@@ -11,7 +11,7 @@ from app.db.managers import ModelManager
 from app.db.models import User
 
 from .callback_data import BudgetItemActionData
-from .states import BudgetCreatetState, BudgetDeleteState, BudgetUpdateState
+from .states import BudgetCreatetState, BudgetUpdateState
 
 router = Router()
 router.message.middleware(DataBaseSessionMiddleWare())
@@ -119,18 +119,18 @@ async def budget_item_delete(
 
 
 @router.callback_query(BudgetItemActionData.filter(F.action == "update"))
-async def budget_item_update_recieve_name(
+async def budget_item_update_recieve_currency(
     callback: types.CallbackQuery,
     callback_data: BudgetItemActionData,
     state: FSMContext,
 ):
+    await state.set_state(BudgetUpdateState.currency)
     await state.set_data({"budget_id": callback_data.budget_id})
     await callback.message.answer(
         "Введите новую валюту бюджета.Наименование должно содержать только буквы (в любом регистре) "
         "и быть короче 10 символов. Отдавайте предпочтение общепринятым сокращениям, "
         "например RUB или USD"
     )
-    await state.set_state(BudgetUpdateState.currency)
     await callback.answer()
 
 
