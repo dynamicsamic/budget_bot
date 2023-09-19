@@ -1,3 +1,4 @@
+import re
 from typing import Type
 
 from aiogram import F, Router, types
@@ -10,7 +11,6 @@ from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import EntryType, User
 
-from .callback_data import CategoryItemActionData
 from .states import EntryCreateState
 
 router = Router()
@@ -75,10 +75,48 @@ async def create_entry_recieve_category(
         return
 
     await state.update_data(category_id=category_id)
+    await callback.message.answer(
+        "Введите сумму транзакции.\n"
+        "Допустимые виды записи: 1521; 100,91; 934.2; 1 445.67"
+    )
+    await state.set_state(EntryCreateState.sum)
+    await callback.answer()
+
+
+def validate_sum(raw_sum: str) -> tuple[int, str]:
+    invalid = 0
+    if len(raw_sum) >= 20:
+        return invalid, "Задано слишком длинное число."
+    cleaned_sum = re.sub(",", ".", re.sub("\s", "", raw_sum))
+    try:
+        valid_float = round(float(cleaned_sum), 2)
+    except ValueError:
+        error_message = (
+            "Неверный формат суммы.\n"
+            "Допустимые форматы: 1521; 100,91; 934.2; 1 445.67"
+        )
+        return invalid, error_message
+    validated = int(valid_float * 100)
+    if validated == invalid:
+        return invalid, "Сумма не может быть равна 0."
+    return validated, ""
+
+
+@router.message(EntryCreateState.sum)
+async def create_entry_recieve_sum(message: types.Message, state: FSMContext):
+    validated_sum, error_message = validate_sum(message.text)
+    if not validated_sum:
+        await message.answer(error_message)
+        return
+    await state.update_data(sum=validated_sum)
+    await message.answer(
+        "Введите дату транзакции.\n"
+        "Отправьте пустое сообщение, если транзакция выполнена сегодня."
+    )
+    await state.set_state(EntryCreateState.transcation_date)
 
 
 """
-enter_sum
 enter_transaction_date
 enter_description
 """
