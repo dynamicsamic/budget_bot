@@ -45,6 +45,7 @@ class DataBaseSessionMiddleWare(BaseMiddleware):
                 "user": managers.user_manager(db_session),
                 "budget": managers.budget_manager(db_session),
                 "category": managers.category_manager(db_session),
+                "entry": managers.entry_manager(db_session),
             }
             data["model_managers"] = model_managers
             return await handler(event, data)
