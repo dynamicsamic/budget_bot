@@ -1,3 +1,4 @@
+import datetime as dt
 import re
 from typing import Type
 
@@ -7,6 +8,7 @@ from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 
 from app.bot import keyboards
+from app.bot.filters import EntryDateFilter, EntrySumFilter
 from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import EntryType, User
@@ -86,68 +88,43 @@ async def create_entry_receive_category(
     await callback.answer()
 
 
-def validate_sum(raw_sum: str) -> tuple[int, str]:
-    invalid = 0
-    if len(raw_sum) >= 20:
-        return invalid, "Задано слишком длинное число."
-    cleaned_sum = re.sub(",", ".", re.sub("\s", "", raw_sum))
-    try:
-        valid_float = round(float(cleaned_sum), 2)
-    except ValueError:
-        error_message = (
-            "Неверный формат суммы.\n"
-            "Допустимые форматы: 1521; 100,91; 934.2; 1 445.67"
-        )
-        return invalid, error_message
-    validated = int(valid_float * 100)
-    if validated == invalid:
-        return invalid, "Сумма не может быть равна 0."
-    return validated, ""
-
-
-@router.message(EntryCreateState.sum)
-async def create_entry_receive_sum(message: types.Message, state: FSMContext):
-    validated_sum, error_message = validate_sum(message.text)
-    if not validated_sum:
+@router.message(EntryCreateState.sum, EntrySumFilter())
+async def create_entry_receive_sum(
+    message: types.Message,
+    state: FSMContext,
+    transaction_sum: int,
+    error_message: str,
+):
+    if not transaction_sum:
         await message.answer(error_message)
         return
     data = await state.get_data()
     entry_type = data["category"].type
     if entry_type.value == "expenses":
-        validated_sum = -validated_sum
-    await state.update_data(sum=validated_sum)
+        transaction_sum = -transaction_sum
+    await state.update_data(sum=transaction_sum)
     await message.answer(
-        "Введите дату транзакции в формате ГГГГ-ММ-ДД.\n"
-        "Отправьте пустое сообщение, если транзакция выполнена сегодня."
+        "Введите дату транзакции.\n"
+        "Отправьте точку `.`, если транзакция выполнена сегодня.\n"
+        "Допустимые форматы: дд мм гггг, дд-мм-гггг, ддммгггг."
     )
     await state.set_state(EntryCreateState.transcation_date)
 
 
-import datetime as dt
-
-dt.datetime.fromisoformat
-
-
-@router.message(EntryCreateState.transcation_date)
+@router.message(EntryCreateState.transcation_date, EntryDateFilter())
 async def create_entry_receive_transaction_date(
-    message: types.Message, state: FSMContext
+    message: types.Message,
+    state: FSMContext,
+    transaction_date: dt.datetime,
+    error_message: str,
 ):
-    date = message.text
-    if not date:
-        transaction_date = message.date
-    else:
-        try:
-            transaction_date = dt.datetime.fromisoformat(date)
-        except ValueError:
-            await message.answer(
-                "Неверный формат даты.\n"
-                "Введите дату транзакции в формате ГГГГ-ММ-ДД."
-            )
-            return
+    if not transaction_date:
+        await message.answer(error_message)
+        return
     await state.update_data(transaction_date=transaction_date)
     await message.answer(
         "При необходимости добавьте комментарий к транзакции\n"
-        "Отправьте пустое сообщение, если комментарий не требуется"
+        "Отправьте точку `.`, если комментарий не требуется"
     )
     await state.set_state(EntryCreateState.description)
 
@@ -159,6 +136,9 @@ async def create_entry_receive_description(
     model_managers: dict[str, Type[ModelManager]],
 ):
     description = message.text
+    if description == ".":
+        description = None
+
     entries = model_managers["entry"]
 
     data = await state.get_data()
