@@ -1,5 +1,6 @@
 import calendar
 import datetime as dt
+import re
 
 from app import settings
 
@@ -187,3 +188,50 @@ def yesterday() -> dt.date:
 
 def tomorrow() -> dt.date:
     return today() + dt.timedelta(days=1)
+
+
+def validate_entry_sum(raw_sum: str) -> tuple[int, str]:
+    invalid = 0
+    if len(raw_sum) >= 20:
+        return invalid, "Задано слишком длинное число."
+    cleaned_sum = re.sub(",", ".", re.sub("\s", "", raw_sum))
+    try:
+        valid_float = round(float(cleaned_sum), 2)
+    except ValueError:
+        error_message = (
+            "Неверный формат суммы.\n"
+            "Допустимые форматы: 1521; 100,91; 934.2; 1 445.67"
+        )
+        return invalid, error_message
+    validated = int(valid_float * 100)
+    if validated == invalid:
+        return invalid, "Сумма не может быть равна 0."
+    return validated, ""
+
+
+def validate_entry_date(raw_date: str) -> tuple[dt.datetime | None, str]:
+    spaceless_date = re.sub("[ -]", "", raw_date)
+    try:
+        int(spaceless_date)
+    except ValueError:
+        error_message = (
+            "Недопустимые символы в дате.\nИспользуйте только цифры "
+            "и разделители в виде пробела или тире.\n"
+            "Допустимые форматы: дд мм гггг, дд-мм-гггг, ддммгггг"
+        )
+        return None, error_message
+
+    date = {
+        "day": int(spaceless_date[0:2]),
+        "month": int(spaceless_date[2:4]),
+        "year": int(spaceless_date[4::]),
+    }
+    try:
+        valid_datetime = dt.datetime(**date)
+    except ValueError:
+        error_message = (
+            "Дата содержит ошибку.\n" "Исправьте ошибку и повторите ввод."
+        )
+        return None, error_message
+
+    return valid_datetime, ""
