@@ -8,7 +8,12 @@ from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 
 from app.bot import keyboards
-from app.bot.filters import EntryDateFilter, EntrySumFilter
+from app.bot.filters import (
+    EntryBudgetIdFilter,
+    EntryCategoryIdFilter,
+    EntryDateFilter,
+    EntrySumFilter,
+)
 from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import EntryType, User
@@ -32,16 +37,14 @@ async def cmd_create_entry(
     await state.set_state(EntryCreateState.budget)
 
 
-@router.callback_query(
-    EntryCreateState.budget, F.data.startswith("entry_budget_item")
-)
+@router.callback_query(EntryCreateState.budget, EntryBudgetIdFilter())
 async def create_entry_receive_category(
     callback: types.CallbackQuery,
     state: FSMContext,
     model_managers: dict[str, Type[ModelManager]],
     user: User,
+    budget_id: int,
 ):
-    *_, budget_id = callback.data.rsplit("_", maxsplit=1)
     budget = model_managers["budget"].get(budget_id)
     if not budget:
         await callback.message.answer(
@@ -59,16 +62,14 @@ async def create_entry_receive_category(
     await callback.answer()
 
 
-@router.callback_query(
-    EntryCreateState.category, F.data.startswith("entry_category_item")
-)
+@router.callback_query(EntryCreateState.category, EntryCategoryIdFilter())
 async def create_entry_receive_category(
     callback: types.CallbackQuery,
     state: FSMContext,
     model_managers: dict[str, Type[ModelManager]],
     user: User,
+    category_id: int,
 ):
-    *_, category_id = callback.data.rsplit("_", maxsplit=1)
     category = model_managers["category"].get(category_id)
     if not category:
         await callback.message.answer(
@@ -154,15 +155,25 @@ async def create_entry_receive_description(
         description=description,
     )
     if created:
-        str_sum = f"{sum_ / 100:.2f}"
-        await message.answer(
+        pretty_sum = f"{sum_ / 100:.2f}"
+        pretty_date = f"{date:%Y-%m-%d %H:%M:%S}"
+        success_msg = (
             "Новая транзакция успешно создана.\n"
-            f"{str_sum} {budget.currency.value}, {category.name}, "
-            f"{date}, {description}"
+            f"{pretty_sum} {budget.currency.value}, "
+            f"{category.name}, {pretty_date}"
         )
+        if description:
+            success_msg += f", {description}"
+        await message.answer(success_msg)
     else:
         await message.answer(
             "Что-то пошло не так при создании транзакции."
             "Обратитесь в поддержку"
         )
     await state.clear()
+
+
+@router.callback_query(F.data == "entry_create")
+async def entry_create(callback: types.CallbackQuery, state: FSMContext):
+    await cmd_create_entry(callback.message, state)
+    await callback.answer()
