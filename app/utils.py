@@ -234,4 +234,4 @@ def validate_entry_date(raw_date: str) -> tuple[dt.datetime | None, str]:
         )
         return None, error_message
 
-    return valid_datetime, ""
+    return valid_datetime.astimezone(settings.TIME_ZONE), ""
