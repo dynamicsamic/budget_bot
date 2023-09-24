@@ -5,7 +5,27 @@ from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 
 from app import settings
-from app.utils import validate_entry_date, validate_entry_sum
+from app.utils import (
+    validate_category_name,
+    validate_entry_date,
+    validate_entry_sum,
+)
+
+
+class CategoryNameFilter(BaseFilter):
+    async def __call__(self, message: Message):
+        category_name, error_message = validate_category_name(message.text)
+        return {"category_name": category_name, "error_message": error_message}
+
+
+class CategoryTypeFilter(BaseFilter):
+    async def __call__(
+        self, callback: CallbackQuery
+    ) -> Union[dict[str, str], bool]:
+        if callback.data.startswith("choose_entry_category"):
+            *_, category_type = callback.data.rsplit("_", maxsplit=1)
+            return {"category_type": category_type}
+        return False
 
 
 class EntryBudgetIdFilter(BaseFilter):

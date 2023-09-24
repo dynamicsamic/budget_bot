@@ -6,6 +6,7 @@ from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 
 from app.bot import keyboards
+from app.bot.filters import CategoryNameFilter, CategoryTypeFilter
 from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import EntryType, User
@@ -18,21 +19,6 @@ router.message.middleware(DataBaseSessionMiddleWare())
 router.callback_query.middleware(DataBaseSessionMiddleWare())
 
 
-def validate_category_name(category_name: str) -> tuple[bool, str]:
-    if not 4 < len(category_name) < 128:
-        error_message = (
-            "Недопустимая длина названия категории. "
-            "(название не должно быть короче 5 и длинее 128 символов)."
-        )
-        return False, error_message
-
-    if {"\\", "/"} & set(category_name):
-        error_message = "Недопустимые символы в названии"
-        return False, error_message
-
-    return True, ""
-
-
 @router.message(Command("category_create"))
 async def cmd_create_category(message: types.Message, state: FSMContext):
     await message.answer(
@@ -42,18 +28,18 @@ async def cmd_create_category(message: types.Message, state: FSMContext):
     await state.set_state(CategoryCreateState.name)
 
 
-@router.message(CategoryCreateState.name)
+@router.message(CategoryCreateState.name, CategoryNameFilter())
 async def create_category_request_type(
     message: types.Message,
     state: FSMContext,
+    category_name: str,
+    error_message: str,
 ):
-    name = message.text
-    name_validated, error_message = validate_category_name(name)
-    if not name_validated:
+    if not category_name:
         await message.answer(error_message)
         return
 
-    await state.update_data(category_name=name)
+    await state.update_data(category_name=category_name)
     await message.answer(
         "Выберите один из двух типов категорий",
         reply_markup=keyboards.choose_category_type(),
@@ -61,26 +47,18 @@ async def create_category_request_type(
     await state.set_state(CategoryCreateState.type)
 
 
-@router.callback_query(
-    CategoryCreateState.type, F.data.startswith("choose_entry_category")
-)
+@router.callback_query(CategoryCreateState.type, CategoryTypeFilter())
 async def create_category_finish(
     callback: types.CallbackQuery,
     state: FSMContext,
     model_managers: dict[str, Type[ModelManager]],
     user: User,
+    category_type: str,
 ):
-    *_, type_ = callback.data.rsplit("_", maxsplit=1)
-    if type_ == "income":
-        category_type = EntryType.INCOME
-    elif type_ == "expenses":
-        category_type = EntryType.EXPENSES
-    else:
-        await callback.message.answer(
-            "Для продолжения выберите тип категории, "
-            "нажав на одну из вышеуказанных кнопок."
-        )
-        return
+    type_ = (
+        EntryType.INCOME if category_type == "income" else EntryType.EXPENSES
+    )
+
     data = await state.get_data()
     category_name = data["category_name"]
     await state.clear()
@@ -88,7 +66,7 @@ async def create_category_finish(
     categories = model_managers["category"]
     created = categories.create(
         name=category_name,
-        type=category_type,
+        type=type_,
         user_id=user.id,
     )
     if created:
@@ -103,7 +81,7 @@ async def create_category_finish(
     await callback.answer()
 
 
-@router.callback_query(Text("category_create"))
+@router.callback_query(F.data == "category_create")
 async def category_create(callback: types.CallbackQuery, state: FSMContext):
     await cmd_create_category(callback.message, state)
     await callback.answer()
@@ -123,7 +101,7 @@ async def cmd_show_categories(
         )
 
 
-@router.callback_query(Text("category_menu"))
+@router.callback_query(F.data == "category_menu")
 async def show_categories(
     callback: types.CallbackQuery, user: User, state: FSMContext
 ):
@@ -174,15 +152,15 @@ async def category_item_update_recieve_name(
     await callback.answer()
 
 
-@router.message(CategoryUpdateState.name)
+@router.message(CategoryUpdateState.name, CategoryNameFilter())
 async def category_item_update_recieve_type(
     message: types.Message,
     state: FSMContext,
     model_managers: dict[str, Type[ModelManager]],
+    category_name: str,
+    error_message: str,
 ):
-    category_name = message.text
-    name_validated, error_message = validate_category_name(category_name)
-    if not name_validated:
+    if not category_name:
         await message.answer(error_message)
         return
 

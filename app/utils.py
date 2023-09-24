@@ -190,6 +190,21 @@ def tomorrow() -> dt.date:
     return today() + dt.timedelta(days=1)
 
 
+def validate_category_name(category_name: str) -> tuple[bool | str, str]:
+    if not 4 < len(category_name) < 128:
+        error_message = (
+            "Недопустимая длина названия категории. "
+            "(название не должно быть короче 5 и длинее 128 символов)."
+        )
+        return False, error_message
+
+    if {"\\", "/"} & set(category_name):
+        error_message = "Недопустимые символы в названии"
+        return False, error_message
+
+    return category_name, ""
+
+
 def validate_entry_sum(raw_sum: str) -> tuple[int, str]:
     invalid = 0
     if len(raw_sum) >= 20:
