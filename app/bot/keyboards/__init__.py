@@ -1,10 +1,10 @@
-from typing import Callable, List, Literal, Optional
+from typing import Callable, Literal
 
 from aiogram import types
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.bot.handlers.callback_data import (
+from app.bot.callback_data import (
     BudgetItemActionData,
     CategoryItemActionData,
     ReportTypeCallback,

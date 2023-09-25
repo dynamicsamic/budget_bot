@@ -15,6 +15,11 @@ create_new_budget = InlineKeyboardButton(
     callback_data="budget_create",
 )
 
+create_new_entry = InlineKeyboardButton(
+    text="🟢 Создать новую транзакцию",
+    callback_data="entry_create",
+)
+
 budget_menu = InlineKeyboardButton(
     text="💰 Мои бюджеты", callback_data="budget_menu"
 )
