@@ -1,14 +1,26 @@
 from aiogram import Router, types
 from aiogram.filters.text import Text
+from aiogram.fsm.context import FSMContext
 
+from app.bot.callback_data import ReportTypeCallback
 from app.bot.keyboards import choose_period_kb
 from app.bot.middlewares import DateInfoMiddleware
+from app.db.managers import entry_manager
 from app.utils import DateGen
 
-from .callback_data import ReportTypeCallback
+from .commands import cmd_show_menu
 
 router = Router()
 router.callback_query.middleware(DateInfoMiddleware())
+
+
+@router.callback_query(Text("main_menu_return"))
+async def return_to_main_menu(
+    callback: types.CallbackQuery, state: FSMContext
+):
+    await state.clear()
+    await cmd_show_menu(callback.message)
+    await callback.answer()
 
 
 @router.callback_query(Text("check_income"))
@@ -37,4 +49,8 @@ def foo(type: str, period: str):
     manager = []
     cb = []
     if hasattr(manager, period):
-        getattr(manager, period)(cb.date_info)
+        entry_manager("session")
+        if type == "income":
+            entry_manager.income(period, cb.date_info)
+        elif type == "expenses":
+            entry_manager.expenses(period, cb.date_info)

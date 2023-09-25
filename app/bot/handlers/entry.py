@@ -1,5 +1,4 @@
 import datetime as dt
-import re
 from typing import Type
 
 from aiogram import F, Router, types
@@ -15,11 +14,9 @@ from app.bot.filters import (
     EntrySumFilter,
 )
 from app.bot.middlewares import DataBaseSessionMiddleWare
+from app.bot.states import EntryCreateState
 from app.db.managers import ModelManager
-from app.db.models import EntryType, User
-from app.utils import now
-
-from .states import EntryCreateState
+from app.db.models import User
 
 router = Router()
 router.message.middleware(DataBaseSessionMiddleWare())

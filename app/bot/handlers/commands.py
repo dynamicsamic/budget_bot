@@ -10,8 +10,6 @@ from app.bot.middlewares import DataBaseSessionMiddleWare
 from app.db.managers import ModelManager
 from app.db.models import User
 
-from .states import BudgetState
-
 router = Router()
 router.message.middleware(DataBaseSessionMiddleWare())
 
@@ -43,8 +41,7 @@ async def cmd_start(
 
 @router.message(Command("cancel"))
 @router.message(F.text.casefold() == "отмена")
-async def cmd_cancel(message: types.Message, state: FSMContext, user: User):
-    print(user)
+async def cmd_cancel(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         text="Действие отменено", reply_markup=types.ReplyKeyboardRemove()
