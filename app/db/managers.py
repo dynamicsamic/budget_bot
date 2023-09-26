@@ -488,3 +488,31 @@ entry_manager = EntryManager(
     datefield="transaction_date",
     order_by=["transaction_date", "created_at"],
 )
+
+
+class ModelManagerStore:
+    managers = {
+        "user_manager": user_manager,
+        "budget_manager": budget_manager,
+        "category_manager": category_manager,
+        "entry_manager": entry_manager,
+    }
+
+    @classmethod
+    def as_flags(cls, *names: str) -> Sequence[str]:
+        name_to_manager = {
+            "user": "user_manager",
+            "budget": "budget_manager",
+            "category": "category_manager",
+            "entry": "entry_manager",
+        }
+
+        return_managers = [
+            name_to_manager.get(name) for name in names
+        ] or cls.managers.values()
+
+        return {"model_managers": return_managers}
+
+    @classmethod
+    def get(cls, name: str) -> ModelManager:
+        return cls.managers.get(name)
