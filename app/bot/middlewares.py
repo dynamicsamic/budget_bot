@@ -2,10 +2,12 @@ import datetime as dt
 from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
+from aiogram.dispatcher.flags import get_flag
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app import settings
-from app.db import get_session, managers, models
+from app.db import get_session, managers
+from app.db.managers import ModelManagerStore
 from app.utils import DateGen
 
 # TODO: restrict to only private chats in middleware
@@ -28,7 +30,7 @@ class DateInfoMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-class DataBaseSessionMiddleWare(BaseMiddleware):
+class CurrentUserMiddleWare(BaseMiddleware):
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
@@ -36,16 +38,27 @@ class DataBaseSessionMiddleWare(BaseMiddleware):
         data: Dict[str, Any],
     ) -> Any:
         with get_session() as db_session:
-            data["user"] = (
-                db_session.query(models.User)
-                .filter_by(tg_id=event.from_user.id)
-                .one_or_none()
+            data["user"] = managers.user_manager(db_session).get_by(
+                tg_id=event.from_user.id
             )
-            model_managers = {
-                "user": managers.user_manager(db_session),
-                "budget": managers.budget_manager(db_session),
-                "category": managers.category_manager(db_session),
-                "entry": managers.entry_manager(db_session),
-            }
-            data["model_managers"] = model_managers
+        return await handler(event, data)
+
+
+class ModelManagerMiddleware(BaseMiddleware):
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: CallbackQuery | Message,
+        data: Dict[str, Any],
+    ) -> Any:
+        managers = get_flag(data, "model_managers")
+
+        if not managers:
+            return await handler(event, data)
+
+        with get_session() as db_session:
+            for manager_name in managers:
+                manager = ModelManagerStore.get(manager_name)
+                data[manager_name] = manager(db_session)
+
             return await handler(event, data)
