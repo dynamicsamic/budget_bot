@@ -7,14 +7,14 @@ from aiogram.fsm.context import FSMContext
 
 from app.bot import keyboards
 from app.bot.callback_data import BudgetItemActionData
-from app.bot.middlewares import DataBaseSessionMiddleWare
+from app.bot.middlewares import ModelManagerMiddleware
 from app.bot.states import BudgetCreatetState, BudgetUpdateState
-from app.db.managers import ModelManager
+from app.db.managers import DateQueryManager, ModelManagerStore
 from app.db.models import User
 
 router = Router()
-router.message.middleware(DataBaseSessionMiddleWare())
-router.callback_query.middleware(DataBaseSessionMiddleWare())
+router.message.middleware(ModelManagerMiddleware())
+router.callback_query.middleware(ModelManagerMiddleware())
 
 
 @router.message(Command("budget_create"))
@@ -29,12 +29,14 @@ async def cmd_create_budget(message: types.Message, state: FSMContext):
     await state.set_state(BudgetCreatetState.currency)
 
 
-@router.message(BudgetCreatetState.currency)
+@router.message(
+    BudgetCreatetState.currency, flags=ModelManagerStore.as_flags("budget")
+)
 async def create_budget_finish(
     message: types.Message,
     state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
     user: User,
+    budget_manager: DateQueryManager,
 ):
     currency = message.text
     if not currency.isalpha() or len(currency) > 10:
@@ -49,8 +51,7 @@ async def create_budget_finish(
         return
     await state.clear()
 
-    budgets = model_managers["budget"]
-    created = budgets.create(
+    created = budget_manager.create(
         currency=currency, user_id=user.id, name=f"user{user.tg_id}_{currency}"
     )
     if created:
@@ -101,13 +102,16 @@ async def budget_item_show_options(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(BudgetItemActionData.filter(F.action == "delete"))
+@router.callback_query(
+    BudgetItemActionData.filter(F.action == "delete"),
+    flags=ModelManagerStore.as_flags("budget"),
+)
 async def budget_item_delete(
     callback: types.CallbackQuery,
     callback_data: BudgetItemActionData,
-    model_managers: dict[str, Type[ModelManager]],
+    budget_manager: DateQueryManager,
 ):
-    deleted = model_managers["budget"].delete(id=callback_data.budget_id)
+    deleted = budget_manager.delete(id=callback_data.budget_id)
     if deleted:
         await callback.message.answer("Бюджет был успешно удален")
     else:
@@ -133,11 +137,11 @@ async def budget_item_update_recieve_currency(
     await callback.answer()
 
 
-@router.message(BudgetUpdateState.currency)
+@router.message(
+    BudgetUpdateState.currency, flags=ModelManagerStore.as_flags("budget")
+)
 async def budget_item_update_finish(
-    message: types.Message,
-    state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
+    message: types.Message, state: FSMContext, budget_manager: DateQueryManager
 ):
     currency = message.text
     if not currency.isalpha() or len(currency) > 10:
@@ -153,7 +157,7 @@ async def budget_item_update_finish(
 
     data = await state.get_data()
     budget_id = data["budget_id"]
-    updated = model_managers["budget"].update(id_=budget_id, currency=currency)
+    updated = budget_manager.update(id_=budget_id, currency=currency)
     if updated:
         await message.answer("Бюджет был успешно обновлен")
     else:

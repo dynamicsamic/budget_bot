@@ -13,14 +13,19 @@ from app.bot.filters import (
     EntryDateFilter,
     EntrySumFilter,
 )
-from app.bot.middlewares import DataBaseSessionMiddleWare
+from app.bot.middlewares import ModelManagerMiddleware
 from app.bot.states import EntryCreateState
-from app.db.managers import ModelManager
+from app.db.managers import (
+    DateQueryManager,
+    EntryManager,
+    ModelManager,
+    ModelManagerStore,
+)
 from app.db.models import User
 
 router = Router()
-router.message.middleware(DataBaseSessionMiddleWare())
-router.callback_query.middleware(DataBaseSessionMiddleWare())
+router.message.middleware(ModelManagerMiddleware())
+router.callback_query.middleware(ModelManagerMiddleware())
 
 
 @router.message(Command("entry_create"))
@@ -34,15 +39,19 @@ async def cmd_create_entry(
     await state.set_state(EntryCreateState.budget)
 
 
-@router.callback_query(EntryCreateState.budget, EntryBudgetIdFilter())
+@router.callback_query(
+    EntryCreateState.budget,
+    EntryBudgetIdFilter(),
+    flags=ModelManagerStore.as_flags("budget"),
+)
 async def create_entry_receive_category(
     callback: types.CallbackQuery,
     state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
     user: User,
     budget_id: int,
+    budget_manager: DateQueryManager,
 ):
-    budget = model_managers["budget"].get(budget_id)
+    budget = budget_manager.get(budget_id)
     if not budget:
         await callback.message.answer(
             "Указан неверный бюджет.\n" "Выберите бюджет из списка ниже.",
@@ -59,15 +68,19 @@ async def create_entry_receive_category(
     await callback.answer()
 
 
-@router.callback_query(EntryCreateState.category, EntryCategoryIdFilter())
+@router.callback_query(
+    EntryCreateState.category,
+    EntryCategoryIdFilter(),
+    flags=ModelManagerStore.as_flags("category"),
+)
 async def create_entry_receive_category(
     callback: types.CallbackQuery,
     state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
     user: User,
     category_id: int,
+    category_manager: DateQueryManager,
 ):
-    category = model_managers["category"].get(category_id)
+    category = category_manager.get(category_id)
     if not category:
         await callback.message.answer(
             "Выбрана несуществуюшая.\n" "Выберите категорию из списка ниже.",
@@ -96,10 +109,13 @@ async def create_entry_receive_sum(
     if not transaction_sum:
         await message.answer(error_message)
         return
+
     data = await state.get_data()
+
     entry_type = data["category"].type
     if entry_type.value == "expenses":
         transaction_sum = -transaction_sum
+
     await state.update_data(sum=transaction_sum)
     await message.answer(
         "Введите дату транзакции.\n"
@@ -127,24 +143,22 @@ async def create_entry_receive_transaction_date(
     await state.set_state(EntryCreateState.description)
 
 
-@router.message(EntryCreateState.description)
+@router.message(
+    EntryCreateState.description, flags=ModelManagerStore.as_flags("entry")
+)
 async def create_entry_receive_description(
-    message: types.Message,
-    state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
+    message: types.Message, state: FSMContext, entry_manager: EntryManager
 ):
     description = message.text
     if description == ".":
         description = None
-
-    entries = model_managers["entry"]
 
     data = await state.get_data()
     budget = data["budget"]
     category = data["category"]
     sum_ = data["sum"]
     date = data["transaction_date"]
-    created = entries.create(
+    created = entry_manager.create(
         budget_id=budget.id,
         category_id=category.id,
         sum=sum_,

@@ -8,14 +8,14 @@ from aiogram.fsm.context import FSMContext
 from app.bot import keyboards
 from app.bot.callback_data import CategoryItemActionData
 from app.bot.filters import CategoryNameFilter, CategoryTypeFilter
-from app.bot.middlewares import DataBaseSessionMiddleWare
+from app.bot.middlewares import ModelManagerMiddleware
 from app.bot.states import CategoryCreateState, CategoryUpdateState
-from app.db.managers import ModelManager
+from app.db.managers import DateQueryManager, ModelManagerStore
 from app.db.models import EntryType, User
 
 router = Router()
-router.message.middleware(DataBaseSessionMiddleWare())
-router.callback_query.middleware(DataBaseSessionMiddleWare())
+router.message.middleware(ModelManagerMiddleware())
+router.callback_query.middleware(ModelManagerMiddleware())
 
 
 @router.message(Command("category_create"))
@@ -46,13 +46,17 @@ async def create_category_request_type(
     await state.set_state(CategoryCreateState.type)
 
 
-@router.callback_query(CategoryCreateState.type, CategoryTypeFilter())
+@router.callback_query(
+    CategoryCreateState.type,
+    CategoryTypeFilter(),
+    flags=ModelManagerStore.as_flags("category"),
+)
 async def create_category_finish(
     callback: types.CallbackQuery,
     state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
     user: User,
     category_type: str,
+    category_manager: DateQueryManager,
 ):
     type_ = (
         EntryType.INCOME if category_type == "income" else EntryType.EXPENSES
@@ -62,8 +66,7 @@ async def create_category_finish(
     category_name = data["category_name"]
     await state.clear()
 
-    categories = model_managers["category"]
-    created = categories.create(
+    created = category_manager.create(
         name=category_name,
         type=type_,
         user_id=user.id,
@@ -118,13 +121,16 @@ async def category_item_show_options(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(CategoryItemActionData.filter(F.action == "delete"))
+@router.callback_query(
+    CategoryItemActionData.filter(F.action == "delete"),
+    flags=ModelManagerStore.as_flags("category"),
+)
 async def category_item_delete(
     callback: types.CallbackQuery,
     callback_data: CategoryItemActionData,
-    model_managers: dict[str, Type[ModelManager]],
+    category_manager: DateQueryManager,
 ):
-    deleted = model_managers["category"].delete(id=callback_data.category_id)
+    deleted = category_manager.delete(id=callback_data.category_id)
     if deleted:
         await callback.message.answer(
             "Категория была успешно удалена",
@@ -151,13 +157,17 @@ async def category_item_update_recieve_name(
     await callback.answer()
 
 
-@router.message(CategoryUpdateState.name, CategoryNameFilter())
+@router.message(
+    CategoryUpdateState.name,
+    CategoryNameFilter(),
+    flags=ModelManagerStore.as_flags("category"),
+)
 async def category_item_update_recieve_type(
     message: types.Message,
     state: FSMContext,
-    model_managers: dict[str, Type[ModelManager]],
     category_name: str,
     error_message: str,
+    category_manager: DateQueryManager,
 ):
     if not category_name:
         await message.answer(error_message)
@@ -165,9 +175,7 @@ async def category_item_update_recieve_type(
 
     data = await state.get_data()
     category_id = data["category_id"]
-    updated = model_managers["category"].update(
-        id_=category_id, name=category_name
-    )
+    updated = category_manager.update(id_=category_id, name=category_name)
     if updated:
         await message.answer(
             f"Название категории было изменено на: {category_name}",

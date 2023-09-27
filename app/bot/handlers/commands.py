@@ -6,41 +6,48 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import scoped_session
 
 from app.bot.keyboards import cmd_report_kb, main_menu
-from app.bot.middlewares import DataBaseSessionMiddleWare
-from app.db.managers import ModelManager
+from app.bot.middlewares import ModelManagerMiddleware
+from app.db.managers import DateQueryManager, EntryManager, ModelManagerStore
 from app.db.models import User
 
 router = Router()
-router.message.middleware(DataBaseSessionMiddleWare())
+router.message.middleware(ModelManagerMiddleware())
 
 
-@router.message(Command("test"))
+@router.message(
+    Command("test"),
+    flags=ModelManagerStore.as_flags("user", "budget", "category", "entry"),
+)
 async def cmd_test(
-    message: types.Message, model_managers: dict[str, Type[ModelManager]]
-):
-    await message.answer(f'{model_managers["user"].list()}')
-
-
-@router.message(Command("start"))
-async def cmd_start(
     message: types.Message,
-    model_managers: dict[str, Type[ModelManager]],
-    user: User,
+    user_manager: DateQueryManager,
+    budget_manager: DateQueryManager,
+    category_manager: DateQueryManager,
+    entry_manager: EntryManager,
 ):
-    mgr = model_managers["user"]
+    users = user_manager.list()
+    budgets = budget_manager.list()
+    categories = category_manager.list()
+    entries = entry_manager.list()
+    await message.answer(f"{users}, {budgets}, {categories}, {entries}")
+
+
+@router.message(Command("start"), flags=ModelManagerStore.as_flags("user"))
+async def cmd_start(
+    message: types.Message, user: User, user_manager: DateQueryManager
+):
     if user is None:
         text = """Вас приветсвует Бюджетный Менеджер!
         Чтобы начать пользоваться менеджером, 
         создайте новый бюджет в нужной вам валюте и несколько категорий
         доходов и расходов для удобства."""
-        mgr.create(tg_id=message.from_user.id)
+        user_manager.create(tg_id=message.from_user.id)
     else:
         text = """С возвращением, уважаемый! Вы можете продолжить работу с вашим бюджетом"""
     await message.answer(text)
 
 
-@router.message(Command("cancel"))
-@router.message(F.text.casefold() == "отмена")
+@router.message(Command("cancel"), F.text.casefold() == "отмена")
 async def cmd_cancel(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(

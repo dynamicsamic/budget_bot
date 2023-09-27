@@ -5,7 +5,6 @@ from aiogram.fsm.context import FSMContext
 from app.bot.callback_data import ReportTypeCallback
 from app.bot.keyboards import choose_period_kb
 from app.bot.middlewares import DateInfoMiddleware
-from app.db.managers import entry_manager
 from app.utils import DateGen
 
 from .commands import cmd_show_menu
@@ -43,14 +42,3 @@ async def cb_build_report(
     await callback.message.answer(str(date_info))
     print(callback_data.period, callback_data.type)
     await callback.answer()
-
-
-def foo(type: str, period: str):
-    manager = []
-    cb = []
-    if hasattr(manager, period):
-        entry_manager("session")
-        if type == "income":
-            entry_manager.income(period, cb.date_info)
-        elif type == "expenses":
-            entry_manager.expenses(period, cb.date_info)
