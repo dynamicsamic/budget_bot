@@ -1,5 +1,7 @@
 from aiogram import Router
 
+from app.bot.middlewares import CurrentUserMiddleWare
+
 from .budget import router as budget_router
 from .callbacks import router as callback_router
 from .category import router as category_router
@@ -14,3 +16,5 @@ router.include_routers(
     callback_router,
     entry_router,
 )
+router.message.middleware(CurrentUserMiddleWare())
+router.callback_query.middleware(CurrentUserMiddleWare())
