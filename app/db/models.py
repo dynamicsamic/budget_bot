@@ -81,9 +81,7 @@ class EntryCategory(AbstractBaseModel):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE")
     )
-    user: Mapped["User"] = relationship(
-        back_populates="categories", lazy="joined"
-    )
+    user: Mapped["User"] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
 
     def __repr__(self) -> str:
@@ -99,9 +97,13 @@ class Entry(AbstractBaseModel):
     budget_id: Mapped[int] = mapped_column(
         ForeignKey("budget.id", ondelete="CASCADE")
     )
-    budget: Mapped["Budget"] = relationship(back_populates="entries")
+    budget: Mapped["Budget"] = relationship(
+        back_populates="entries", lazy="joined"
+    )
     category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
-    category: Mapped["EntryCategory"] = relationship(back_populates="entries")
+    category: Mapped["EntryCategory"] = relationship(
+        back_populates="entries", lazy="joined"
+    )
 
     # sum is an integer thus:
     # multiply float number by 100 before insert opeartions
