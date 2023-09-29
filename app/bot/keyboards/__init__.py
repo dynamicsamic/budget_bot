@@ -9,6 +9,7 @@ from app.bot.callback_data import (
     CategoryItemActionData,
     ReportTypeCallback,
 )
+from app.bot.render import render_budget_item, render_category_item
 from app.db import models
 from app.db.base import AbstractBaseModel
 
@@ -58,25 +59,6 @@ def interactive_item_list(
     builder = InlineKeyboardBuilder(buttons)
     builder.adjust(1)
     return builder.as_markup()
-
-
-def render_budget_item(budget: models.Budget) -> str:
-    return f"{budget.currency}, {len(budget.entries)} операций"
-
-
-def render_category_item(category: models.EntryCategory) -> str:
-    category_type = (
-        lambda category: "расходы"
-        if category.type.value == "expenses"
-        else "доходы"
-    )
-
-    rendered = (
-        f"{category.name} ({category_type(category)}), "
-        f"{len(category.entries)} операций"
-    )
-
-    return rendered
 
 
 def budget_item_list_interactive(budgets: list[models.EntryCategory]):
