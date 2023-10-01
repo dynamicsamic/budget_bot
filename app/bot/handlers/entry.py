@@ -6,6 +6,7 @@ from aiogram.filters.command import Command
 from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 
+from app import settings
 from app.bot import keyboards
 from app.bot.filters import (
     EntryBudgetIdFilter,
@@ -144,10 +145,14 @@ async def create_entry_receive_transaction_date(
 
 
 @router.message(
-    EntryCreateState.description, flags=ModelManagerStore.as_flags("entry")
+    EntryCreateState.description,
+    flags=ModelManagerStore.as_flags("entry", "category"),
 )
 async def create_entry_receive_description(
-    message: types.Message, state: FSMContext, entry_manager: EntryManager
+    message: types.Message,
+    state: FSMContext,
+    entry_manager: EntryManager,
+    category_manager: DateQueryManager,
 ):
     description = message.text
     if description == ".":
@@ -175,7 +180,12 @@ async def create_entry_receive_description(
         )
         if description:
             success_msg += f", {description}"
+
         await message.answer(success_msg)
+
+        category_manager.update(
+            category.id, last_used=message.date.astimezone(settings.TIME_ZONE)
+        )
     else:
         await message.answer(
             "Что-то пошло не так при создании транзакции."
