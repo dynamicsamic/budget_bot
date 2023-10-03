@@ -15,7 +15,7 @@ from app.bot.filters import (
     EntrySumFilter,
 )
 from app.bot.middlewares import ModelManagerMiddleware
-from app.bot.states import EntryCreateState
+from app.bot.states import EntryCreateState, EntryList
 from app.db.managers import (
     DateQueryManager,
     EntryManager,
@@ -197,4 +197,38 @@ async def create_entry_receive_description(
 @router.callback_query(F.data == "entry_create")
 async def entry_create(callback: types.CallbackQuery, state: FSMContext):
     await cmd_create_entry(callback.message, state)
+    await callback.answer()
+
+
+@router.message(
+    Command("show_entries"), flags=ModelManagerStore.as_flags("budget")
+)
+async def cmd_show_entries(
+    message: types.Message,
+    state: FSMContext,
+    user: User,
+    budget_manager: DateQueryManager,
+):
+    budgets = budget_manager.select(filters=[f"user_id=={user.id}"])
+    await message.answer(
+        "Выберите бюджет для просмотра транзакций",
+        reply_markup=keyboards.create_entry_show_budgets(budgets),
+    )
+    await state.set_state(EntryList.budgets)
+
+
+@router.callback_query(
+    EntryList.budgets,
+    EntryBudgetIdFilter(),
+    flags=ModelManagerStore.as_flags("entry"),
+)
+async def entry_list(
+    callback: types.CallbackQuery, budget_id: int, entry_manager: EntryManager
+):
+    entries = entry_manager.select(filters=[f"budget_id==1"])
+    await callback.message.answer("hello")
+    await callback.message.answer(
+        "Нажмите на транзакцию, чтобы выбрать действие",
+        reply_markup=keyboards.entry_item_list_interactive(entries),
+    )
     await callback.answer()

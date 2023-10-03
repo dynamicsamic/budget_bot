@@ -18,3 +18,18 @@ def render_category_item(category: models.EntryCategory) -> str:
     )
 
     return rendered
+
+
+def render_entry_item(entry: models.Entry) -> str:
+    sign = "+" if entry.sum > 0 else "-"
+    pretty_sum = f"{sign}{entry.sum_ / 100:.2f}"
+    pretty_date = f"{entry.transaction_date:%Y-%m-%d %H:%M:%S}"
+    rendered = (
+        "Новая транзакция успешно создана.\n"
+        f"{pretty_sum} {entry.budget.currency.value}, "
+        f"{entry.category.name}, {pretty_date}"
+    )
+    if entry.description:
+        rendered += f", {entry.description}"
+
+    return rendered

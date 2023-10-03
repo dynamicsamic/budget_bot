@@ -24,3 +24,7 @@ class EntryCreateState(StatesGroup):
     sum = State()
     transcation_date = State()
     description = State()
+
+
+class EntryList(StatesGroup):
+    budgets = State()

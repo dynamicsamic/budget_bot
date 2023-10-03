@@ -9,7 +9,11 @@ from app.bot.callback_data import (
     CategoryItemActionData,
     ReportTypeCallback,
 )
-from app.bot.render import render_budget_item, render_category_item
+from app.bot.render import (
+    render_budget_item,
+    render_category_item,
+    render_entry_item,
+)
 from app.db import models
 from app.db.base import AbstractBaseModel
 
@@ -151,6 +155,15 @@ def create_entry_show_categories(
         render_category_item,
         "entry_category_item",
         [buttons.main_menu],
+    )
+
+
+def entry_item_list_interactive(entries: list[models.Entry]):
+    return interactive_item_list(
+        entries,
+        render_entry_item,
+        "entry_item",
+        [buttons.create_new_entry, buttons.main_menu],
     )
 
 
