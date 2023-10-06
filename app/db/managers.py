@@ -9,7 +9,9 @@ from sqlalchemy import func as sql_func
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, scoped_session
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql import column
+from sqlalchemy.sql.elements import UnaryExpression
 
 from app.db.base import AbstractBaseModel
 from app.utils import DateGen
@@ -230,6 +232,18 @@ class ModelManager:
 
         return q
 
+    def _new_fetch(
+        self, filters: Sequence[str] = None, reverse: bool = False
+    ) -> Query[Type[AbstractBaseModel]]:
+        q = self.session.query(self.model).order_by(
+            *self._new_prepare_order_by()
+        )
+        filter_by = self._compile_filter_expr(filters)
+        if filter_by is not None:
+            return q.filter(filter_by)
+
+        return q
+
     def _fetch_n(
         self, n: int, filters: Sequence[str] = None, reverse: bool = False
     ) -> Query[Type[AbstractBaseModel]]:
@@ -242,6 +256,29 @@ class ModelManager:
 
     def _prepare_order_by(self) -> str:
         return ", ".join(self.order_by)
+
+    def _new_prepare_order_by(
+        self,
+    ) -> Sequence[InstrumentedAttribute | UnaryExpression]:
+        order_by_ = []
+        for attr, order in self._order_by_dict.items():
+            field = getattr(self.model, attr)
+            if order == "desc":
+                field = field.desc()
+            order_by_.append(field)
+        return order_by_
+
+    @property
+    def _order_by_dict(self) -> dict[str, Literal["asc", "desc"]]:
+        order_by_dict = {}
+        for attr in self.order_by:
+            if attr.startswith("-"):
+                order_by_dict[attr[1:].strip()] = "desc"
+            elif attr.endswith("-"):
+                order_by_dict[attr[:-1].strip()] = "desc"
+            else:
+                order_by_dict[attr.strip()] = "asc"
+        return order_by_dict
 
     def _reverse_order_by(self) -> str:
         return ", ".join(
