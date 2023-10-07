@@ -1,16 +1,14 @@
 import datetime as dt
 import operator as operators
 import re
-from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Literal, Sequence, Type
+from typing import Any, Callable, List, Literal, Sequence, Type
 
 from sqlalchemy import Date, DateTime, and_
 from sqlalchemy import func as sql_func
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
-from sqlalchemy.sql import column
 from sqlalchemy.sql.elements import UnaryExpression
 
 from app.db.base import AbstractBaseModel
@@ -127,7 +125,9 @@ class ModelManager:
         return False
 
     def delete(self, **kwargs) -> bool:
-        """Delete `self.model` object with given `id`."""
+        """Delete `self.model` object with given kwargs.
+        Like delete(id=1) or delete(name='user', age=20).
+        """
         try:
             deleted = bool(
                 self.session.query(self.model).filter_by(**kwargs).delete()
@@ -154,7 +154,7 @@ class ModelManager:
         """Retrieve all `self.model` objets."""
         return self._fetch(reverse=reverse)
 
-    def list(self, reverse: bool = False) -> list[Type[AbstractBaseModel]]:
+    def list(self, reverse: bool = False) -> List[Type[AbstractBaseModel]]:
         """Retrieve all `self.model` objets in list."""
         return self._fetch(reverse=reverse).all()
 
@@ -224,19 +224,7 @@ class ModelManager:
         self, filters: Sequence[str] = None, reverse: bool = False
     ) -> Query[Type[AbstractBaseModel]]:
         q = self.session.query(self.model).order_by(
-            text(self._compile_order_by(reverse))
-        )
-        filter_by = self._compile_filter_expr(filters)
-        if filter_by is not None:
-            return q.filter(filter_by)
-
-        return q
-
-    def _new_fetch(
-        self, filters: Sequence[str] = None, reverse: bool = False
-    ) -> Query[Type[AbstractBaseModel]]:
-        q = self.session.query(self.model).order_by(
-            *self._new_prepare_order_by()
+            *self._compile_order_by(reverse)
         )
         filter_by = self._compile_filter_expr(filters)
         if filter_by is not None:
@@ -249,29 +237,37 @@ class ModelManager:
     ) -> Query[Type[AbstractBaseModel]]:
         return self._fetch(filters, reverse).limit(n)
 
-    def _compile_order_by(self, reverse=bool) -> str:
-        return (
-            self._reverse_order_by() if reverse else self._prepare_order_by()
-        )
-
-    def _prepare_order_by(self) -> str:
-        return ", ".join(self.order_by)
-
-    def _new_prepare_order_by(
-        self,
-    ) -> Sequence[InstrumentedAttribute | UnaryExpression]:
+    def _compile_order_by(
+        self, reverse: bool
+    ) -> List[InstrumentedAttribute | UnaryExpression]:
         order_by_ = []
-        for attr, order in self._order_by_dict.items():
+        order_by_dict = (
+            self._reversed_order_by_dict if reverse else self._order_by_dict
+        )
+        for attr, order in order_by_dict.items():
             field = getattr(self.model, attr)
-            if order == "desc":
+            if order == "desc" and hasattr(field, "is_attribute"):
                 field = field.desc()
             order_by_.append(field)
         return order_by_
 
     @property
     def _order_by_dict(self) -> dict[str, Literal["asc", "desc"]]:
+        return self._transform_to_order_by_dict(self.order_by)
+
+    @property
+    def _reversed_order_by_dict(self) -> dict[str, Literal["asc", "desc"]]:
+        return {
+            attr: "desc" if order == "asc" else "asc"
+            for attr, order in self._order_by_dict.items()
+        }
+
+    @staticmethod
+    def _transform_to_order_by_dict(
+        order_by: Sequence[str],
+    ) -> dict[str, Literal["asc", "desc"]]:
         order_by_dict = {}
-        for attr in self.order_by:
+        for attr in order_by:
             if attr.startswith("-"):
                 order_by_dict[attr[1:].strip()] = "desc"
             elif attr.endswith("-"):
@@ -279,16 +275,6 @@ class ModelManager:
             else:
                 order_by_dict[attr.strip()] = "asc"
         return order_by_dict
-
-    def _reverse_order_by(self) -> str:
-        return ", ".join(
-            (
-                item.removesuffix(" desc")
-                if item.endswith(" desc")
-                else item + " desc"
-                for item in self.order_by
-            )
-        )
 
     def _compile_filter_expr(self, filters: Sequence[str] = None):
         filters = filters or self.filters
@@ -314,8 +300,8 @@ class ModelManager:
 
     def _validate_order_by(self, order_by: Sequence[str]):
         self._check_iterable(order_by, InvalidOrderByValue)
-        cleaned_values = {val.strip() for val in order_by}
-        if invalid_fields := cleaned_values - self.model.fieldnames:
+        order_by_dict = self._transform_to_order_by_dict(order_by)
+        if invalid_fields := set(order_by_dict.keys()) - self.model.fieldnames:
             raise InvalidOrderByValue(
                 f"""Following values can not be 
                 used as `order_by` args: {', '.join(invalid_fields)}."""
