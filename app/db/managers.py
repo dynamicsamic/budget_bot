@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 import operator as operators
 import re
 from typing import Any, Callable, List, Literal, Sequence, Type
@@ -23,6 +24,8 @@ from .exceptions import (
     ModelInstanceCreateError,
 )
 from .models import Budget, Entry, EntryCategory, User
+
+logger = logging.getLogger(__name__)
 
 
 class ModelManager:
@@ -88,22 +91,21 @@ class ModelManager:
         self._validate_datefield(datefield_)
         self._datefield = datefield_
 
-    def create(self, **kwargs) -> bool:
-        if invalid_kwargs := set(kwargs.keys()) - self.model.fieldnames:
-            raise ModelInstanceCreateError(
-                f"Invalid fields for {self.model.__name__}: {', '.join(invalid_kwargs)}"
-            )
-
-        self.session.add(self.model(**kwargs))
+    def create(self, **kwargs) -> Type[AbstractBaseModel] | None:
+        """Create an instance of `'self.model`.
+        Return newly created instance if successfully created.
+        Return `None` in case of failure.
+        """
         try:
+            obj = self.model(**kwargs)
+            self.session.add(obj)
             self.session.commit()
-        except SQLAlchemyError:
-            return False
-            raise ModelInstanceCreateError(
-                f"Can not create {self.model.__name__} instance. Check provided args."
-            )
+        except Exception as e:
+            logger.error(f"Instance creation [FAILURE]: {e}")
+            return
 
-        return True
+        logger.info(f"New instance of {self.model} created")
+        return obj
 
     def update(
         self,
@@ -124,17 +126,20 @@ class ModelManager:
             return updated
         return False
 
-    def delete(self, **kwargs) -> bool:
-        """Delete `self.model` object with given kwargs.
-        Like delete(id=1) or delete(name='user', age=20).
+    def delete(self, id_: int = None, **kwargs) -> bool:
+        """Delete `self.model` object with given id or given kwargs.
+        Examples: delete(1); delete(id=1); delete(name='user', age=20).
         """
+        if id_:
+            kwargs["id"] = id_
+
         try:
             deleted = bool(
                 self.session.query(self.model).filter_by(**kwargs).delete()
             )
+            self.session.commit()
         except SQLAlchemyError:
             return False
-        self.session.commit()
         return deleted
 
     def get(self, id_: int) -> Type[AbstractBaseModel] | None:
