@@ -93,7 +93,7 @@ class ModelManager:
 
     def create(self, **kwargs) -> Type[AbstractBaseModel] | None:
         """Create an instance of `'self.model`.
-        Return newly created instance if successfully created.
+        Return created instance in case of success.
         Return `None` in case of failure.
         """
         try:
@@ -110,21 +110,32 @@ class ModelManager:
     def update(
         self,
         id_: int,
-        *,
-        commit: bool = True,
         **kwargs,
     ) -> bool:
         """Update `self.model` object."""
-        if valid_kwargs := self._clean_kwargs(kwargs):
+        try:
             updated = bool(
-                self.session.query(self.model)
-                .filter_by(id=id_)
-                .update(valid_kwargs)
+                self.session.query(self.model).filter_by(id=id_).update(kwargs)
             )
-            if updated and commit:
-                self.session.commit()
-            return updated
-        return False
+        except Exception as e:
+            logger.error(
+                f"{self.model.__tablename__.upper()} "
+                f"instance update [FAILURE]: {e}"
+            )
+            return False
+
+        if updated:
+            self.session.commit()
+            logger.info(
+                f"{self.model.__tablename__.upper()} instance "
+                f"with id `{id_}` update [SUCCESS]"
+            )
+        else:
+            logger.info(
+                f"No instance of {self.model.__tablename__.upper()} "
+                f"with id `{id_}` found."
+            )
+        return updated
 
     def delete(self, id_: int = None, **kwargs) -> bool:
         """Delete `self.model` object with given id or given kwargs.
