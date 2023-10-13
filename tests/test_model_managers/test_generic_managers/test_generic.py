@@ -114,30 +114,25 @@ def test_reset_filters(generic_manager):
     generic_manager.filters == None
 
 
-def test_create_with_valid_args_return_true(generic_manager):
+def test_create_with_valid_args_return_new_instance(generic_manager):
     valid_args = {"id": 999999, "name": "new_user", "created_at": now()}
-    created = generic_manager.create(**valid_args)
-    assert isinstance(created, bool)
-    assert created == True
-
-    obj = generic_manager.last()
+    obj = generic_manager.create(**valid_args)
+    assert isinstance(obj, GenericTestModel)
     assert obj.id == valid_args["id"]
     assert obj.name == valid_args["name"]
 
 
-@pytest.mark.xfail(raises=exceptions.ModelInstanceCreateError, strict=True)
-def test_create_with_missing_model_attribute_raises_error(generic_manager):
-    generic_manager.create(id=999999)
+def test_create_with_missing_or_invalid_model_attribute_return_none(
+    generic_manager,
+):
+    assert generic_manager.create(id=999999) is None
+    assert generic_manager.create(id=999999, invalid="invalid") is None
+    assert generic_manager.create(id=999999, name=["invalid"]) is None
 
 
-@pytest.mark.xfail(raises=exceptions.ModelInstanceCreateError, strict=True)
-def test_create_with_invalid_model_attribute_raises_error(generic_manager):
-    generic_manager.create(id=999999, invalid="invalid")
-
-
-@pytest.mark.xfail(raises=exceptions.ModelInstanceCreateError, strict=True)
-def test_create_with_wrong_type_model_attribute_raises_error(generic_manager):
-    generic_manager.create(id=999999, name=["invalid"])
+def test_create_with_existing_id_return_none(generic_manager):
+    obj = generic_manager.last()
+    assert generic_manager.create(id=obj.id, name="most_recent_obj") is None
 
 
 def test_update_with_valid_id_without_kwargs_return_false(generic_manager):
@@ -156,38 +151,45 @@ def test_update_with_valid_id_with_valid_kwargs_return_true(
     assert updated == True
 
 
-def test_update_by_default_saves_changes_to_db(generic_manager):
+def test_update_saves_changes_to_db(generic_manager):
     id_ = 1
     name = "test_obj"
     assert generic_manager.update(id_, name=name) == True
     assert generic_manager.get(id_).name == name
 
 
-# fix this later
-@pytest.mark.skip
-def test_update_with_commit_false_does_not_save_changes_to_db(
-    generic_manager,
-):
-    id_ = 1
-    name = "test_obj"
-    assert generic_manager.update(id_, commit=False, name=name) == True
-    assert generic_manager.get(id_).name != name
-
-
 def test_delete_with_valid_id_return_true(generic_manager):
+    deleted = generic_manager.delete(id=1)
+    assert isinstance(deleted, bool)
+    assert deleted == True
+
+
+def test_delete_without_kwargs_treat_first_arg_as_id(generic_manager):
     deleted = generic_manager.delete(1)
     assert isinstance(deleted, bool)
     assert deleted == True
 
 
 def test_delete_with_unexisting_id_return_false(generic_manager):
-    deleted = generic_manager.delete(-1)
+    deleted = generic_manager.delete(id=-1)
     assert isinstance(deleted, bool)
     assert deleted == False
 
 
 def test_delete_with_invalid_id_return_false(generic_manager):
-    deleted = generic_manager.delete("hello")
+    deleted = generic_manager.delete(id="hello")
+    assert isinstance(deleted, bool)
+    assert deleted == False
+
+
+def test_delete_with_several_valid_kwargs_return_true(generic_manager):
+    deleted = generic_manager.delete(name="obj2", id=2)
+    assert isinstance(deleted, bool)
+    assert deleted == True
+
+
+def test_delete_with_unmatched_kwargs_return_false(generic_manager):
+    deleted = generic_manager.delete(name="obj2", id=1)
     assert isinstance(deleted, bool)
     assert deleted == False
 
@@ -333,7 +335,6 @@ def test_exists_with_invalid_id_return_false(generic_manager):
     assert exists == False
 
 
-@pytest.mark.current
 def test_exists_with_multiple_args(generic_manager):
     assert generic_manager.exists(id=1, name="obj1") == True
     assert generic_manager.exists(id=12, name="obj1") == False
