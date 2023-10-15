@@ -28,6 +28,16 @@ class CategoryTypeFilter(BaseFilter):
         return False
 
 
+class GetEntryId(BaseFilter):
+    async def __call__(
+        self, callback: CallbackQuery
+    ) -> Union[dict[str, int], bool]:
+        if callback.data.startswith("entry_item"):
+            *_, entry_id = callback.data.rsplit("_", maxsplit=1)
+            return {"entry_id": entry_id}
+        return False
+
+
 class EntryBudgetIdFilter(BaseFilter):
     async def __call__(
         self, callback: CallbackQuery

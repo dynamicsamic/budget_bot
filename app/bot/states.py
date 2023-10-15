@@ -28,3 +28,5 @@ class EntryCreateState(StatesGroup):
 
 class EntryList(StatesGroup):
     budgets = State()
+    entry_id = State()
+    action = State()
