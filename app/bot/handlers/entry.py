@@ -1,27 +1,14 @@
 import datetime as dt
-from typing import Type
 
 from aiogram import F, Router, types
 from aiogram.filters.command import Command
-from aiogram.filters.text import Text
 from aiogram.fsm.context import FSMContext
 
 from app import settings
-from app.bot import keyboards
-from app.bot.filters import (
-    EntryBudgetIdFilter,
-    EntryCategoryIdFilter,
-    EntryDateFilter,
-    EntrySumFilter,
-)
+from app.bot import filters, keyboards
 from app.bot.middlewares import ModelManagerMiddleware
 from app.bot.states import EntryCreateState, EntryList
-from app.db.managers import (
-    DateQueryManager,
-    EntryManager,
-    ModelManager,
-    ModelManagerStore,
-)
+from app.db.managers import DateQueryManager, EntryManager, ModelManagerStore
 from app.db.models import User
 
 router = Router()
@@ -42,7 +29,7 @@ async def cmd_create_entry(
 
 @router.callback_query(
     EntryCreateState.budget,
-    EntryBudgetIdFilter(),
+    filters.EntryBudgetIdFilter(),
     flags=ModelManagerStore.as_flags("budget"),
 )
 async def create_entry_receive_category(
@@ -71,7 +58,7 @@ async def create_entry_receive_category(
 
 @router.callback_query(
     EntryCreateState.category,
-    EntryCategoryIdFilter(),
+    filters.EntryCategoryIdFilter(),
     flags=ModelManagerStore.as_flags("category"),
 )
 async def create_entry_receive_category(
@@ -100,7 +87,7 @@ async def create_entry_receive_category(
     await callback.answer()
 
 
-@router.message(EntryCreateState.sum, EntrySumFilter())
+@router.message(EntryCreateState.sum, filters.EntrySumFilter())
 async def create_entry_receive_sum(
     message: types.Message,
     state: FSMContext,
@@ -126,7 +113,7 @@ async def create_entry_receive_sum(
     await state.set_state(EntryCreateState.transcation_date)
 
 
-@router.message(EntryCreateState.transcation_date, EntryDateFilter())
+@router.message(EntryCreateState.transcation_date, filters.EntryDateFilter())
 async def create_entry_receive_transaction_date(
     message: types.Message,
     state: FSMContext,
@@ -219,16 +206,94 @@ async def cmd_show_entries(
 
 @router.callback_query(
     EntryList.budgets,
-    EntryBudgetIdFilter(),
+    filters.EntryBudgetIdFilter(),
     flags=ModelManagerStore.as_flags("entry"),
 )
 async def entry_list(
-    callback: types.CallbackQuery, budget_id: int, entry_manager: EntryManager
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    budget_id: int,
+    entry_manager: EntryManager,
 ):
-    entries = entry_manager.select(filters=[f"budget_id==1"])
-    await callback.message.answer("hello")
+    entries = entry_manager.select(filters=[f"budget_id=={budget_id}"])
     await callback.message.answer(
         "Нажмите на транзакцию, чтобы выбрать действие",
         reply_markup=keyboards.entry_item_list_interactive(entries),
     )
+    await state.set_state(EntryList.entry_id)
+    await callback.answer()
+
+
+@router.callback_query(EntryList.entry_id, filters.GetEntryId())
+async def entry_show_options(
+    callback: types.CallbackQuery, state: FSMContext, entry_id: str
+):
+    await state.update_data(entry_id=entry_id)
+    await callback.message.answer(
+        "Выберите действие",
+        reply_markup=keyboards.entry_item_choose_action2(),
+    )
+    await state.set_state(EntryList.action)
+
+
+@router.callback_query(
+    EntryList.action, F.data.startswith("entry_item_action")
+)
+async def entry_delete_or_update(
+    callback: types.CallbackQuery, state: FSMContext
+):
+    *_, action = callback.data.rsplit("_", maxsplit=1)
+    if action == "delete":
+        data = await state.get_data()
+        entry_id = data["entry_id"]
+        await callback.message.answer(
+            "Вы уверены, что хотите удалить запись",
+            reply_markup=keyboards.confirm_delete(entry_id),
+        )
+        await state.set_state(EntryList.confirm_delete)
+    elif action == "update":
+        pass
+
+
+@router.callback_query(
+    EntryList.confirm_delete,
+    filters.GetEntryId(),
+    flags=ModelManagerStore.as_flags("entry"),
+)
+async def entry_delete_confirm(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    entry_id: str,
+    entry_manager: EntryManager,
+):
+    deleted = entry_manager.delete(entry_id)
+    msg = (
+        "Транзакция успешно удалена"
+        if deleted
+        else "Ошибка удаления транзакции"
+    )
+    await callback.message.answer(msg)
+    await callback.answer()
+    await state.clear()
+
+
+@router.callback_query(EntryList.confirm_delete)
+async def entry_delete_cancel(
+    callback: types.CallbackQuery, state: FSMContext
+):
+    await callback.message.answer("Удаление транзакции отменено")
+    await callback.answer()
+    await state.clear()
+
+
+@router.callback_query(
+    F.data == "entry_menu", flags=ModelManagerStore.as_flags("budget")
+)
+async def show_entries(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    user: User,
+    budget_manager: DateQueryManager,
+):
+    await cmd_show_entries(callback.message, state, user, budget_manager)
     await callback.answer()

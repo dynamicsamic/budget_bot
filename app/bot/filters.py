@@ -32,7 +32,7 @@ class GetEntryId(BaseFilter):
     async def __call__(
         self, callback: CallbackQuery
     ) -> Union[dict[str, int], bool]:
-        if callback.data.startswith("entry_item"):
+        if callback.data.startswith("entry_id"):
             *_, entry_id = callback.data.rsplit("_", maxsplit=1)
             return {"entry_id": entry_id}
         return False

@@ -14,3 +14,8 @@ class BudgetItemActionData(CallbackData, prefix="action_budget_item"):
 class CategoryItemActionData(CallbackData, prefix="action_category_item"):
     category_id: str
     action: str
+
+
+class EntryItemActionData(CallbackData, prefix="action_entry_item"):
+    entry_id: str
+    action: str

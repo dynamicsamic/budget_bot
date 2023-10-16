@@ -7,6 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot.callback_data import (
     BudgetItemActionData,
     CategoryItemActionData,
+    EntryItemActionData,
     ReportTypeCallback,
 )
 from app.bot.render import (
@@ -131,6 +132,37 @@ def category_item_choose_action(category_id: str):
     return builder.as_markup()
 
 
+def entry_item_choose_action(entry_id: str):
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Изменить",
+        callback_data=EntryItemActionData(
+            entry_id=entry_id,
+            action="update",
+        ),
+    )
+    builder.button(
+        text="Удалить",
+        callback_data=EntryItemActionData(entry_id=entry_id, action="delete"),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def entry_item_choose_action2():
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Изменить",
+        callback_data="entry_item_action_update",
+    )
+    builder.button(
+        text="Удалить",
+        callback_data="entry_item_action_delete",
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def show_categories_and_main_menu():
     builder = InlineKeyboardBuilder(
         [[buttons.category_menu, buttons.main_menu]]
@@ -162,9 +194,24 @@ def entry_item_list_interactive(entries: list[models.Entry]):
     return interactive_item_list(
         entries,
         render_entry_item,
-        "entry_item",
+        "entry_id",
         [buttons.create_new_entry, buttons.main_menu],
     )
+
+
+def confirm_delete(id_: str):
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Да (подтвердить удаление)",
+        callback_data=f"entry_id_{id_}",
+    )
+    builder.button(
+        text="Нет (отменить удаление)",
+        callback_data="None",
+    )
+    builder.add(buttons.main_menu)
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 cmd_report_kb = InlineKeyboardBuilder(
