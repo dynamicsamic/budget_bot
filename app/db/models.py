@@ -34,11 +34,8 @@ class User(AbstractBaseModel):
     tg_id: Mapped[int] = mapped_column(unique=True)
     budgets: Mapped[List["Budget"]] = relationship(
         back_populates="user",
-        cascade="all, delete-orphan",
-    )
-    categories: Mapped[List["EntryCategory"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
+        cascade="all,delete-orphan",
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:
@@ -58,6 +55,10 @@ class Budget(AbstractBaseModel):
         ForeignKey("user.id", ondelete="CASCADE")
     )
     user: Mapped["User"] = relationship(back_populates="budgets")
+    categories: Mapped[List["EntryCategory"]] = relationship(
+        back_populates="budget",
+        cascade="all, delete-orphan",
+    )
     entries: Mapped[List["Entry"]] = relationship(
         back_populates="budget",
         cascade="all, delete-orphan",
@@ -78,10 +79,10 @@ class EntryCategory(AbstractBaseModel):
     last_used: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=dt.datetime(year=1970, month=1, day=1)
     )
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("user.id", ondelete="CASCADE")
+    budget_id: Mapped[int] = mapped_column(
+        ForeignKey("budget.id", ondelete="CASCADE")
     )
-    user: Mapped["User"] = relationship(back_populates="categories")
+    budget: Mapped["Budget"] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
 
     def __repr__(self) -> str:
