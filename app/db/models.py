@@ -34,7 +34,7 @@ class User(AbstractBaseModel):
     tg_id: Mapped[int] = mapped_column(unique=True)
     budgets: Mapped[List["Budget"]] = relationship(
         back_populates="user",
-        cascade="all,delete-orphan",
+        cascade="delete, merge, save-update",
         passive_deletes=True,
     )
 
@@ -57,11 +57,13 @@ class Budget(AbstractBaseModel):
     user: Mapped["User"] = relationship(back_populates="budgets")
     categories: Mapped[List["EntryCategory"]] = relationship(
         back_populates="budget",
-        cascade="all, delete-orphan",
+        cascade="delete, merge, save-update",
+        passive_deletes=True,
     )
     entries: Mapped[List["Entry"]] = relationship(
         back_populates="budget",
-        cascade="all, delete-orphan",
+        cascade="delete, merge, save-update",
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:
