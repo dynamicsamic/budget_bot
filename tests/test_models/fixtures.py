@@ -1,16 +1,22 @@
 import random
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import base, models
 from app.db.managers import ModelManager
 from tests.conf import constants
 
-user_data = {
-    "test_user": {"id": 999, "tg_username": "test_user", "tg_id": 999}
-}
+user_data = {"test_user": {"id": 999, "tg_id": 999}}
+
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 @pytest.fixture(scope="session")
@@ -42,7 +48,7 @@ def db_session(engine, create_tables) -> Session:
 def create_users(db_session):
     db_session.add_all(
         [
-            models.User(tg_id=f"100{i}", tg_username=f"user{i}")
+            models.User(tg_id=f"100{i}")
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
     )
@@ -55,7 +61,7 @@ def create_budgets(db_session, create_users):
         [
             models.Budget(
                 name=f"budget{i}",
-                user_id=random.randint(1, constants["TEST_SAMPLE_SIZE"] + 1),
+                user_id=1,
             )
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
@@ -72,6 +78,7 @@ def create_categories(db_session, create_budgets):
                 type=random.choice(
                     list(models.EntryType.__members__.values())
                 ),
+                budget_id=1,
             )
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]

@@ -17,12 +17,6 @@ from app import settings
 from .base import AbstractBaseModel
 
 
-class Currency(enum.Enum):
-    RUB = "RUB"
-    USD = "USD"
-    EUR = "EUR"
-
-
 class EntryType(enum.Enum):
     EXPENSES = "expenses"
     INCOME = "income"
@@ -48,8 +42,10 @@ class Budget(AbstractBaseModel):
     __tablename__ = "budget"
 
     name: Mapped[str] = mapped_column(String(length=256), unique=True)
-    currency: Mapped[Enum] = mapped_column(
-        Enum(Currency, create_constraint=True), default=Currency.RUB
+    currency: Mapped[str] = mapped_column(
+        String(length=4),
+        CheckConstraint("length(currency) > 2 AND length(currency) < 5"),
+        default="RUB",
     )
     user_id: Mapped[int] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE")
@@ -69,7 +65,7 @@ class Budget(AbstractBaseModel):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, UserId={self.user_id}, "
-            f"Cur={self.currency.value}, Name={self.name})"
+            f"Currency={self.currency}, Name={self.name})"
         )
 
 
@@ -89,8 +85,8 @@ class EntryCategory(AbstractBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id}, "
-            f"Name={self.name}, Type={self.type.value})"
+            f"{self.__class__.__name__}(Id={self.id}, Name={self.name}, "
+            f"Type={self.type.value}, BudgetId={self.budget_id})"
         )
 
 
