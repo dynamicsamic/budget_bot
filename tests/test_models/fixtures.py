@@ -48,7 +48,7 @@ def db_session(engine, create_tables) -> Session:
 def create_users(db_session):
     db_session.add_all(
         [
-            models.User(tg_id=f"100{i}")
+            models.User(id=i, tg_id=f"100{i}")
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
     )
@@ -60,8 +60,9 @@ def create_budgets(db_session, create_users):
     db_session.add_all(
         [
             models.Budget(
+                id=i,
                 name=f"budget{i}",
-                user_id=1,
+                user_id=i,
             )
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
@@ -74,16 +75,45 @@ def create_categories(db_session, create_budgets):
     db_session.add_all(
         [
             models.EntryCategory(
+                id=i,
                 name=f"category{i}",
-                type=random.choice(
-                    list(models.EntryType.__members__.values())
-                ),
-                budget_id=1,
+                type=models.EntryType.EXPENSES
+                if i % 2
+                else models.EntryType.INCOME,
+                budget_id=i,
             )
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
     )
     db_session.commit()
+
+
+@pytest.fixture
+def create_entries(db_session, create_categories):
+    positives = [
+        models.Entry(
+            id=i,
+            sum=random.randint(1, 1000000),
+            description=f"test{i}",
+            budget_id=i,
+            category_id=i,
+        )
+        for i in range(1, constants["TEST_SAMPLE_SIZE"] // 2 + 1)
+    ]
+    negatives = [
+        models.Entry(
+            id=i,
+            sum=random.randint(-1000000, -1),
+            description=f"test{i}",
+            budget_id=i,
+            category_id=i,
+        )
+        for i in range(
+            constants["TEST_SAMPLE_SIZE"] // 2 + 1,
+            constants["TEST_SAMPLE_SIZE"] + 1,
+        )
+    ]
+    db_session.add_all(positives + negatives)
 
 
 @pytest.fixture

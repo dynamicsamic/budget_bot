@@ -93,6 +93,14 @@ class EntryCategory(AbstractBaseModel):
 class Entry(AbstractBaseModel):
     __tablename__ = "entry"
 
+    # sum is an integer thus:
+    # multiply float number by 100 before insert opeartions
+    # and divide by 100 after select operations
+    sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
+    transaction_date: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
+    )
+    description: Mapped[Optional[str]]
     budget_id: Mapped[int] = mapped_column(
         ForeignKey("budget.id", ondelete="CASCADE")
     )
@@ -102,15 +110,6 @@ class Entry(AbstractBaseModel):
     category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
     category: Mapped["EntryCategory"] = relationship(
         back_populates="entries", lazy="joined"
-    )
-
-    # sum is an integer thus:
-    # multiply float number by 100 before insert opeartions
-    # and divide by 100 after select operations
-    sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
-    description: Mapped[Optional[str]]
-    transaction_date: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
     )
 
     @property

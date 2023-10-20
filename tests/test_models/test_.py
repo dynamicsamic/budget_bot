@@ -38,11 +38,11 @@ def test_user_has_expected_str_representation(user_manager):
 def test_user_create_with_valid_data_success(db_session, user_manager):
     inital_user_num = user_manager.count()
 
-    db_session.add(models.User(**user_data["test_user"]))
-    db_session.commit()
+    udata = user_data["test_user"]
+    user_manager.create(**udata)
 
-    user = user_manager.get(user_data["test_user"]["id"])
-    assert user.tg_id == user_data["test_user"]["tg_id"]
+    from_orm = user_manager.get(udata["id"])
+    assert from_orm.tg_id == udata["tg_id"]
 
     current_user_num = user_manager.count()
     assert current_user_num == (inital_user_num + 1)
@@ -51,10 +51,7 @@ def test_user_create_with_valid_data_success(db_session, user_manager):
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
 def test_user_unique_tg_id_constarint_raises_error(db_session, user_manager):
     user = user_manager.get(1)
-    payload = {
-        "tg_id": user.tg_id,
-    }
-    db_session.add(models.User(**payload))
+    db_session.add(models.User(tg_id=user.tg_id))
     db_session.commit()
 
 
