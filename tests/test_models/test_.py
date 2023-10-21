@@ -1,8 +1,11 @@
+from typing import Any
+
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.db import models
+from app.db.models import Budget, EntryCategory, User
 from app.utils import now
 
 from .fixtures import (
@@ -17,6 +20,27 @@ from .fixtures import (
 )
 
 
+class MockModel:
+    def __init__(self, **kwargs) -> None:
+        for attr, value in kwargs.items():
+            setattr(self, attr, value)
+
+    def __call__(self) -> dict[str, Any]:
+        return self.__dict__
+
+
+class MockedUser(MockModel):
+    pass
+
+
+class MockedBudget(MockModel):
+    pass
+
+
+some_user = MockedUser(id=999, tg_id=10999)
+some_budget = MockedBudget(id=999, name="test_name", currency="USD", user_id=1)
+
+
 def test_user_class_has_expected_fields():
     expected_fieldnames = {
         "tg_id",
@@ -25,57 +49,58 @@ def test_user_class_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    assert models.User.fieldnames == expected_fieldnames
+    assert User.fieldnames == expected_fieldnames
 
 
-def test_user_has_expected_str_representation(user_manager):
-    user = user_manager.get(1)
+def test_user_has_expected_str_representation(db_session, create_users):
+    user = db_session.get(User, 1)
     expected_str = f"User(Id={user.id}, TelegramId={user.tg_id})"
 
     assert str(user) == expected_str
+    assert repr(user) == expected_str
 
 
-def test_user_create_with_valid_data_success(db_session, user_manager):
-    inital_user_num = user_manager.count()
+def test_user_create_with_valid_data_success(db_session, create_users):
+    inital_user_num = db_session.query(User).count()
 
-    udata = user_data["test_user"]
-    user_manager.create(**udata)
+    db_session.add(User(**some_user()))
+    db_session.commit()
 
-    from_orm = user_manager.get(udata["id"])
-    assert from_orm.tg_id == udata["tg_id"]
+    from_orm = db_session.get(User, some_user.id)
+    assert from_orm.tg_id == some_user.tg_id
 
-    current_user_num = user_manager.count()
-    assert current_user_num == (inital_user_num + 1)
+    current_user_num = db_session.query(User).count()
+    assert current_user_num == inital_user_num + 1
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_user_unique_tg_id_constarint_raises_error(db_session, user_manager):
-    user = user_manager.get(1)
-    db_session.add(models.User(tg_id=user.tg_id))
+def test_user_unique_tg_id_constarint_raises_error(db_session, create_users):
+    user = db_session.get(User, 1)
+    db_session.add(User(tg_id=user.tg_id))
     db_session.commit()
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_user_create_duplicate_raises_error(db_session):
+def test_user_create_duplicate_raises_error(db_session, create_users):
     db_session.add_all(
         [
-            models.User(**user_data["test_user"]),
-            models.User(**user_data["test_user"]),
+            User(**some_user()),
+            User(**some_user()),
         ]
     )
     db_session.commit()
 
 
-def test_user_create_with_empty_budgets_list(user_manager):
-    user = user_manager.get(1)
+def test_user_create_with_empty_budgets_list(db_session, create_users):
+    user = db_session.get(User, 1)
     assert user.budgets == []
 
 
-def test_user_add_budget_appear_in_budgets_attr(db_session, user_manager):
-    db_session.add(models.Budget(id=999, name="test01", user_id=1))
+def test_user_add_budget_appear_in_budgets_attr(db_session, create_users):
+    db_session.add(Budget(id=999, name="test01", user_id=1))
     db_session.commit()
 
-    assert user_manager.get(1).budgets == [db_session.get(models.Budget, 999)]
+    assert db_session.get(User, 1).budgets == [db_session.get(Budget, 999)]
 
 
 def test_budget_class_has_expected_fields():
@@ -90,27 +115,70 @@ def test_budget_class_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    assert models.Budget.fieldnames == expected_fieldnames
+    assert Budget.fieldnames == expected_fieldnames
 
 
-def test_budget_has_expected_str_representation(db_session, create_users):
-    expected_str = "Budget(Id=999, UserId=1, Currency=RUB, Name=test)"
+def test_budget_has_expected_str_representation(db_session, create_budgets):
+    budget = db_session.get(Budget, 1)
+    expected_str = (
+        f"Budget(Id={budget.id}, UserId={budget.user_id}, "
+        f"Currency={budget.currency}, Name={budget.name})"
+    )
 
-    db_session.add(models.Budget(id=999, name="test", user_id=1))
+    assert str(budget) == expected_str
+    assert repr(budget) == expected_str
+
+
+def test_budget_create_with_valid_data_success(db_session, create_budgets):
+    inital_user_num = db_session.query(Budget).count()
+
+    db_session.add(Budget(**some_budget()))
     db_session.commit()
 
-    budget = db_session.get(models.Budget, 999)
-    assert str(budget) == expected_str
+    from_orm = db_session.get(Budget, some_budget.id)
+    assert from_orm.name == some_budget.name
+    assert from_orm.currency == some_budget.currency
+    assert from_orm.user_id == some_budget.user_id
+
+    current_user_num = db_session.query(Budget).count()
+    assert current_user_num == inital_user_num + 1
+
+
+@pytest.mark.xfail(raises=IntegrityError, strict=True)
+def test_budget_unique_name_constarint_raises_error(
+    db_session, create_budgets
+):
+    budget = db_session.get(Budget, 1)
+    db_session.add(Budget(name=budget.name, user_id=3))
+    db_session.commit()
+
+
+@pytest.mark.xfail(raises=IntegrityError, strict=True)
+def test_budget_create_duplicate_raises_error(db_session, create_budgets):
+    db_session.add_all(
+        [
+            Budget(**some_budget()),
+            Budget(**some_budget()),
+        ]
+    )
+    db_session.commit()
+
+
+def test_budget_create_with_empty_categories_list(db_session, create_budgets):
+    budget = db_session.get(Budget, 1)
+    assert budget.categories == []
+
+
+def test_budget_create_with_empty_entries_list(db_session, create_budgets):
+    budget = db_session.get(Budget, 1)
+    assert budget.entries == []
 
 
 def test_create_budget_without_currency_arg_sets_default(
-    db_session, create_users
+    db_session, create_budgets
 ):
-    db_session.add(models.Budget(id=999, name="test", user_id=1))
-    db_session.commit()
-
-    budget = db_session.get(models.Budget, 999)
-    default_currency = "RUB"
+    default_currency = Budget.currency.default.arg
+    budget = db_session.get(Budget, 1)
     assert budget.currency == default_currency
 
 
@@ -118,7 +186,7 @@ def test_create_budget_without_currency_arg_sets_default(
 def test_create_budget_with_too_long_currency_raises_error(
     db_session, create_users
 ):
-    db_session.add(models.Budget(name="test", user_id=1, currency="too_long"))
+    db_session.add(Budget(name="test", user_id=1, currency="too_long"))
     db_session.commit()
 
 
@@ -126,27 +194,23 @@ def test_create_budget_with_too_long_currency_raises_error(
 def test_create_budget_with_too_short_currency_raises_error(
     db_session, create_users
 ):
-    db_session.add(models.Budget(name="test", user_id=1, currency="s"))
+    db_session.add(Budget(name="test", user_id=1, currency="s"))
     db_session.commit()
 
 
-def test_user_info_available_in_budget_instance(db_session, create_users):
-    db_session.add(models.Budget(id=999, name="test", user_id=1))
+def test_budget_gets_deleted_when_user_deleted(db_session, create_budgets):
+    user_id = 1
+    num_budgets_intial = (
+        db_session.query(Budget).filter_by(user_id=user_id).count()
+    )
+    assert num_budgets_intial > 0
+
+    db_session.query(User).filter_by(id=user_id).delete()
     db_session.commit()
-
-    budget = db_session.get(models.Budget, 999)
-    assert isinstance(budget.user_id, int)
-    assert isinstance(budget.user, models.User)
-
-
-def test_budget_gets_deleted_when_user_deleted(
-    db_session, user_manager, create_categories
-):
-    db_session.add(models.Budget(id=999, name="test", user_id=1))
-    db_session.commit()
-
-    user_manager.delete(1)
-    assert db_session.get(models.Budget, 999) == None
+    num_budgets_current = (
+        db_session.query(Budget).filter_by(user_id=user_id).count()
+    )
+    assert num_budgets_current == 0
 
 
 def test_category_model_has_expected_fields():
@@ -161,46 +225,37 @@ def test_category_model_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    assert models.EntryCategory.fieldnames == expected_fieldnames
+    assert EntryCategory.fieldnames == expected_fieldnames
 
 
-def test_category_has_expected_str_representation(db_session, create_budgets):
+def test_category_has_expected_str_representation(
+    db_session, create_categories
+):
+    category = db_session.get(EntryCategory, 1)
     expected_str = (
-        "EntryCategory(Id=999, Name=test, Type=expenses, BudgetId=1)"
+        f"EntryCategory(Id={category.id}, Name={category.name}, "
+        f"Type={category.type.value}, BudgetId={category.budget_id})"
     )
 
-    db_session.add(
-        models.EntryCategory(
-            id=999, name="test", type=models.EntryType.EXPENSES, budget_id=1
-        )
-    )
-    db_session.commit()
-
-    category = db_session.get(models.EntryCategory, 999)
-    assert str(category) == expected_str
+    from_orm = db_session.get(EntryCategory, 1)
+    assert str(from_orm) == expected_str
+    assert repr(from_orm) == expected_str
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
 def test_category_with_invalid_type_raises_error(db_session):
     db_session.add(
-        models.EntryCategory(
-            id=999, name="test", type="invalid_type", budget_id=1
-        )
+        EntryCategory(id=999, name="test", type="invalid_type", budget_id=1)
     )
     db_session.commit()
 
 
-def test_category_sets_last_used_attr_to_default(db_session, create_budgets):
+def test_category_sets_last_used_attr_to_default(
+    db_session, create_categories
+):
     import datetime as dt
 
-    db_session.add(
-        models.EntryCategory(
-            id=999, name="test", type=models.EntryType.EXPENSES, budget_id=1
-        )
-    )
-    db_session.commit()
-
-    category = db_session.get(models.EntryCategory, 999)
+    category = db_session.get(EntryCategory, 1)
     assert category.last_used == dt.datetime(year=1970, month=1, day=1)
 
 
