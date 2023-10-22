@@ -3,14 +3,15 @@ from typing import Any
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app.db import models
-from app.db.models import Budget, EntryCategory, User
+from app.db.models import Budget, Entry, EntryCategory, User
 from app.utils import now
 
 from .fixtures import (
     create_budgets,
     create_categories,
+    create_entries,
     create_tables,
     create_users,
     db_session,
@@ -29,16 +30,45 @@ class MockModel:
         return self.__dict__
 
 
-class MockedUser(MockModel):
-    pass
-
-
-class MockedBudget(MockModel):
-    pass
-
-
-some_user = MockedUser(id=999, tg_id=10999)
-some_budget = MockedBudget(id=999, name="test_name", currency="USD", user_id=1)
+valid_user = MockModel(id=999, tg_id=10999)
+valid_budget = MockModel(id=999, name="test_name", currency="USD", user_id=1)
+valid_entry = MockModel(
+    id=999,
+    sum=9993991,
+    transaction_date=now(),
+    description="test",
+    budget_id=1,
+    category_id=3,
+)
+entry_zero_sum = MockModel(
+    id=999,
+    sum=0,
+    transaction_date=now(),
+    category_id=1,
+    budget_id=1,
+    description="test",
+)
+entry_without_budget_id = MockModel(
+    id=999,
+    sum=10000000,
+    transaction_date=now(),
+    category_id=1,
+    description="test",
+)
+entry_without_category_id = MockModel(
+    id=999,
+    sum=0,
+    transaction_date=now(),
+    budget_id=1,
+    description="test",
+)
+entry_without_description = MockModel(
+    id=999,
+    sum=9993991,
+    transaction_date=now(),
+    budget_id=1,
+    category_id=3,
+)
 
 
 def test_user_class_has_expected_fields():
@@ -63,11 +93,11 @@ def test_user_has_expected_str_representation(db_session, create_users):
 def test_user_create_with_valid_data_success(db_session, create_users):
     inital_user_num = db_session.query(User).count()
 
-    db_session.add(User(**some_user()))
+    db_session.add(User(**valid_user()))
     db_session.commit()
 
-    from_orm = db_session.get(User, some_user.id)
-    assert from_orm.tg_id == some_user.tg_id
+    from_db = db_session.get(User, valid_user.id)
+    assert from_db.tg_id == valid_user.tg_id
 
     current_user_num = db_session.query(User).count()
     assert current_user_num == inital_user_num + 1
@@ -84,8 +114,8 @@ def test_user_unique_tg_id_constarint_raises_error(db_session, create_users):
 def test_user_create_duplicate_raises_error(db_session, create_users):
     db_session.add_all(
         [
-            User(**some_user()),
-            User(**some_user()),
+            User(**valid_user()),
+            User(**valid_user()),
         ]
     )
     db_session.commit()
@@ -132,13 +162,13 @@ def test_budget_has_expected_str_representation(db_session, create_budgets):
 def test_budget_create_with_valid_data_success(db_session, create_budgets):
     inital_user_num = db_session.query(Budget).count()
 
-    db_session.add(Budget(**some_budget()))
+    db_session.add(Budget(**valid_budget()))
     db_session.commit()
 
-    from_orm = db_session.get(Budget, some_budget.id)
-    assert from_orm.name == some_budget.name
-    assert from_orm.currency == some_budget.currency
-    assert from_orm.user_id == some_budget.user_id
+    from_db = db_session.get(Budget, valid_budget.id)
+    assert from_db.name == valid_budget.name
+    assert from_db.currency == valid_budget.currency
+    assert from_db.user_id == valid_budget.user_id
 
     current_user_num = db_session.query(Budget).count()
     assert current_user_num == inital_user_num + 1
@@ -157,8 +187,8 @@ def test_budget_unique_name_constarint_raises_error(
 def test_budget_create_duplicate_raises_error(db_session, create_budgets):
     db_session.add_all(
         [
-            Budget(**some_budget()),
-            Budget(**some_budget()),
+            Budget(**valid_budget()),
+            Budget(**valid_budget()),
         ]
     )
     db_session.commit()
@@ -237,9 +267,9 @@ def test_category_has_expected_str_representation(
         f"Type={category.type.value}, BudgetId={category.budget_id})"
     )
 
-    from_orm = db_session.get(EntryCategory, 1)
-    assert str(from_orm) == expected_str
-    assert repr(from_orm) == expected_str
+    from_db = db_session.get(EntryCategory, 1)
+    assert str(from_db) == expected_str
+    assert repr(from_db) == expected_str
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
@@ -259,6 +289,23 @@ def test_category_sets_last_used_attr_to_default(
     assert category.last_used == dt.datetime(year=1970, month=1, day=1)
 
 
+def test_category_gets_deleted_when_budget_deleted(
+    db_session, create_categories
+):
+    budget_id = 1
+    num_categories_intial = (
+        db_session.query(EntryCategory).filter_by(budget_id=budget_id).count()
+    )
+    assert num_categories_intial > 0
+
+    db_session.query(Budget).filter_by(id=budget_id).delete()
+    db_session.commit()
+    num_categories_current = (
+        db_session.query(EntryCategory).filter_by(budget_id=budget_id).count()
+    )
+    assert num_categories_current == 0
+
+
 def test_entry_model_has_expected_fields():
     expected_fieldnames = {
         "budget_id",
@@ -272,58 +319,97 @@ def test_entry_model_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    assert models.Entry.fieldnames == expected_fieldnames
+    assert Entry.fieldnames == expected_fieldnames
 
 
-def test_entry_has_expected_str_representation(db_session, create_categories):
-    e = {
-        "id": 1,
-        "sum": 100000,
-        "transaction_date": now(),
-        "category_id": 1,
-        "budget_id": 1,
-        "description": "test",
-    }
+def test_entry_has_expected_str_representation(db_session, create_entries):
+    entry = db_session.get(Entry, 1)
     expected_str = (
-        f"Entry(Id={e['id']}, Sum={e['sum']/100:.2f}, "
-        f"Date={e['transaction_date']:%Y-%m-%d %H:%M:%S}, "
-        f"CategoryId={e['category_id']}, BudgetId={e['budget_id']}, "
-        f"Description={e['description']})"
+        f"Entry(Id={entry.id}, Sum={entry._sum}, "
+        f"Date={entry._transaction_date}, "
+        f"CategoryId={entry.category_id}, BudgetId={entry.budget_id}, "
+        f"Description={entry.description})"
     )
 
-    db_session.add(models.Entry(**e))
+    assert str(entry) == expected_str
+    assert repr(entry) == expected_str
+
+
+def test_entry_create_with_valid_data_success(db_session, create_categories):
+    inital_entry_num = db_session.query(Entry).count()
+
+    db_session.add(Entry(**valid_entry()))
     db_session.commit()
 
-    entry = db_session.get(models.Entry, e["id"])
-    assert str(entry) == expected_str
+    from_db = db_session.get(Entry, valid_entry.id)
+    assert from_db.sum == valid_entry.sum
+    assert from_db.description == valid_entry.description
+    assert (
+        from_db._transaction_date
+        == f"{valid_entry.transaction_date:%Y-%m-%d %H:%M:%S}"
+    )
+    assert from_db.budget_id == valid_entry.budget_id
+    assert from_db.category_id == valid_entry.category_id
+
+    current_entry_num = db_session.query(Entry).count()
+    assert current_entry_num == inital_entry_num + 1
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_entry_with_zero_sum_raises_error(db_session, create_categories):
-    e = {
-        "id": 1,
-        "sum": 0,
-        "transaction_date": now(),
-        "category_id": 1,
-        "budget_id": 1,
-        "description": "test",
-    }
-    db_session.add(models.Entry(**e))
+def test_entry_with_zero_sum_raises_error(db_session, create_entries):
+    db_session.add(Entry(**entry_zero_sum()))
+    db_session.commit()
+
+
+@pytest.mark.xfail(raises=IntegrityError, strict=True)
+def test_entry_without_budget_id_raises_error(db_session, create_entries):
+    db_session.add(Entry(**entry_without_budget_id()))
+    db_session.commit()
+
+
+@pytest.mark.xfail(raises=IntegrityError, strict=True)
+def test_entry_without_category_id_raises_error(db_session, create_entries):
+    db_session.add(Entry(**entry_without_category_id()))
     db_session.commit()
 
 
 def test_entry_without_description_sets_it_to_none(
     db_session, create_categories
 ):
-    e = {
-        "id": 1,
-        "sum": 100000,
-        "transaction_date": now(),
-        "category_id": 1,
-        "budget_id": 1,
-    }
-    db_session.add(models.Entry(**e))
+    db_session.add(Entry(**entry_without_description()))
     db_session.commit()
 
-    entry = db_session.get(models.Entry, e["id"])
+    entry = db_session.get(Entry, entry_without_description.id)
     assert entry.description == None
+
+
+def test_entry_gets_deleted_when_budget_deleted(db_session, create_entries):
+    budget_id = 1
+    num_entries_intial = (
+        db_session.query(Entry).filter_by(budget_id=budget_id).count()
+    )
+    assert num_entries_intial > 0
+
+    db_session.query(Budget).filter_by(id=budget_id).delete()
+    db_session.commit()
+
+    num_categories_current = (
+        db_session.query(Entry).filter_by(budget_id=budget_id).count()
+    )
+    assert num_categories_current == 0
+
+
+def test_entry_gets_deleted_when_category_deleted(db_session, create_entries):
+    category_id = 1
+    num_entries_intial = (
+        db_session.query(Entry).filter_by(category_id=category_id).count()
+    )
+    assert num_entries_intial > 0
+
+    db_session.query(Budget).filter_by(id=category_id).delete()
+    db_session.commit()
+
+    num_categories_current = (
+        db_session.query(Entry).filter_by(category_id=category_id).count()
+    )
+    assert num_categories_current == 0

@@ -114,6 +114,7 @@ def create_entries(db_session, create_categories):
         )
     ]
     db_session.add_all(positives + negatives)
+    db_session.commit()
 
 
 @pytest.fixture
