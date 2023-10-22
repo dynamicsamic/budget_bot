@@ -97,10 +97,10 @@ class Entry(AbstractBaseModel):
     # multiply float number by 100 before insert opeartions
     # and divide by 100 after select operations
     sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
+    description: Mapped[Optional[str]]
     transaction_date: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
     )
-    description: Mapped[Optional[str]]
     budget_id: Mapped[int] = mapped_column(
         ForeignKey("budget.id", ondelete="CASCADE")
     )
@@ -116,10 +116,13 @@ class Entry(AbstractBaseModel):
     def _sum(self) -> str:
         return f"{self.sum / 100:.2f}"
 
+    @property
+    def _transaction_date(self) -> str:
+        return f"{self.transaction_date:%Y-%m-%d %H:%M:%S}"
+
     def __repr__(self) -> str:
-        trunc_date = f"{self.transaction_date:%Y-%m-%d %H:%M:%S}"
         return (
             f"{self.__class__.__name__}(Id={self.id}, Sum={self._sum}, "
-            f"Date={trunc_date}, CategoryId={self.category_id}, "
+            f"Date={self._transaction_date}, CategoryId={self.category_id}, "
             f"BudgetId={self.budget_id}, Description={self.description})"
         )
