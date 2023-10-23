@@ -137,20 +137,30 @@ class ModelManager:
             )
         return updated
 
-    def delete(self, id_: int = None, **kwargs) -> bool:
-        """Delete `self.model` object with given id or given kwargs.
-        Examples: delete(1); delete(id=1); delete(name='user', age=20).
-        """
-        if id_:
-            kwargs["id"] = id_
-
+    def delete(self, id_: int) -> bool:
+        """Delete `self.model` object with given id."""
         try:
             deleted = bool(
-                self.session.query(self.model).filter_by(**kwargs).delete()
+                self.session.query(self.model).filter_by(id=id_).delete()
             )
             self.session.commit()
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
+            logger.error(
+                f"{self.model.__tablename__.upper()} "
+                f"instance delete [FAILURE]: {e}"
+            )
             return False
+        if deleted:
+            logger.info(
+                f"{self.model.__tablename__.upper()} instance "
+                f"with id `{id_}` delete [SUCCESS]"
+            )
+        else:
+            logger.warning(
+                f"Attempt to delete instance of "
+                f"{self.model.__tablename__.upper()} with id `{id_}`. "
+                "No delete performed."
+            )
         return deleted
 
     def get(self, id_: int) -> Type[AbstractBaseModel] | None:
@@ -525,7 +535,7 @@ category_manager = DateQueryManager(
 entry_manager = EntryManager(
     Entry,
     datefield="transaction_date",
-    order_by=["transaction_date", "created_at"],
+    order_by=["-transaction_date", "created_at"],
 )
 
 
