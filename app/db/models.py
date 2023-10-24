@@ -104,13 +104,9 @@ class Entry(AbstractBaseModel):
     budget_id: Mapped[int] = mapped_column(
         ForeignKey("budget.id", ondelete="CASCADE")
     )
-    budget: Mapped["Budget"] = relationship(
-        back_populates="entries", lazy="joined"
-    )
+    budget: Mapped["Budget"] = relationship(back_populates="entries")
     category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
-    category: Mapped["EntryCategory"] = relationship(
-        back_populates="entries", lazy="joined"
-    )
+    category: Mapped["EntryCategory"] = relationship(back_populates="entries")
 
     @property
     def _sum(self) -> str:

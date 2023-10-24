@@ -1,9 +1,7 @@
 from typing import Any
 
 import pytest
-from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 from app.db.models import Budget, Entry, EntryCategory, User
 from app.utils import now
@@ -16,8 +14,6 @@ from .fixtures import (
     create_users,
     db_session,
     engine,
-    user_data,
-    user_manager,
 )
 
 

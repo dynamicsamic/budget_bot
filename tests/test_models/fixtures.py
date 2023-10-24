@@ -6,10 +6,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import base, models
-from app.db.managers import ModelManager
 from tests.conf import constants
-
-user_data = {"test_user": {"id": 999, "tg_id": 999}}
 
 
 @event.listens_for(Engine, "connect")
@@ -115,8 +112,3 @@ def create_entries(db_session, create_categories):
     ]
     db_session.add_all(positives + negatives)
     db_session.commit()
-
-
-@pytest.fixture
-def user_manager(db_session, create_users):
-    return ModelManager(models.User, db_session)
