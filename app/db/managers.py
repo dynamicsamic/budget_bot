@@ -8,7 +8,7 @@ from sqlalchemy import Date, DateTime, and_
 from sqlalchemy import func as sql_func
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, Session, scoped_session
+from sqlalchemy.orm import Query, Session, joinedload, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import UnaryExpression
 
@@ -21,11 +21,14 @@ from .exceptions import (
     InvalidFilter,
     InvalidOrderByValue,
     InvalidSumField,
-    ModelInstanceCreateError,
 )
 from .models import Budget, Entry, EntryCategory, User
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_ORDER_BY = ["created_at", "id"]
+DEFAULT_DATEFIELD = "created_at"
+DEFAULT_FILTERS = None
 
 
 class ModelManager:
@@ -33,9 +36,9 @@ class ModelManager:
         self,
         model: Type[AbstractBaseModel],
         session: Session | scoped_session = None,
-        order_by: Sequence[str] = ["created_at", "id"],
-        filters: Sequence[str] = None,  #  like ["id>2", "sum == 1"]
-        datefield: str = "created_at",
+        order_by: Sequence[str] = DEFAULT_ORDER_BY,
+        filters: Sequence[str] = DEFAULT_FILTERS,  #  like ["id>2", "sum == 1"]
+        datefield: str = DEFAULT_DATEFIELD,
     ) -> None:
         self.model = model
         self.session = session
@@ -63,6 +66,21 @@ class ModelManager:
         ):
             self.session = session
             return self
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(model={self.model.__tablename__}, "
+            f"session={self.session}, order_by={self.order_by}, "
+            f"filters={self.filters}, datefield={self.datefield})"
+        )
+
+    @classmethod
+    def build_generic_manager(cls, model, **kwargs):
+        return cls(model, **kwargs)
+
+    @classmethod
+    def build_generic_user_manager(cls, **kwargs):
+        return cls.build_generic_manager(User, **kwargs)
 
     @property
     def order_by(self) -> Sequence[str]:
@@ -525,6 +543,56 @@ class EntryManager(DateQueryManager):
             return query
 
         return inner
+
+    def _fetch(
+        self, filters: Sequence[str] = None, reverse: bool = False
+    ) -> Query[type[AbstractBaseModel]]:
+        """Fetch budget and category data when fetching an entry."""
+        q = super()._fetch(filters, reverse)
+        return q.options(
+            joinedload(self.model.budget, innerjoin=True),
+            joinedload(self.model.category, innerjoin=True),
+        )
+
+
+class ModelManagerSetUp:
+    def __init__(self, model: AbstractBaseModel, **kwargs) -> None:
+        self.model = model
+        self._setup(kwargs)
+
+    def _setup(self, kwargs: dict[str, Any]) -> None:
+        self.manager = (
+            EntryManager if self.model is Entry else DateQueryManager
+        )
+        self.filters = kwargs.get("filters") or DEFAULT_FILTERS
+
+        _order_by = kwargs.get("order_by")
+        _datefield = kwargs.get("datefield")
+
+        if self.model in (User, Budget):
+            self.order_by = _order_by or DEFAULT_ORDER_BY
+            self.datefield = _datefield or DEFAULT_DATEFIELD
+        elif self.model is EntryCategory:
+            self.order_by = _order_by or ["last_used", "id"]
+            self.datefield = _datefield or DEFAULT_DATEFIELD
+        elif self.model is Entry:
+            self.order_by = _order_by or ["-transaction_date", "created_at"]
+            self.datefield = _datefield or "transaction_date"
+
+    def create_manager(self) -> Type["ModelManager"]:
+        return self.manager(
+            self.model,
+            order_by=self.order_by,
+            filters=self.filters,
+            datefield=self.datefield,
+        )
+
+
+class ManagerFactory:
+    def __new__(
+        cls, model: AbstractBaseModel, **kwargs
+    ) -> Type["ModelManager"]:
+        return ModelManagerSetUp(model, **kwargs).create_manager()
 
 
 user_manager = DateQueryManager(User)
