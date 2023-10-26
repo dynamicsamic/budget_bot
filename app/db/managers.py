@@ -74,14 +74,6 @@ class ModelManager:
             f"filters={self.filters}, datefield={self.datefield})"
         )
 
-    @classmethod
-    def build_generic_manager(cls, model, **kwargs):
-        return cls(model, **kwargs)
-
-    @classmethod
-    def build_generic_user_manager(cls, **kwargs):
-        return cls.build_generic_manager(User, **kwargs)
-
     @property
     def order_by(self) -> Sequence[str]:
         return self._order_by
@@ -484,7 +476,7 @@ class DateQueryManager(ModelManager):
         )
 
 
-class ExtendedQuery:
+class SumExtendedQuery:
     def __init__(
         self, model: AbstractBaseModel, sum_field__: str, query: Query
     ) -> None:
@@ -516,7 +508,24 @@ class ExtendedQuery:
         return q.with_entities(sql_func.sum(self.sum_field)).scalar() or 0
 
 
-class EntryManager(DateQueryManager):
+class CashFlowQueryManager(DateQueryManager):
+    def __init__(
+        self,
+        model: Type[AbstractBaseModel],
+        session: Session | scoped_session = None,
+        order_by: Sequence[str] = DEFAULT_ORDER_BY,
+        filters: Sequence[str] = DEFAULT_FILTERS,
+        datefield: str = DEFAULT_DATEFIELD,
+        cashflowfield: str = "sum",
+    ) -> None:
+        super().__init__(model, session, order_by, filters, datefield)
+        setattr(self, "cashflowfield", cashflowfield)
+        self.cashflowfield = cashflowfield
+
+    def __repr__(self) -> str:
+        text = super().__repr__()
+        return f"{text[:-1]}, cashflowfield={self.cashflowfield})"
+
     def __getattribute__(self, __name: str) -> Any:
         """Decorate methods that return `Query` with
         `self.extend_query` decorator.
@@ -532,14 +541,18 @@ class EntryManager(DateQueryManager):
                     return attr
         return attr
 
-    def extend_query(self, f: Callable[..., Query]):
+    def extend_query(self, f: Callable[..., Query]) -> Query:
         """Add `ExtendedQuery` methods as `ext` attribute
         to a query.
         """
 
         def inner(*args, **kwargs):
             query = f(*args, **kwargs)
-            setattr(query, "ext", ExtendedQuery(self.model, "sum", query))
+            setattr(
+                query,
+                "ext",
+                SumExtendedQuery(self.model, self.cashflowfield, query),
+            )
             return query
 
         return inner
@@ -547,7 +560,7 @@ class EntryManager(DateQueryManager):
     def _fetch(
         self, filters: Sequence[str] = None, reverse: bool = False
     ) -> Query[type[AbstractBaseModel]]:
-        """Fetch budget and category data when fetching an entry."""
+        """Fetch budget and category data when querying entries."""
         q = super()._fetch(filters, reverse)
         return q.options(
             joinedload(self.model.budget, innerjoin=True),
@@ -555,81 +568,58 @@ class EntryManager(DateQueryManager):
         )
 
 
-class ModelManagerSetUp:
-    def __init__(self, model: AbstractBaseModel, **kwargs) -> None:
-        self.model = model
-        self._setup(kwargs)
+class UserManager(DateQueryManager):
+    """Default interface for managing User data."""
 
-    def _setup(self, kwargs: dict[str, Any]) -> None:
-        self.manager = (
-            EntryManager if self.model is Entry else DateQueryManager
+    def __init__(
+        self,
+        session: Session | scoped_session = None,
+        order_by: Sequence[str] = DEFAULT_ORDER_BY,
+        filters: Sequence[str] = DEFAULT_FILTERS,
+        datefield: str = DEFAULT_DATEFIELD,
+    ):
+        return super().__init__(User, session, order_by, filters, datefield)
+
+
+class BudgetManager(DateQueryManager):
+    """Default interface for managing Budget data."""
+
+    def __init__(
+        self,
+        session: Session | scoped_session = None,
+        order_by: Sequence[str] = DEFAULT_ORDER_BY,
+        filters: Sequence[str] = DEFAULT_FILTERS,
+        datefield: str = DEFAULT_DATEFIELD,
+    ):
+        return super().__init__(Budget, session, order_by, filters, datefield)
+
+
+class CategoryManager(DateQueryManager):
+    """Default interface for managing EntryCategory data."""
+
+    def __init__(
+        self,
+        session: Session | scoped_session = None,
+        order_by: Sequence[str] = ["last_used", "id"],
+        filters: Sequence[str] = DEFAULT_FILTERS,
+        datefield: str = DEFAULT_DATEFIELD,
+    ):
+        return super().__init__(
+            EntryCategory, session, order_by, filters, datefield
         )
-        self.filters = kwargs.get("filters") or DEFAULT_FILTERS
 
-        _order_by = kwargs.get("order_by")
-        _datefield = kwargs.get("datefield")
 
-        if self.model in (User, Budget):
-            self.order_by = _order_by or DEFAULT_ORDER_BY
-            self.datefield = _datefield or DEFAULT_DATEFIELD
-        elif self.model is EntryCategory:
-            self.order_by = _order_by or ["last_used", "id"]
-            self.datefield = _datefield or DEFAULT_DATEFIELD
-        elif self.model is Entry:
-            self.order_by = _order_by or ["-transaction_date", "created_at"]
-            self.datefield = _datefield or "transaction_date"
+class EntryManager(CashFlowQueryManager):
+    """Default interface for managing Entry data."""
 
-    def create_manager(self) -> Type["ModelManager"]:
-        return self.manager(
-            self.model,
-            order_by=self.order_by,
-            filters=self.filters,
-            datefield=self.datefield,
+    def __init__(
+        self,
+        session: Session | scoped_session = None,
+        order_by: Sequence[str] = ["-transaction_date", "created_at"],
+        filters: Sequence[str] = DEFAULT_FILTERS,
+        datefield: str = "transaction_date",
+        cashflowfield: str = "sum",
+    ) -> None:
+        return super().__init__(
+            Entry, session, order_by, filters, datefield, cashflowfield
         )
-
-
-class ManagerFactory:
-    def __new__(
-        cls, model: AbstractBaseModel, **kwargs
-    ) -> Type["ModelManager"]:
-        return ModelManagerSetUp(model, **kwargs).create_manager()
-
-
-user_manager = DateQueryManager(User)
-budget_manager = DateQueryManager(Budget)
-category_manager = DateQueryManager(
-    EntryCategory, order_by=["last_used", "id"]
-)
-entry_manager = EntryManager(
-    Entry,
-    datefield="transaction_date",
-    order_by=["-transaction_date", "created_at"],
-)
-
-
-class ModelManagerStore:
-    managers = {
-        "user_manager": user_manager,
-        "budget_manager": budget_manager,
-        "category_manager": category_manager,
-        "entry_manager": entry_manager,
-    }
-
-    @classmethod
-    def as_flags(cls, *names: str) -> Sequence[str]:
-        name_to_manager = {
-            "user": "user_manager",
-            "budget": "budget_manager",
-            "category": "category_manager",
-            "entry": "entry_manager",
-        }
-
-        return_managers = [
-            name_to_manager.get(name) for name in names
-        ] or cls.managers.values()
-
-        return {"model_managers": return_managers}
-
-    @classmethod
-    def get(cls, name: str) -> ModelManager:
-        return cls.managers.get(name)
