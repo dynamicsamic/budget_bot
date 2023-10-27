@@ -18,5 +18,9 @@ class InvalidSumField(BudgetBotDataBaseException):
     pass
 
 
+class InvalidCashflowield(BudgetBotDataBaseException):
+    pass
+
+
 class ModelInstanceCreateError(BudgetBotDataBaseException):
     pass

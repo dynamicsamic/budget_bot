@@ -11,12 +11,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import UnaryExpression
+from sqlalchemy.types import Float, Integer, Numeric
 
 from app.db.base import AbstractBaseModel
 from app.utils import DateGen
 
 from .base import AbstractBaseModel
 from .exceptions import (
+    InvalidCashflowield,
     InvalidDateField,
     InvalidFilter,
     InvalidOrderByValue,
@@ -27,24 +29,25 @@ from .models import Budget, Entry, EntryCategory, User
 logger = logging.getLogger(__name__)
 
 DEFAULT_ORDER_BY = ["created_at", "id"]
-DEFAULT_DATEFIELD = "created_at"
 DEFAULT_FILTERS = None
+DEFAULT_DATEFIELD = "created_at"
+DEFAULT_CASHFLOWFIELD = "sum"
 
 
-class ModelManager:
+class BaseModelManager:
+    """Interface for performig basic operations with data."""
+
     def __init__(
         self,
         model: Type[AbstractBaseModel],
         session: Session | scoped_session = None,
         order_by: Sequence[str] = DEFAULT_ORDER_BY,
         filters: Sequence[str] = DEFAULT_FILTERS,  #  like ["id>2", "sum == 1"]
-        datefield: str = DEFAULT_DATEFIELD,
     ) -> None:
         self.model = model
         self.session = session
         self._order_by = order_by
         self._filters = filters
-        self._datefield = datefield
         self._validate()
 
     def __call__(self, session: Session | scoped_session) -> None:
@@ -71,7 +74,7 @@ class ModelManager:
         return (
             f"{self.__class__.__name__}(model={self.model.__tablename__}, "
             f"session={self.session}, order_by={self.order_by}, "
-            f"filters={self.filters}, datefield={self.datefield})"
+            f"filters={self.filters})"
         )
 
     @property
@@ -92,17 +95,8 @@ class ModelManager:
         self._validate_filters(filters_)
         self._filters = filters_
 
-    @property
-    def datefield(self) -> str:
-        return self._datefield
-
-    @datefield.setter
-    def datefield(self, datefield_: str) -> None:
-        self._validate_datefield(datefield_)
-        self._datefield = datefield_
-
     def create(self, **kwargs) -> Type[AbstractBaseModel] | None:
-        """Create an instance of `'self.model`.
+        """Create an instance of `self.model`.
         Return created instance in case of success.
         Return `None` in case of failure.
         """
@@ -325,7 +319,6 @@ class ModelManager:
     def _validate(self):
         self._validate_order_by(self._order_by)
         self._validate_filters()
-        self._validate_datefield(self._datefield)
 
     @staticmethod
     def _check_iterable(check_value: Any, exception: Exception):
@@ -392,29 +385,44 @@ class ModelManager:
         if return_filters:
             return validated
 
-    def _validate_datefield(self, datefield_: str):
-        if datefield := getattr(self.model, datefield_, None):
-            if not isinstance(datefield.type, (Date, DateTime)):
-                raise InvalidDateField(
-                    "Datefield must be of sqlalchemy `Date` or `Datetime` types."
-                )
-        else:
-            raise InvalidDateField(
-                f"""Model `{self.model}`
-                    does not have `{datefield_}` atribute."""
-            )
-
     def _set_default_order_by(self):
-        self._order_by = ["created_at", "id"]
+        self._order_by = DEFAULT_ORDER_BY
 
     def _reset_filters(self):
-        self._filters = None
-
-    def _set_default_datefield(self):
-        self._datefield = "created_at"
+        self._filters = DEFAULT_FILTERS
 
 
-class DateQueryManager(ModelManager):
+class DateQueryModelManager(BaseModelManager):
+    """
+    BaseModelManager extended with methods for
+    making queries with datetime gaps.
+    """
+
+    def __init__(
+        self,
+        model: Type[AbstractBaseModel],
+        session: Session | scoped_session = None,
+        order_by: Sequence[str] = DEFAULT_ORDER_BY,
+        filters: Sequence[str] = DEFAULT_FILTERS,
+        datefield: str = DEFAULT_DATEFIELD,
+    ) -> None:
+        super().__init__(model, session, order_by, filters)
+        self._validate_datefield(datefield)
+        self._datefield = datefield
+
+    def __repr__(self) -> str:
+        text = super().__repr__()
+        return f"{text[:-1]}, datefield={self.datefield})"
+
+    @property
+    def datefield(self) -> str:
+        return self._datefield
+
+    @datefield.setter
+    def datefield(self, datefield_: str) -> None:
+        self._validate_datefield(datefield_)
+        self._datefield = datefield_
+
     def today(
         self,
         date_info: DateGen,
@@ -475,6 +483,21 @@ class DateQueryManager(ModelManager):
             date_column.between(start, end)
         )
 
+    def _validate_datefield(self, datefield_: str):
+        if datefield := getattr(self.model, datefield_, None):
+            if not isinstance(datefield.type, (Date, DateTime)):
+                raise InvalidDateField(
+                    "Datefield must be of sqlalchemy `Date` or `Datetime` types."
+                )
+        else:
+            raise InvalidDateField(
+                f"""Model `{self.model}`
+                    does not have `{datefield_}` atribute."""
+            )
+
+    def _set_default_datefield(self):
+        self._datefield = DEFAULT_DATEFIELD
+
 
 class SumExtendedQuery:
     def __init__(
@@ -508,7 +531,7 @@ class SumExtendedQuery:
         return q.with_entities(sql_func.sum(self.sum_field)).scalar() or 0
 
 
-class CashFlowQueryManager(DateQueryManager):
+class CashFlowQueryManager(DateQueryModelManager):
     def __init__(
         self,
         model: Type[AbstractBaseModel],
@@ -516,11 +539,11 @@ class CashFlowQueryManager(DateQueryManager):
         order_by: Sequence[str] = DEFAULT_ORDER_BY,
         filters: Sequence[str] = DEFAULT_FILTERS,
         datefield: str = DEFAULT_DATEFIELD,
-        cashflowfield: str = "sum",
+        cashflowfield: str = DEFAULT_CASHFLOWFIELD,
     ) -> None:
         super().__init__(model, session, order_by, filters, datefield)
-        setattr(self, "cashflowfield", cashflowfield)
-        self.cashflowfield = cashflowfield
+        self._validate_cashflowfield(cashflowfield)
+        self._cashflowfield = cashflowfield
 
     def __repr__(self) -> str:
         text = super().__repr__()
@@ -528,7 +551,7 @@ class CashFlowQueryManager(DateQueryManager):
 
     def __getattribute__(self, __name: str) -> Any:
         """Decorate methods that return `Query` with
-        `self.extend_query` decorator.
+        `self._extend_query` decorator.
         """
         attr = super().__getattribute__(__name)
 
@@ -536,12 +559,21 @@ class CashFlowQueryManager(DateQueryManager):
             return_type = attr.__annotations__.get("return")
             if return_type is Query:
                 try:
-                    return self.extend_query(attr)
+                    return self._extend_query(attr)
                 except Exception:
                     return attr
         return attr
 
-    def extend_query(self, f: Callable[..., Query]) -> Query:
+    @property
+    def cashflowfield(self) -> str:
+        return self._cashflowfield
+
+    @cashflowfield.setter
+    def cashflowfield(self, cashflowfield_: str) -> None:
+        self._validate_cashflowfield(cashflowfield_)
+        self._cashflowfield = cashflowfield_
+
+    def _extend_query(self, f: Callable[..., Query]) -> Query:
         """Add `ExtendedQuery` methods as `ext` attribute
         to a query.
         """
@@ -551,24 +583,34 @@ class CashFlowQueryManager(DateQueryManager):
             setattr(
                 query,
                 "ext",
-                SumExtendedQuery(self.model, self.cashflowfield, query),
+                SumExtendedQuery(self.model, self._cashflowfield, query),
             )
             return query
 
         return inner
 
-    def _fetch(
-        self, filters: Sequence[str] = None, reverse: bool = False
-    ) -> Query[type[AbstractBaseModel]]:
-        """Fetch budget and category data when querying entries."""
-        q = super()._fetch(filters, reverse)
-        return q.options(
-            joinedload(self.model.budget, innerjoin=True),
-            joinedload(self.model.category, innerjoin=True),
-        )
+    def _validate_cashflowfield(self, cf_field_name: str) -> None:
+        if cashflowfield := getattr(self.model, cf_field_name, None):
+            if not isinstance(
+                cashflowfield.type, (Integer, Float, Numeric)
+            ) or not issubclass(
+                cashflowfield.type.__class__, (Integer, Float, Numeric)
+            ):
+                raise InvalidCashflowield(
+                    "Cashflowfield must be of sqlalchemy `Integer`, "
+                    "`Float` or `Numeric` types or its subclasses."
+                )
+        else:
+            raise InvalidCashflowield(
+                f"Model `{self.model}`"
+                f"does not have `{cf_field_name}` atribute."
+            )
+
+    def _set_default_cashflowfield(self) -> None:
+        self._cashflowfield = DEFAULT_CASHFLOWFIELD
 
 
-class UserManager(DateQueryManager):
+class UserManager(DateQueryModelManager):
     """Default interface for managing User data."""
 
     def __init__(
@@ -578,10 +620,10 @@ class UserManager(DateQueryManager):
         filters: Sequence[str] = DEFAULT_FILTERS,
         datefield: str = DEFAULT_DATEFIELD,
     ):
-        return super().__init__(User, session, order_by, filters, datefield)
+        super().__init__(User, session, order_by, filters, datefield)
 
 
-class BudgetManager(DateQueryManager):
+class BudgetManager(DateQueryModelManager):
     """Default interface for managing Budget data."""
 
     def __init__(
@@ -591,10 +633,10 @@ class BudgetManager(DateQueryManager):
         filters: Sequence[str] = DEFAULT_FILTERS,
         datefield: str = DEFAULT_DATEFIELD,
     ):
-        return super().__init__(Budget, session, order_by, filters, datefield)
+        super().__init__(Budget, session, order_by, filters, datefield)
 
 
-class CategoryManager(DateQueryManager):
+class CategoryManager(DateQueryModelManager):
     """Default interface for managing EntryCategory data."""
 
     def __init__(
@@ -604,9 +646,7 @@ class CategoryManager(DateQueryManager):
         filters: Sequence[str] = DEFAULT_FILTERS,
         datefield: str = DEFAULT_DATEFIELD,
     ):
-        return super().__init__(
-            EntryCategory, session, order_by, filters, datefield
-        )
+        super().__init__(EntryCategory, session, order_by, filters, datefield)
 
 
 class EntryManager(CashFlowQueryManager):
@@ -620,6 +660,16 @@ class EntryManager(CashFlowQueryManager):
         datefield: str = "transaction_date",
         cashflowfield: str = "sum",
     ) -> None:
-        return super().__init__(
+        super().__init__(
             Entry, session, order_by, filters, datefield, cashflowfield
+        )
+
+    def _fetch(
+        self, filters: Sequence[str] = None, reverse: bool = False
+    ) -> Query[type[AbstractBaseModel]]:
+        """Fetch budget and category data when querying entries."""
+        q = super()._fetch(filters, reverse)
+        return q.options(
+            joinedload(self.model.budget, innerjoin=True),
+            joinedload(self.model.category, innerjoin=True),
         )
