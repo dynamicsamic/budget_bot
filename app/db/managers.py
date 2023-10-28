@@ -673,3 +673,56 @@ class EntryManager(CashFlowQueryManager):
             joinedload(self.model.budget, innerjoin=True),
             joinedload(self.model.category, innerjoin=True),
         )
+
+
+def basic_user_manager(
+    session: Session | scoped_session = None,
+    order_by: Sequence[str] = DEFAULT_ORDER_BY,
+    filters: Sequence[str] = DEFAULT_FILTERS,
+) -> BaseModelManager:
+    return BaseModelManager(User, session, order_by, filters)
+
+
+def date_query_user_manager(
+    session: Session | scoped_session = None,
+    order_by: Sequence[str] = DEFAULT_ORDER_BY,
+    filters: Sequence[str] = DEFAULT_FILTERS,
+    datefield: str = DEFAULT_DATEFIELD,
+) -> DateQueryModelManager:
+    return DateQueryModelManager(User, session, order_by, filters, datefield)
+
+
+def basic_budget_manager(
+    session: Session | scoped_session = None,
+    order_by: Sequence[str] = DEFAULT_ORDER_BY,
+    filters: Sequence[str] = DEFAULT_FILTERS,
+) -> BaseModelManager:
+    return BaseModelManager(Budget, session, order_by, filters)
+
+
+def date_query_budget_manager(
+    session: Session | scoped_session = None,
+    order_by: Sequence[str] = DEFAULT_ORDER_BY,
+    filters: Sequence[str] = DEFAULT_FILTERS,
+    datefield: str = DEFAULT_DATEFIELD,
+) -> DateQueryModelManager:
+    return DateQueryModelManager(Budget, session, order_by, filters, datefield)
+
+
+def basic_category_manager(
+    session: Session | scoped_session = None,
+    order_by: Sequence[str] = ["last_used", "id"],
+    filters: Sequence[str] = DEFAULT_FILTERS,
+) -> BaseModelManager:
+    return BaseModelManager(EntryCategory, session, order_by, filters)
+
+
+def date_query_category_manager(
+    session: Session | scoped_session = None,
+    order_by: Sequence[str] = ["last_used", "id"],
+    filters: Sequence[str] = DEFAULT_FILTERS,
+    datefield: str = DEFAULT_DATEFIELD,
+) -> DateQueryModelManager:
+    return DateQueryModelManager(
+        EntryCategory, session, order_by, filters, datefield
+    )
