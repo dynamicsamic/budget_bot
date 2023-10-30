@@ -2,6 +2,7 @@ import datetime as dt
 import logging
 import operator as operators
 import re
+from types import MethodType
 from typing import Any, Callable, List, Literal, Sequence, Type
 
 from sqlalchemy import Date, DateTime, and_
@@ -24,7 +25,7 @@ from .exceptions import (
     InvalidOrderByValue,
     InvalidSumField,
 )
-from .models import Budget, Entry, EntryCategory, User
+from .models import Entry
 
 logger = logging.getLogger(__name__)
 
@@ -610,119 +611,35 @@ class CashFlowQueryManager(DateQueryModelManager):
         self._cashflowfield = DEFAULT_CASHFLOWFIELD
 
 
-class UserManager(DateQueryModelManager):
-    """Default interface for managing User data."""
-
-    def __init__(
-        self,
-        session: Session | scoped_session = None,
-        order_by: Sequence[str] = DEFAULT_ORDER_BY,
-        filters: Sequence[str] = DEFAULT_FILTERS,
-        datefield: str = DEFAULT_DATEFIELD,
-    ):
-        super().__init__(User, session, order_by, filters, datefield)
+def fetch_joined(
+    self, filters: Sequence[str] = None, reverse: bool = False
+) -> Query[type[AbstractBaseModel]]:
+    """Fetch budget and category data when querying entries."""
+    q = super(self.__class__, self)._fetch(filters, reverse)
+    return q.options(
+        joinedload(self.model.budget, innerjoin=True),
+        joinedload(self.model.category, innerjoin=True),
+    )
 
 
-class BudgetManager(DateQueryModelManager):
-    """Default interface for managing Budget data."""
-
-    def __init__(
-        self,
-        session: Session | scoped_session = None,
-        order_by: Sequence[str] = DEFAULT_ORDER_BY,
-        filters: Sequence[str] = DEFAULT_FILTERS,
-        datefield: str = DEFAULT_DATEFIELD,
-    ):
-        super().__init__(Budget, session, order_by, filters, datefield)
-
-
-class CategoryManager(DateQueryModelManager):
-    """Default interface for managing EntryCategory data."""
-
-    def __init__(
-        self,
-        session: Session | scoped_session = None,
-        order_by: Sequence[str] = ["last_used", "id"],
-        filters: Sequence[str] = DEFAULT_FILTERS,
-        datefield: str = DEFAULT_DATEFIELD,
-    ):
-        super().__init__(EntryCategory, session, order_by, filters, datefield)
-
-
-class EntryManager(CashFlowQueryManager):
-    """Default interface for managing Entry data."""
-
-    def __init__(
-        self,
-        session: Session | scoped_session = None,
-        order_by: Sequence[str] = ["-transaction_date", "created_at"],
-        filters: Sequence[str] = DEFAULT_FILTERS,
-        datefield: str = "transaction_date",
-        cashflowfield: str = "sum",
-    ) -> None:
-        super().__init__(
+def EntryManager(
+    manager: Type[BaseModelManager],
+    session: Session | scoped_session = None,
+    order_by: Sequence[str] = DEFAULT_ORDER_BY,
+    filters: Sequence[str] = DEFAULT_FILTERS,
+    datefield: str = DEFAULT_DATEFIELD,
+    cashflowfield: str = DEFAULT_CASHFLOWFIELD,
+) -> Type[BaseModelManager]:
+    if manager is BaseModelManager:
+        manager = manager(Entry, session, order_by, filters)
+    elif manager is DateQueryModelManager:
+        manager = manager(Entry, session, order_by, filters, datefield)
+    elif manager is CashFlowQueryManager:
+        manager = manager(
             Entry, session, order_by, filters, datefield, cashflowfield
         )
+    else:
+        return
 
-    def _fetch(
-        self, filters: Sequence[str] = None, reverse: bool = False
-    ) -> Query[type[AbstractBaseModel]]:
-        """Fetch budget and category data when querying entries."""
-        q = super()._fetch(filters, reverse)
-        return q.options(
-            joinedload(self.model.budget, innerjoin=True),
-            joinedload(self.model.category, innerjoin=True),
-        )
-
-
-def basic_user_manager(
-    session: Session | scoped_session = None,
-    order_by: Sequence[str] = DEFAULT_ORDER_BY,
-    filters: Sequence[str] = DEFAULT_FILTERS,
-) -> BaseModelManager:
-    return BaseModelManager(User, session, order_by, filters)
-
-
-def date_query_user_manager(
-    session: Session | scoped_session = None,
-    order_by: Sequence[str] = DEFAULT_ORDER_BY,
-    filters: Sequence[str] = DEFAULT_FILTERS,
-    datefield: str = DEFAULT_DATEFIELD,
-) -> DateQueryModelManager:
-    return DateQueryModelManager(User, session, order_by, filters, datefield)
-
-
-def basic_budget_manager(
-    session: Session | scoped_session = None,
-    order_by: Sequence[str] = DEFAULT_ORDER_BY,
-    filters: Sequence[str] = DEFAULT_FILTERS,
-) -> BaseModelManager:
-    return BaseModelManager(Budget, session, order_by, filters)
-
-
-def date_query_budget_manager(
-    session: Session | scoped_session = None,
-    order_by: Sequence[str] = DEFAULT_ORDER_BY,
-    filters: Sequence[str] = DEFAULT_FILTERS,
-    datefield: str = DEFAULT_DATEFIELD,
-) -> DateQueryModelManager:
-    return DateQueryModelManager(Budget, session, order_by, filters, datefield)
-
-
-def basic_category_manager(
-    session: Session | scoped_session = None,
-    order_by: Sequence[str] = ["last_used", "id"],
-    filters: Sequence[str] = DEFAULT_FILTERS,
-) -> BaseModelManager:
-    return BaseModelManager(EntryCategory, session, order_by, filters)
-
-
-def date_query_category_manager(
-    session: Session | scoped_session = None,
-    order_by: Sequence[str] = ["last_used", "id"],
-    filters: Sequence[str] = DEFAULT_FILTERS,
-    datefield: str = DEFAULT_DATEFIELD,
-) -> DateQueryModelManager:
-    return DateQueryModelManager(
-        EntryCategory, session, order_by, filters, datefield
-    )
+    manager._fetch = MethodType(fetch_joined, manager)
+    return manager
