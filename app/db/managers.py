@@ -2,6 +2,7 @@ import datetime as dt
 import logging
 import operator as operators
 import re
+from dataclasses import dataclass, field
 from types import MethodType
 from typing import Any, Callable, List, Literal, Sequence, Type
 
@@ -25,7 +26,7 @@ from .exceptions import (
     InvalidOrderByValue,
     InvalidSumField,
 )
-from .models import Entry
+from .models import Entry, User
 
 logger = logging.getLogger(__name__)
 
@@ -643,3 +644,34 @@ def EntryManager(
 
     manager._fetch = MethodType(fetch_joined, manager)
     return manager
+
+
+@dataclass
+class ManagerFactory:
+    model: Type[AbstractBaseModel]
+    session: Session = None
+    order_by: Sequence[str] = None
+    filters: Sequence[str] = None
+    datefield: str = DEFAULT_DATEFIELD
+
+    def __post_init__(self):
+        self.order_by = DEFAULT_ORDER_BY
+
+    def base(self) -> BaseModelManager:
+        return BaseModelManager(
+            self.model, self.session, self.order_by, self.filters
+        )
+
+    def date(self):
+        return DateQueryModelManager(
+            self.model,
+            self.session,
+            self.order_by,
+            self.filters,
+            self.datefield,
+        )
+
+
+@dataclass
+class UserManagerFactory(ManagerFactory):
+    model: Type[AbstractBaseModel] = User
