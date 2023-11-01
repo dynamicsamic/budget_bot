@@ -26,7 +26,7 @@ from .exceptions import (
     InvalidOrderByValue,
     InvalidSumField,
 )
-from .models import Entry, User
+from .models import Budget, Entry, EntryCategory, User
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,8 @@ DEFAULT_CASHFLOWFIELD = "sum"
 
 class BaseModelManager:
     """Interface for performig basic operations with data."""
+
+    __short_name__ = "base"
 
     def __init__(
         self,
@@ -400,6 +402,8 @@ class DateQueryModelManager(BaseModelManager):
     making queries with datetime gaps.
     """
 
+    __short_name__ = "date"
+
     def __init__(
         self,
         model: Type[AbstractBaseModel],
@@ -534,6 +538,8 @@ class SumExtendedQuery:
 
 
 class CashFlowQueryManager(DateQueryModelManager):
+    __short_name__ = "cashflow"
+
     def __init__(
         self,
         model: Type[AbstractBaseModel],
@@ -647,31 +653,120 @@ def EntryManager(
 
 
 @dataclass
-class ManagerFactory:
+class ModelManagerSet:
     model: Type[AbstractBaseModel]
     session: Session = None
     order_by: Sequence[str] = None
     filters: Sequence[str] = None
     datefield: str = DEFAULT_DATEFIELD
+    cashflowfield: str = DEFAULT_CASHFLOWFIELD
 
-    def __post_init__(self):
-        self.order_by = DEFAULT_ORDER_BY
+    def __post_init__(self) -> None:
+        if self.order_by is None:
+            self.order_by = DEFAULT_ORDER_BY
 
-    def base(self) -> BaseModelManager:
-        return BaseModelManager(
-            self.model, self.session, self.order_by, self.filters
+    def __repr__(self) -> str:
+        manager_methods = [
+            name
+            for name, attr in self.__dict__.items()
+            if callable(attr) and not name.startswith("_") and name != "model"
+        ]
+        return (
+            f"{self.__class__.__name__}(model={self.model.__tablename__}, "
+            f"managers=[{', '.join(manager_methods)}])"
         )
 
-    def date(self):
-        return DateQueryModelManager(
-            self.model,
-            self.session,
-            self.order_by,
-            self.filters,
-            self.datefield,
-        )
+
+def base(
+    self: ModelManagerSet, **manager_init_kwargs: dict[str, Any]
+) -> BaseModelManager:
+    session = manager_init_kwargs.get("session") or self.session
+    order_by = manager_init_kwargs.get("order_by") or self.order_by
+    filters = manager_init_kwargs.get("filters") or self.filters
+
+    return BaseModelManager(self.model, session, order_by, filters)
 
 
-@dataclass
-class UserManagerFactory(ManagerFactory):
-    model: Type[AbstractBaseModel] = User
+def date(
+    self: ModelManagerSet, **manager_init_kwargs: dict[str, Any]
+) -> DateQueryModelManager:
+    session = manager_init_kwargs.get("session") or self.session
+    order_by = manager_init_kwargs.get("order_by") or self.order_by
+    filters = manager_init_kwargs.get("filters") or self.filters
+    datefield = manager_init_kwargs.get("datefield") or self.datefield
+
+    return DateQueryModelManager(
+        self.model,
+        session,
+        order_by,
+        filters,
+        datefield,
+    )
+
+
+def cashflow(
+    self: ModelManagerSet, **manager_init_kwargs: dict[str, Any]
+) -> CashFlowQueryManager:
+    session = manager_init_kwargs.get("session") or self.session
+    order_by = manager_init_kwargs.get("order_by") or self.order_by
+    filters = manager_init_kwargs.get("filters") or self.filters
+    datefield = manager_init_kwargs.get("datefield") or self.datefield
+    cashflowfield = (
+        manager_init_kwargs.get("cashflowfield") or self.cashflowfield
+    )
+
+    return CashFlowQueryManager(
+        self.model,
+        session,
+        order_by,
+        filters,
+        datefield,
+        cashflowfield,
+    )
+
+
+class ModelManagerFactory:
+    short_names = {
+        BaseModelManager.__short_name__: base,
+        DateQueryModelManager.__short_name__: date,
+        CashFlowQueryManager.__short_name__: cashflow,
+    }
+
+    def __init__(
+        self,
+        model: Type[AbstractBaseModel],
+        managers: Sequence[Type[BaseModelManager]],
+        **manager_init_kwargs: dict[str, Any],
+    ) -> None:
+        self.model = model
+        self.managers = managers
+        self.manager_init_kwargs = manager_init_kwargs
+
+        self.manager_set = ModelManagerSet(model, **self.manager_init_kwargs)
+        for manager in self.managers:
+            setattr(
+                self.manager_set,
+                manager.__short_name__,
+                MethodType(
+                    self.short_names.get(manager.__short_name__),
+                    self.manager_set,
+                ),
+            )
+
+    def get_managers(self) -> ModelManagerSet:
+        return self.manager_set
+
+
+UserManagers = ModelManagerFactory(
+    User, [BaseModelManager, DateQueryModelManager]
+).get_managers()
+
+BudgetManagers = ModelManagerFactory(
+    Budget, [BaseModelManager, DateQueryModelManager]
+).get_managers()
+
+BudgetManagers = ModelManagerFactory(
+    EntryCategory,
+    [BaseModelManager, DateQueryModelManager],
+    order_by=["-last_used", "id"],
+).get_managers()
