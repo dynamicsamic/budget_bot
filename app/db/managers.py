@@ -36,22 +36,20 @@ DEFAULT_DATEFIELD = "created_at"
 DEFAULT_CASHFLOWFIELD = "sum"
 
 
+@dataclass
 class BaseModelManager:
     """Interface for performig basic operations with data."""
 
     __short_name__ = "base"
 
-    def __init__(
-        self,
-        model: Type[AbstractBaseModel],
-        session: Session | scoped_session = None,
-        order_by: Sequence[str] = DEFAULT_ORDER_BY,
-        filters: Sequence[str] = DEFAULT_FILTERS,  #  like ["id>2", "sum == 1"]
-    ) -> None:
-        self.model = model
-        self.session = session
-        self._order_by = order_by
-        self._filters = filters
+    model: Type[AbstractBaseModel]
+    session: Session | scoped_session = None
+    _order_by: Sequence[str] = None
+    _filters: Sequence[str] = None  #  like ["id>2", "sum == 1"]
+
+    def __post_init__(self) -> None:
+        if self._order_by is None:
+            self._order_by = DEFAULT_ORDER_BY
         self._validate()
 
     def __call__(self, session: Session | scoped_session) -> None:
@@ -652,18 +650,14 @@ def EntryManager(
     return manager
 
 
-@dataclass
 class ModelManagerSet:
-    model: Type[AbstractBaseModel]
-    session: Session = None
-    order_by: Sequence[str] = None
-    filters: Sequence[str] = None
-    datefield: str = DEFAULT_DATEFIELD
-    cashflowfield: str = DEFAULT_CASHFLOWFIELD
-
-    def __post_init__(self) -> None:
-        if self.order_by is None:
-            self.order_by = DEFAULT_ORDER_BY
+    def __init__(
+        self,
+        model: Type[AbstractBaseModel],
+        **manager_init_kwargs: dict[str, Any],
+    ) -> None:
+        self.model = model
+        self.manager_init_kwargs = manager_init_kwargs
 
     def __repr__(self) -> str:
         manager_methods = [
@@ -675,6 +669,18 @@ class ModelManagerSet:
             f"{self.__class__.__name__}(model={self.model.__tablename__}, "
             f"managers=[{', '.join(manager_methods)}])"
         )
+
+
+class ModelManagerSetMethod:
+    def __init__(
+        self,
+        manager: Type[BaseModelManager],
+        manager_set: ModelManagerSet,
+        **manager_init_kwargs: dict[str, Any],
+    ) -> None:
+        self.manager = manager
+        self.manager_set = manager_set
+        self.manager_init_kwargs = manager_init_kwargs
 
 
 def base(
@@ -765,7 +771,7 @@ BudgetManagers = ModelManagerFactory(
     Budget, [BaseModelManager, DateQueryModelManager]
 ).get_managers()
 
-BudgetManagers = ModelManagerFactory(
+CategorytManagers = ModelManagerFactory(
     EntryCategory,
     [BaseModelManager, DateQueryModelManager],
     order_by=["-last_used", "id"],
