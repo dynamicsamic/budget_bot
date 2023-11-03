@@ -2,7 +2,7 @@ import datetime as dt
 import logging
 import operator as operators
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from types import MethodType
 from typing import Any, Callable, List, Literal, Sequence, Type
 
@@ -97,7 +97,7 @@ class BaseModelManager:
         self._validate_filters(filters_)
         self._filters = filters_
 
-    def create(self, **kwargs) -> Type[AbstractBaseModel] | None:
+    def create(self, **kwargs) -> AbstractBaseModel | None:
         """Create an instance of `self.model`.
         Return created instance in case of success.
         Return `None` in case of failure.
@@ -169,11 +169,11 @@ class BaseModelManager:
             )
         return deleted
 
-    def get(self, id_: int) -> Type[AbstractBaseModel] | None:
+    def get(self, id_: int) -> AbstractBaseModel | None:
         """Retrieve `self.model` object."""
         return self.session.get(self.model, id_)
 
-    def get_by(self, **kwargs) -> Type[AbstractBaseModel] | None:
+    def get_by(self, **kwargs) -> AbstractBaseModel | None:
         """Retrieve `self.model` object filtered by kwargs."""
         if valid_kwargs := self._clean_kwargs(kwargs):
             return (
@@ -182,11 +182,11 @@ class BaseModelManager:
                 .first()
             )
 
-    def all(self, reverse: bool = False) -> Query[Type[AbstractBaseModel]]:
+    def all(self, reverse: bool = False) -> Query[AbstractBaseModel]:
         """Retrieve all `self.model` objets."""
         return self._fetch(reverse=reverse)
 
-    def list(self, reverse: bool = False) -> List[Type[AbstractBaseModel]]:
+    def list(self, reverse: bool = False) -> List[AbstractBaseModel]:
         """Retrieve all `self.model` objets in list."""
         return self._fetch(reverse=reverse).all()
 
@@ -195,7 +195,7 @@ class BaseModelManager:
         *,
         filters: Sequence[str],
         reverse: bool = False,
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         return self._fetch(filters, reverse)
 
     def count(self) -> int:
@@ -219,19 +219,19 @@ class BaseModelManager:
 
     def first(
         self, *, filters: Sequence[str] = None
-    ) -> Type[AbstractBaseModel] | None:
+    ) -> AbstractBaseModel | None:
         """Retrieve first `model` instance in ascending query."""
         return self.first_n(1, filters=filters).one_or_none()
 
     def last(
         self, *, filters: Sequence[str] = None
-    ) -> Type[AbstractBaseModel] | None:
+    ) -> AbstractBaseModel | None:
         """Retrieve last `model` instance in discending query."""
         return self.last_n(1, filters=filters).one_or_none()
 
     def first_n(
         self, n: int, *, filters: Sequence[str] = None
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         """Retrieve specific number of `model` instances
         sorted in ascending order.
         """
@@ -239,7 +239,7 @@ class BaseModelManager:
 
     def last_n(
         self, n: int, *, filters: Sequence[str] = None
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         """Retrieve specific number of `model` instances
         sorted in descending order.
         """
@@ -254,7 +254,7 @@ class BaseModelManager:
 
     def _fetch(
         self, filters: Sequence[str] = None, reverse: bool = False
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         q = self.session.query(self.model).order_by(
             *self._compile_order_by(reverse)
         )
@@ -266,7 +266,7 @@ class BaseModelManager:
 
     def _fetch_n(
         self, n: int, filters: Sequence[str] = None, reverse: bool = False
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         return self._fetch(filters, reverse).limit(n)
 
     def _compile_order_by(
@@ -394,6 +394,7 @@ class BaseModelManager:
         self._filters = DEFAULT_FILTERS
 
 
+@dataclass
 class DateQueryModelManager(BaseModelManager):
     """
     BaseModelManager extended with methods for
@@ -402,21 +403,15 @@ class DateQueryModelManager(BaseModelManager):
 
     __short_name__ = "date"
 
-    def __init__(
-        self,
-        model: Type[AbstractBaseModel],
-        session: Session | scoped_session = None,
-        order_by: Sequence[str] = DEFAULT_ORDER_BY,
-        filters: Sequence[str] = DEFAULT_FILTERS,
-        datefield: str = DEFAULT_DATEFIELD,
-    ) -> None:
-        super().__init__(model, session, order_by, filters)
-        self._validate_datefield(datefield)
-        self._datefield = datefield
+    _datefield: str = DEFAULT_DATEFIELD
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self._validate_datefield(self._datefield)
 
     def __repr__(self) -> str:
         text = super().__repr__()
-        return f"{text[:-1]}, datefield={self.datefield})"
+        return f"{text[:-1]}, datefield='{self.datefield}')"
 
     @property
     def datefield(self) -> str:
@@ -433,7 +428,7 @@ class DateQueryModelManager(BaseModelManager):
         *,
         filters: Sequence[str] = None,
         reverse: bool = False,
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         return self._between(*date_info.date_range, filters, reverse)
 
     def yesterday(
@@ -442,7 +437,7 @@ class DateQueryModelManager(BaseModelManager):
         *,
         filters: Sequence[str] = None,
         reverse: bool = False,
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         return self._between(*date_info.yesterday_range, filters, reverse)
 
     def this_week(
@@ -451,7 +446,7 @@ class DateQueryModelManager(BaseModelManager):
         *,
         filters: Sequence[str] = None,
         reverse: bool = False,
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         return self._between(*date_info.week_range, filters, reverse)
 
     def this_month(
@@ -460,7 +455,7 @@ class DateQueryModelManager(BaseModelManager):
         *,
         filters: Sequence[str] = None,
         reverse: bool = False,
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         return self._between(*date_info.month_range, filters, reverse)
 
     def this_year(
@@ -469,7 +464,7 @@ class DateQueryModelManager(BaseModelManager):
         *,
         filters: Sequence[str] = None,
         reverse: bool = False,
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         return self._between(*date_info.year_range, filters, reverse)
 
     def _between(
@@ -478,7 +473,7 @@ class DateQueryModelManager(BaseModelManager):
         end: dt.datetime | dt.date,
         filters: Sequence[str] = None,
         reverse: bool = False,
-    ) -> Query[Type[AbstractBaseModel]]:
+    ) -> Query[AbstractBaseModel]:
         """Fetch all instances of `model` filtered
         between given borders.
         """
@@ -535,25 +530,19 @@ class SumExtendedQuery:
         return q.with_entities(sql_func.sum(self.sum_field)).scalar() or 0
 
 
+@dataclass
 class CashFlowQueryManager(DateQueryModelManager):
     __short_name__ = "cashflow"
 
-    def __init__(
-        self,
-        model: Type[AbstractBaseModel],
-        session: Session | scoped_session = None,
-        order_by: Sequence[str] = DEFAULT_ORDER_BY,
-        filters: Sequence[str] = DEFAULT_FILTERS,
-        datefield: str = DEFAULT_DATEFIELD,
-        cashflowfield: str = DEFAULT_CASHFLOWFIELD,
-    ) -> None:
-        super().__init__(model, session, order_by, filters, datefield)
-        self._validate_cashflowfield(cashflowfield)
-        self._cashflowfield = cashflowfield
+    _cashflowfield: str = DEFAULT_CASHFLOWFIELD
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self._validate_cashflowfield(self._cashflowfield)
 
     def __repr__(self) -> str:
         text = super().__repr__()
-        return f"{text[:-1]}, cashflowfield={self.cashflowfield})"
+        return f"{text[:-1]}, cashflowfield='{self.cashflowfield}')"
 
     def __getattribute__(self, __name: str) -> Any:
         """Decorate methods that return `Query` with
@@ -618,7 +607,7 @@ class CashFlowQueryManager(DateQueryModelManager):
 
 def fetch_joined(
     self, filters: Sequence[str] = None, reverse: bool = False
-) -> Query[type[AbstractBaseModel]]:
+) -> Query[AbstractBaseModel]:
     """Fetch budget and category data when querying entries."""
     q = super(self.__class__, self)._fetch(filters, reverse)
     return q.options(
@@ -634,7 +623,7 @@ def EntryManager(
     filters: Sequence[str] = DEFAULT_FILTERS,
     datefield: str = DEFAULT_DATEFIELD,
     cashflowfield: str = DEFAULT_CASHFLOWFIELD,
-) -> Type[BaseModelManager]:
+) -> BaseModelManager:
     if manager is BaseModelManager:
         manager = manager(Entry, session, order_by, filters)
     elif manager is DateQueryModelManager:
@@ -671,16 +660,28 @@ class ModelManagerSet:
         )
 
 
+@dataclass
 class ModelManagerSetMethod:
-    def __init__(
-        self,
-        manager: Type[BaseModelManager],
-        manager_set: ModelManagerSet,
-        **manager_init_kwargs: dict[str, Any],
-    ) -> None:
-        self.manager = manager
-        self.manager_set = manager_set
-        self.manager_init_kwargs = manager_init_kwargs
+    manager: Type[BaseModelManager]
+    manager_set: ModelManagerSet
+
+    def __call__(self, **manager_init_kwargs: dict[str, Any]):
+        return self.manager(
+            self.manager_set.model, **self.filter_kwargs(manager_init_kwargs)
+        )
+
+    def filter_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        manager_set_kwargs = self.manager_set.manager_init_kwargs or {}
+        for attr, value in kwargs.items():
+            if attr in self.manager_fields and value is not None:
+                manager_set_kwargs.update(attr=value)
+        return manager_set_kwargs
+
+    @property
+    def manager_fields(self) -> set[str]:
+        valid_fields = set(self.manager.__match_args__)
+        valid_fields.discard("model")
+        return valid_fields
 
 
 def base(
@@ -749,14 +750,21 @@ class ModelManagerFactory:
         self.manager_init_kwargs = manager_init_kwargs
 
         self.manager_set = ModelManagerSet(model, **self.manager_init_kwargs)
+        # for manager in self.managers:
+        #     setattr(
+        #         self.manager_set,
+        #         manager.__short_name__,
+        #         MethodType(
+        #             self.short_names.get(manager.__short_name__),
+        #             self.manager_set,
+        #         ),
+        #     )
+
         for manager in self.managers:
             setattr(
                 self.manager_set,
                 manager.__short_name__,
-                MethodType(
-                    self.short_names.get(manager.__short_name__),
-                    self.manager_set,
-                ),
+                ModelManagerSetMethod(manager, self.manager_set),
             )
 
     def get_managers(self) -> ModelManagerSet:
