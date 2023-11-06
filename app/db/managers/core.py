@@ -1,8 +1,6 @@
 import datetime as dt
 import logging
-import operator as operators
-import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from types import MethodType
 from typing import Any, Callable, List, Literal, Sequence, Type
 
@@ -12,25 +10,29 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
-from sqlalchemy.sql.elements import UnaryExpression
+from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
 from sqlalchemy.types import Float, Integer, Numeric
 
-from app.db.base import AbstractBaseModel
-from app.utils import DateGen
-
-from .base import AbstractBaseModel
-from .exceptions import (
+from app.db.exceptions import (
     InvalidCashflowield,
     InvalidDateField,
-    InvalidFilter,
     InvalidOrderByValue,
     InvalidSumField,
 )
-from .models import Budget, Entry, EntryCategory, User
+from app.db.models import Budget, Entry, EntryCategory, User
+from app.db.models.base import AbstractBaseModel
+from app.utils import DateGen
+
+from .utils import (
+    ManagerFieldDescriptor,
+    transform_to_order_by_dict,
+    validate_filters,
+    validate_order_by,
+)
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ORDER_BY = ["created_at", "id"]
+DEFAULT_ORDER_BY = ("created_at", "id")
 DEFAULT_FILTERS = None
 DEFAULT_DATEFIELD = "created_at"
 DEFAULT_CASHFLOWFIELD = "sum"
@@ -44,13 +46,12 @@ class BaseModelManager:
 
     model: Type[AbstractBaseModel]
     session: Session | scoped_session = None
-    _order_by: Sequence[str] = None
-    _filters: Sequence[str] = None  #  like ["id>2", "sum == 1"]
-
-    def __post_init__(self) -> None:
-        if self._order_by is None:
-            self._order_by = DEFAULT_ORDER_BY
-        self._validate()
+    order_by: Sequence[str] = ManagerFieldDescriptor(
+        default=DEFAULT_ORDER_BY, validators=[validate_order_by]
+    )
+    filters: Sequence[str] = ManagerFieldDescriptor(
+        default=DEFAULT_FILTERS, validators=[validate_filters]
+    )  #  like ["id>2", "sum == 1"]
 
     def __call__(self, session: Session | scoped_session) -> None:
         """Allow `session` be associated
@@ -78,24 +79,6 @@ class BaseModelManager:
             f"session={self.session}, order_by={self.order_by}, "
             f"filters={self.filters})"
         )
-
-    @property
-    def order_by(self) -> Sequence[str]:
-        return self._order_by
-
-    @order_by.setter
-    def order_by(self, order_by_: Sequence[str]) -> None:
-        self._validate_order_by(order_by_)
-        self._order_by = order_by_
-
-    @property
-    def filters(self) -> Sequence[str]:
-        return self._filters
-
-    @filters.setter
-    def filters(self, filters_: Sequence[str]) -> None:
-        self._validate_filters(filters_)
-        self._filters = filters_
 
     def create(self, **kwargs) -> AbstractBaseModel | None:
         """Create an instance of `self.model`.
@@ -252,6 +235,11 @@ class BaseModelManager:
             if fieldname in self.model.fieldnames
         }
 
+    def _fetch_n(
+        self, n: int, filters: Sequence[str] = None, reverse: bool = False
+    ) -> Query[AbstractBaseModel]:
+        return self._fetch(filters, reverse).limit(n)
+
     def _fetch(
         self, filters: Sequence[str] = None, reverse: bool = False
     ) -> Query[AbstractBaseModel]:
@@ -263,11 +251,6 @@ class BaseModelManager:
             return q.filter(filter_by)
 
         return q
-
-    def _fetch_n(
-        self, n: int, filters: Sequence[str] = None, reverse: bool = False
-    ) -> Query[AbstractBaseModel]:
-        return self._fetch(filters, reverse).limit(n)
 
     def _compile_order_by(
         self, reverse: bool
@@ -283,9 +266,21 @@ class BaseModelManager:
             order_by_.append(field)
         return order_by_
 
+    def _compile_filter_expr(
+        self, filters: Sequence[str] = None
+    ) -> ColumnElement[True] | None:
+        filters = filters or self.filters
+
+        if not filters:
+            return
+
+        return and_(
+            True, *validate_filters(self, filters, return_filters=True)
+        )
+
     @property
     def _order_by_dict(self) -> dict[str, Literal["asc", "desc"]]:
-        return self._transform_to_order_by_dict(self.order_by)
+        return transform_to_order_by_dict(self.order_by)
 
     @property
     def _reversed_order_by_dict(self) -> dict[str, Literal["asc", "desc"]]:
@@ -293,99 +288,6 @@ class BaseModelManager:
             attr: "desc" if order == "asc" else "asc"
             for attr, order in self._order_by_dict.items()
         }
-
-    @staticmethod
-    def _transform_to_order_by_dict(
-        order_by: Sequence[str],
-    ) -> dict[str, Literal["asc", "desc"]]:
-        order_by_dict = {}
-        for attr in order_by:
-            if attr.startswith("-"):
-                order_by_dict[attr[1:].strip()] = "desc"
-            elif attr.endswith("-"):
-                order_by_dict[attr[:-1].strip()] = "desc"
-            else:
-                order_by_dict[attr.strip()] = "asc"
-        return order_by_dict
-
-    def _compile_filter_expr(self, filters: Sequence[str] = None):
-        filters = filters or self.filters
-
-        if not filters:
-            return
-
-        return and_(
-            True, *self._validate_filters(filters, return_filters=True)
-        )
-
-    def _validate(self):
-        self._validate_order_by(self._order_by)
-        self._validate_filters()
-
-    @staticmethod
-    def _check_iterable(check_value: Any, exception: Exception):
-        if not hasattr(check_value, "__iter__"):
-            raise exception(
-                f"{check_value} must be a sequence, not a {type(check_value)}"
-            )
-
-    def _validate_order_by(self, order_by: Sequence[str]):
-        self._check_iterable(order_by, InvalidOrderByValue)
-        order_by_dict = self._transform_to_order_by_dict(order_by)
-        if invalid_fields := set(order_by_dict.keys()) - self.model.fieldnames:
-            raise InvalidOrderByValue(
-                f"""Following values can not be 
-                used as `order_by` args: {', '.join(invalid_fields)}."""
-            )
-
-    def _validate_filters(
-        self, filters: Sequence[str] = None, return_filters: bool = False
-    ):
-        filters = filters or self.filters
-
-        validated = []
-        if filters:
-            self._check_iterable(filters, InvalidFilter)
-            valid_signs = {
-                ">": "gt",
-                ">=": "ge",
-                "<": "lt",
-                "<=": "le",
-                "==": "eq",
-                "!=": "ne",
-            }
-            for filter in filters:
-                try:
-                    attr_, sign, value = re.split("([<>!=]+)", filter)
-                except ValueError:
-                    raise InvalidFilter(
-                        """Filter should follow pattern:
-                          <model_attribute><compare_operator><value>.
-                          Example: `sum>1`, `id == 2`"""
-                    )
-
-                attr = getattr(self.model, attr_.strip(), None)
-                operator = getattr(
-                    operators, valid_signs.get(sign, "None"), None
-                )
-
-                if attr is None:
-                    raise InvalidFilter(
-                        f"""Model `{self.model}` 
-                        does not have `{attr_}` atribute."""
-                    )
-
-                elif operator is None:
-                    raise InvalidFilter(f"Invalid comparing sign: `{sign}`")
-
-                elif not value:
-                    raise InvalidFilter("Filter must have a value.")
-
-                if return_filters:
-                    validated.append(operator(attr, value.strip()))
-
-        if return_filters:
-            return validated
 
     def _set_default_order_by(self):
         self._order_by = DEFAULT_ORDER_BY
@@ -674,7 +576,7 @@ class ModelManagerSetMethod:
         manager_set_kwargs = self.manager_set.manager_init_kwargs or {}
         for attr, value in kwargs.items():
             if attr in self.manager_fields and value is not None:
-                manager_set_kwargs.update(attr=value)
+                manager_set_kwargs.update({attr: value})
         return manager_set_kwargs
 
     @property
@@ -684,61 +586,7 @@ class ModelManagerSetMethod:
         return valid_fields
 
 
-def base(
-    self: ModelManagerSet, **manager_init_kwargs: dict[str, Any]
-) -> BaseModelManager:
-    session = manager_init_kwargs.get("session") or self.session
-    order_by = manager_init_kwargs.get("order_by") or self.order_by
-    filters = manager_init_kwargs.get("filters") or self.filters
-
-    return BaseModelManager(self.model, session, order_by, filters)
-
-
-def date(
-    self: ModelManagerSet, **manager_init_kwargs: dict[str, Any]
-) -> DateQueryModelManager:
-    session = manager_init_kwargs.get("session") or self.session
-    order_by = manager_init_kwargs.get("order_by") or self.order_by
-    filters = manager_init_kwargs.get("filters") or self.filters
-    datefield = manager_init_kwargs.get("datefield") or self.datefield
-
-    return DateQueryModelManager(
-        self.model,
-        session,
-        order_by,
-        filters,
-        datefield,
-    )
-
-
-def cashflow(
-    self: ModelManagerSet, **manager_init_kwargs: dict[str, Any]
-) -> CashFlowQueryManager:
-    session = manager_init_kwargs.get("session") or self.session
-    order_by = manager_init_kwargs.get("order_by") or self.order_by
-    filters = manager_init_kwargs.get("filters") or self.filters
-    datefield = manager_init_kwargs.get("datefield") or self.datefield
-    cashflowfield = (
-        manager_init_kwargs.get("cashflowfield") or self.cashflowfield
-    )
-
-    return CashFlowQueryManager(
-        self.model,
-        session,
-        order_by,
-        filters,
-        datefield,
-        cashflowfield,
-    )
-
-
 class ModelManagerFactory:
-    short_names = {
-        BaseModelManager.__short_name__: base,
-        DateQueryModelManager.__short_name__: date,
-        CashFlowQueryManager.__short_name__: cashflow,
-    }
-
     def __init__(
         self,
         model: Type[AbstractBaseModel],
@@ -750,15 +598,6 @@ class ModelManagerFactory:
         self.manager_init_kwargs = manager_init_kwargs
 
         self.manager_set = ModelManagerSet(model, **self.manager_init_kwargs)
-        # for manager in self.managers:
-        #     setattr(
-        #         self.manager_set,
-        #         manager.__short_name__,
-        #         MethodType(
-        #             self.short_names.get(manager.__short_name__),
-        #             self.manager_set,
-        #         ),
-        #     )
 
         for manager in self.managers:
             setattr(
