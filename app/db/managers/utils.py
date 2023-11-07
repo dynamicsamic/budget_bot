@@ -2,9 +2,20 @@ import operator as operators
 import re
 from typing import Any, Callable, Iterable, Literal, Sequence
 
+from sqlalchemy import func as sql_func
+from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.sql.expression import ColumnOperators
+from sqlalchemy.types import Date, DateTime, Float, Integer, Numeric
 
-from app.db.exceptions import InvalidFilter, InvalidOrderByValue
+from app.db.exceptions import (
+    InvalidCashflowield,
+    InvalidDateField,
+    InvalidDBSession,
+    InvalidFilter,
+    InvalidOrderByValue,
+    InvalidSumField,
+)
+from app.db.models.base import AbstractBaseModel
 
 # from . import BaseModelManager
 
@@ -51,6 +62,20 @@ def transform_to_order_by_dict(
         else:
             order_by_dict[attr.strip()] = "asc"
     return order_by_dict
+
+
+def validate_db_session(manager, session: Any) -> None:
+    if session is None:
+        return
+    if not isinstance(session, (Session, scoped_session)):
+        raise InvalidDBSession(
+            f"session must be an instance of either sqlalchemy.orm "
+            f"Session or scoped_session, not `{type(session)}.` "
+        )
+    if not session.is_active:
+        raise InvalidDBSession(
+            "Inactive session detected! `session` must be active."
+        )
 
 
 def validate_order_by(manager, order_by: Sequence[str]) -> None:
@@ -111,3 +136,66 @@ def validate_filters(
 
     if return_filters:
         return validated
+
+
+def validate_datefield(self, datefield_: str):
+    if datefield := getattr(self.model, datefield_, None):
+        if not isinstance(datefield.type, (Date, DateTime)):
+            raise InvalidDateField(
+                "Datefield must be of sqlalchemy `Date` or `Datetime` types."
+            )
+    else:
+        raise InvalidDateField(
+            f"""Model `{self.model}`
+                does not have `{datefield_}` atribute."""
+        )
+
+
+def validate_cashflowfield(manager, cf_field_name: str) -> None:
+    if cashflowfield := getattr(manager.model, cf_field_name, None):
+        if not isinstance(
+            cashflowfield.type, (Integer, Float, Numeric)
+        ) or not issubclass(
+            cashflowfield.type.__class__, (Integer, Float, Numeric)
+        ):
+            raise InvalidCashflowield(
+                "Cashflowfield must be of sqlalchemy `Integer`, "
+                "`Float` or `Numeric` types or its subclasses."
+            )
+    else:
+        raise InvalidCashflowield(
+            f"Model `{manager.model}`"
+            f"does not have `{cf_field_name}` atribute."
+        )
+
+
+class SumExtendedQuery:
+    def __init__(
+        self, model: AbstractBaseModel, sum_field__: str, query: Query
+    ) -> None:
+        sum_field = getattr(model, sum_field__, None)
+
+        if not sum_field:
+            raise InvalidSumField(
+                f"Model {model} does not have {sum_field__} attribute."
+            )
+
+        self.model = model
+        self.sum_field = sum_field
+        self.query = query
+
+    def income(self) -> Query:
+        q = self.query.filter(self.sum_field > 0)
+        setattr(q, "sum", lambda: self._sum(q))
+        return q
+
+    def expenses(self) -> Query:
+        q = self.query.filter(self.sum_field < 0)
+        setattr(q, "sum", lambda: self._sum(q))
+        return q
+
+    def total_sum(self) -> int:
+        return self._sum(self.query)
+
+    def _sum(self, q: Query) -> int:
+        return q.with_entities(sql_func.sum(self.sum_field)).scalar() or 0

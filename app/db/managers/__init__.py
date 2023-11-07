@@ -1,1 +1,1 @@
-from .core import BaseModelManager, CashFlowQueryManager, DateQueryModelManager
+from .core import BaseModelManager, CashFlowQueryManager, DateRangeQueryManager

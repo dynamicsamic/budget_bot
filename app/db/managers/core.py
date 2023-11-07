@@ -2,36 +2,33 @@ import datetime as dt
 import logging
 from dataclasses import dataclass
 from types import MethodType
-from typing import Any, Callable, List, Literal, Sequence, Type
+from typing import Any, Callable, List, Literal, Self, Sequence, Type
 
-from sqlalchemy import Date, DateTime, and_
-from sqlalchemy import func as sql_func
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
-from sqlalchemy.types import Float, Integer, Numeric
 
-from app.db.exceptions import (
-    InvalidCashflowield,
-    InvalidDateField,
-    InvalidOrderByValue,
-    InvalidSumField,
-)
+from app.db.exceptions import InvalidDBSession
 from app.db.models import Budget, Entry, EntryCategory, User
 from app.db.models.base import AbstractBaseModel
 from app.utils import DateGen
 
 from .utils import (
     ManagerFieldDescriptor,
+    SumExtendedQuery,
     transform_to_order_by_dict,
+    validate_cashflowfield,
+    validate_datefield,
+    validate_db_session,
     validate_filters,
     validate_order_by,
 )
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SESSION = None
 DEFAULT_ORDER_BY = ("created_at", "id")
 DEFAULT_FILTERS = None
 DEFAULT_DATEFIELD = "created_at"
@@ -40,22 +37,42 @@ DEFAULT_CASHFLOWFIELD = "sum"
 
 @dataclass
 class BaseModelManager:
-    """Interface for performig basic operations with data."""
+    """
+    Interface for performig basic operations with data.
+
+    :param model: Any subclass of `app.models.base.AbstractBaseModel`
+    :param session: An instance of `sqlalchemy.orm.Session` or `scoped_session`
+        Initially is set to None, and should be passed to a manager to connect
+        it to a database and perform real operations.
+    :param order_by: A sequence of valid model fields which shape the order of
+    performed db queries.
+        Valid arguments may include `['-id', 'created_at', 'updated_at-']`
+    :param filters: A sequence of comparative expressions which provide
+    query post-filtering. Each expression consists of a model field
+    (`e.g. 'id' or 'name')`, a comparing sign (`e.g. '>' or '=='`) and a value
+    (`e.g. '2' or 'jack'`).
+    Passing values to `filters` sets up manager-level query filtering.
+    Manager-level filtering will be replaced with method-level filtering
+    when providing arguments to `filters` parameter in some instance methods
+    like `select`, `all`, `first` and others.
+        Valid arguments may include `['id>2', 'sum == 1']`
+    """
 
     __short_name__ = "base"
 
     model: Type[AbstractBaseModel]
-    session: Session | scoped_session = None
+    session: Session | scoped_session = ManagerFieldDescriptor(
+        default=DEFAULT_SESSION, validators=[validate_db_session]
+    )
     order_by: Sequence[str] = ManagerFieldDescriptor(
         default=DEFAULT_ORDER_BY, validators=[validate_order_by]
     )
     filters: Sequence[str] = ManagerFieldDescriptor(
         default=DEFAULT_FILTERS, validators=[validate_filters]
-    )  #  like ["id>2", "sum == 1"]
+    )
 
-    def __call__(self, session: Session | scoped_session) -> None:
-        """Allow `session` be associated
-        with manager after it's creation.
+    def __call__(self, session: Session | scoped_session) -> Self:
+        """Shorthand for associating db_session with manager.
 
         #### Example:
         create manger and leave it for later use
@@ -66,19 +83,12 @@ class BaseModelManager:
         `manager(request.session)`
         `manager.some_method()`
         """
-        if (
-            isinstance(session, (Session, scoped_session))
-            and session.is_active
-        ):
-            self.session = session
-            return self
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}(model={self.model.__tablename__}, "
-            f"session={self.session}, order_by={self.order_by}, "
-            f"filters={self.filters})"
-        )
+        if session is None:
+            raise InvalidDBSession(
+                "Calling manager with `None` session is not allowed."
+            )
+        self.session = session
+        return self
 
     def create(self, **kwargs) -> AbstractBaseModel | None:
         """Create an instance of `self.model`.
@@ -297,7 +307,7 @@ class BaseModelManager:
 
 
 @dataclass
-class DateQueryModelManager(BaseModelManager):
+class DateRangeQueryManager(BaseModelManager):
     """
     BaseModelManager extended with methods for
     making queries with datetime gaps.
@@ -305,24 +315,9 @@ class DateQueryModelManager(BaseModelManager):
 
     __short_name__ = "date"
 
-    _datefield: str = DEFAULT_DATEFIELD
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self._validate_datefield(self._datefield)
-
-    def __repr__(self) -> str:
-        text = super().__repr__()
-        return f"{text[:-1]}, datefield='{self.datefield}')"
-
-    @property
-    def datefield(self) -> str:
-        return self._datefield
-
-    @datefield.setter
-    def datefield(self, datefield_: str) -> None:
-        self._validate_datefield(datefield_)
-        self._datefield = datefield_
+    datefield: str = ManagerFieldDescriptor(
+        default=DEFAULT_DATEFIELD, validators=[validate_datefield]
+    )
 
     def today(
         self,
@@ -384,67 +379,17 @@ class DateQueryModelManager(BaseModelManager):
             date_column.between(start, end)
         )
 
-    def _validate_datefield(self, datefield_: str):
-        if datefield := getattr(self.model, datefield_, None):
-            if not isinstance(datefield.type, (Date, DateTime)):
-                raise InvalidDateField(
-                    "Datefield must be of sqlalchemy `Date` or `Datetime` types."
-                )
-        else:
-            raise InvalidDateField(
-                f"""Model `{self.model}`
-                    does not have `{datefield_}` atribute."""
-            )
-
     def _set_default_datefield(self):
         self._datefield = DEFAULT_DATEFIELD
 
 
-class SumExtendedQuery:
-    def __init__(
-        self, model: AbstractBaseModel, sum_field__: str, query: Query
-    ) -> None:
-        sum_field = getattr(model, sum_field__, None)
-
-        if not sum_field:
-            raise InvalidSumField(
-                f"Model {model} does not have {sum_field__} attribute."
-            )
-
-        self.model = model
-        self.sum_field = sum_field
-        self.query = query
-
-    def income(self) -> Query:
-        q = self.query.filter(self.sum_field > 0)
-        setattr(q, "sum", lambda: self._sum(q))
-        return q
-
-    def expenses(self) -> Query:
-        q = self.query.filter(self.sum_field < 0)
-        setattr(q, "sum", lambda: self._sum(q))
-        return q
-
-    def total_sum(self) -> int:
-        return self._sum(self.query)
-
-    def _sum(self, q: Query) -> int:
-        return q.with_entities(sql_func.sum(self.sum_field)).scalar() or 0
-
-
 @dataclass
-class CashFlowQueryManager(DateQueryModelManager):
+class CashFlowQueryManager(DateRangeQueryManager):
     __short_name__ = "cashflow"
 
-    _cashflowfield: str = DEFAULT_CASHFLOWFIELD
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self._validate_cashflowfield(self._cashflowfield)
-
-    def __repr__(self) -> str:
-        text = super().__repr__()
-        return f"{text[:-1]}, cashflowfield='{self.cashflowfield}')"
+    cashflowfield: str = ManagerFieldDescriptor(
+        default=DEFAULT_CASHFLOWFIELD, validators=[validate_cashflowfield]
+    )
 
     def __getattribute__(self, __name: str) -> Any:
         """Decorate methods that return `Query` with
@@ -461,15 +406,6 @@ class CashFlowQueryManager(DateQueryModelManager):
                     return attr
         return attr
 
-    @property
-    def cashflowfield(self) -> str:
-        return self._cashflowfield
-
-    @cashflowfield.setter
-    def cashflowfield(self, cashflowfield_: str) -> None:
-        self._validate_cashflowfield(cashflowfield_)
-        self._cashflowfield = cashflowfield_
-
     def _extend_query(self, f: Callable[..., Query]) -> Query:
         """Add `ExtendedQuery` methods as `ext` attribute
         to a query.
@@ -485,23 +421,6 @@ class CashFlowQueryManager(DateQueryModelManager):
             return query
 
         return inner
-
-    def _validate_cashflowfield(self, cf_field_name: str) -> None:
-        if cashflowfield := getattr(self.model, cf_field_name, None):
-            if not isinstance(
-                cashflowfield.type, (Integer, Float, Numeric)
-            ) or not issubclass(
-                cashflowfield.type.__class__, (Integer, Float, Numeric)
-            ):
-                raise InvalidCashflowield(
-                    "Cashflowfield must be of sqlalchemy `Integer`, "
-                    "`Float` or `Numeric` types or its subclasses."
-                )
-        else:
-            raise InvalidCashflowield(
-                f"Model `{self.model}`"
-                f"does not have `{cf_field_name}` atribute."
-            )
 
     def _set_default_cashflowfield(self) -> None:
         self._cashflowfield = DEFAULT_CASHFLOWFIELD
@@ -528,7 +447,7 @@ def EntryManager(
 ) -> BaseModelManager:
     if manager is BaseModelManager:
         manager = manager(Entry, session, order_by, filters)
-    elif manager is DateQueryModelManager:
+    elif manager is DateRangeQueryManager:
         manager = manager(Entry, session, order_by, filters, datefield)
     elif manager is CashFlowQueryManager:
         manager = manager(
@@ -611,15 +530,15 @@ class ModelManagerFactory:
 
 
 UserManagers = ModelManagerFactory(
-    User, [BaseModelManager, DateQueryModelManager]
+    User, [BaseModelManager, DateRangeQueryManager]
 ).get_managers()
 
 BudgetManagers = ModelManagerFactory(
-    Budget, [BaseModelManager, DateQueryModelManager]
+    Budget, [BaseModelManager, DateRangeQueryManager]
 ).get_managers()
 
 CategorytManagers = ModelManagerFactory(
     EntryCategory,
-    [BaseModelManager, DateQueryModelManager],
+    [BaseModelManager, DateRangeQueryManager],
     order_by=["-last_used", "id"],
 ).get_managers()
