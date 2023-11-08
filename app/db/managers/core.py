@@ -8,6 +8,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.sql._typing import _DMLColumnArgument
 from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
 
 from app.db.exceptions import InvalidDBSession
@@ -37,25 +38,33 @@ DEFAULT_CASHFLOWFIELD = "sum"
 
 @dataclass
 class BaseModelManager:
-    """
-    Interface for performig basic operations with data.
+    """Basic interface for performig database operations.
 
-    :param model: Any subclass of `app.models.base.AbstractBaseModel`
-    :param session: An instance of `sqlalchemy.orm.Session` or `scoped_session`
-        Initially is set to None, and should be passed to a manager to connect
-        it to a database and perform real operations.
-    :param order_by: A sequence of valid model fields which shape the order of
-    performed db queries.
-        Valid arguments may include `['-id', 'created_at', 'updated_at-']`
-    :param filters: A sequence of comparative expressions which provide
-    query post-filtering. Each expression consists of a model field
-    (`e.g. 'id' or 'name')`, a comparing sign (`e.g. '>' or '=='`) and a value
-    (`e.g. '2' or 'jack'`).
-    Passing values to `filters` sets up manager-level query filtering.
-    Manager-level filtering will be replaced with method-level filtering
-    when providing arguments to `filters` parameter in some instance methods
-    like `select`, `all`, `first` and others.
-        Valid arguments may include `['id>2', 'sum == 1']`
+    Supports CRUD operations and let's you perform more precise queries
+    like fetch first and last added items, learn if a instance with
+    give kwargs exists and more.
+
+    All select queries are ordered and support filtering either via the
+    pre-set `.filters` instance attribute or via passing values to `filters`
+    parameter of some methods.
+
+    Attributes:
+        model: A subclass of `app.models.base.AbstractBaseModel`
+        session: An instance of `sqlalchemy.orm.Session` or `scoped_session`
+            Initially is set to None, and should be passed to a manager to
+            connect it to a database and perform real operations.
+        order_by: A sequence of valid model fields which shape the order of
+            performed db queries.
+            Valid arguments may include `["-id", "created_at", "updated_at-"]`
+        filters: A sequence of comparative expressions which provide
+            query post-filtering. Each expression consists of a model field
+            (`e.g. 'id' or 'name')`, a comparing sign (`e.g. '>' or '=='`) and
+            a value (`e.g. '2' or 'jack'`).
+            Passing values to `filters` sets up manager-level query filtering.
+            Manager-level filtering will be replaced with method-level
+            filtering when providing arguments to `filters` parameter in some
+            instance methods like `select`, `all`, `first` and others.
+            Valid arguments may include `['id>2', 'sum == 1']`
     """
 
     __short_name__ = "base"
@@ -73,15 +82,20 @@ class BaseModelManager:
 
     def __call__(self, session: Session | scoped_session) -> Self:
         """Shorthand for associating db_session with manager.
+        ```
+        with db_session() as session:
+            middleware.data['some_manager'] = manager(db_session)
+        ```
 
-        #### Example:
-        create manger and leave it for later use
-        `manager = BaseManager(BaseModel)`
+        Args:
+            session: an active db_session.
 
-        when you obtain session (e.g. via middleware)
-        associate it with manager
-        `manager(request.session)`
-        `manager.some_method()`
+        Returns:
+            The instance itself.
+
+        Raises:
+            InvalidDBSession: if session is None; if session has invalid type;
+            if session is closed.
         """
         if session is None:
             raise InvalidDBSession(
@@ -90,10 +104,15 @@ class BaseModelManager:
         self.session = session
         return self
 
-    def create(self, **kwargs) -> AbstractBaseModel | None:
+    def create(self, **kwargs: Any) -> AbstractBaseModel | None:
         """Create an instance of `self.model`.
-        Return created instance in case of success.
-        Return `None` in case of failure.
+
+        Args:
+            kwargs: A mapping of `model's` attributes (fields)
+            to their values.
+
+        Returns:
+            The newly created instance or None if error occured.
         """
         try:
             obj = self.model(**kwargs)
@@ -109,7 +128,7 @@ class BaseModelManager:
     def update(
         self,
         id_: int,
-        **kwargs,
+        kwargs: dict[_DMLColumnArgument, Any],
     ) -> bool:
         """Update `self.model` object."""
         try:
@@ -195,7 +214,7 @@ class BaseModelManager:
         """Calculate number of all `self.model` objects."""
         return self.session.query(self.model.id).count()
 
-    def exists(self, id_: int = None, **kwargs) -> bool:
+    def exists(self, id_: int = 0, **kwargs: Any) -> bool:
         """Tell wether `self.model` object with given id exists or not."""
         if id_:
             kwargs["id"] = id_
