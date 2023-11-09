@@ -108,7 +108,7 @@ class BaseModelManager:
         """Create an instance of `self.model`.
 
         Args:
-            kwargs: A mapping of `model's` attributes (fields)
+            kwargs: A mapping of `model's` attribute (field) names
             to their values.
 
         Returns:
@@ -130,7 +130,16 @@ class BaseModelManager:
         id_: int,
         kwargs: dict[_DMLColumnArgument, Any],
     ) -> bool:
-        """Update `self.model` object."""
+        """Update `self.model` instance with given kwargs.
+
+        Args:
+            id_: Instance `id` field.
+            kwrags: A mapping of `model's` attribute names (fields) that should be updated
+            to new values.
+
+        Returns:
+            True if update performed successfully, False otherwise.
+        """
         try:
             updated = bool(
                 self.session.query(self.model).filter_by(id=id_).update(kwargs)
@@ -156,7 +165,14 @@ class BaseModelManager:
         return updated
 
     def delete(self, id_: int) -> bool:
-        """Delete `self.model` object with given id."""
+        """Delete `self.model` instance with given id.
+
+        Args:
+            id_: Instance `id` field.
+
+        Returns:
+            True if delete performed successfully, False otherwise.
+        """
         try:
             deleted = bool(
                 self.session.query(self.model).filter_by(id=id_).delete()
@@ -182,11 +198,26 @@ class BaseModelManager:
         return deleted
 
     def get(self, id_: int) -> AbstractBaseModel | None:
-        """Retrieve `self.model` object."""
+        """Fetch `self.model` instance with given id.
+
+        Args:
+            id_: Instance `id` field.
+
+        Returns:
+            `self.model` instance or None.
+        """
         return self.session.get(self.model, id_)
 
     def get_by(self, **kwargs) -> AbstractBaseModel | None:
-        """Retrieve `self.model` object filtered by kwargs."""
+        """Fetch `self.model` instance with given kwargs.
+        A more flexible variation of `get` method.
+
+        Args:
+            kwrags: A mapping of `model's` attribute names (fields) to their values.
+
+        Returns:
+            `self.model` instance or None.
+        """
         if valid_kwargs := self._clean_kwargs(kwargs):
             return (
                 self.session.query(self.model)
@@ -194,12 +225,26 @@ class BaseModelManager:
                 .first()
             )
 
-    def all(self, reverse: bool = False) -> Query[AbstractBaseModel]:
-        """Retrieve all `self.model` objets."""
+    def all(self, *, reverse: bool = False) -> Query[AbstractBaseModel]:
+        """Fetch all instances of `self.model`.
+
+        Args:
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlalchemy.Query that contains all instances of `self.model`.
+        """
         return self._fetch(reverse=reverse)
 
-    def list(self, reverse: bool = False) -> List[AbstractBaseModel]:
-        """Retrieve all `self.model` objets in list."""
+    def list(self, *, reverse: bool = False) -> List[AbstractBaseModel]:
+        """Fetch all instances of `self.model` and store them in a list.
+
+        Args:
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            Python list that contains all instances of `self.model`.
+        """
         return self._fetch(reverse=reverse).all()
 
     def select(
@@ -208,10 +253,27 @@ class BaseModelManager:
         filters: Sequence[str],
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Produce a SELECT query with arbitrary filtering.
+
+        Args:
+            filters: Sequence of compare expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlalchemy.Query that contains selected `self.model` instances.
+        """
         return self._fetch(filters, reverse)
 
     def count(self) -> int:
-        """Calculate number of all `self.model` objects."""
+        """Calculate the number of model instances filtered by provided values.
+        If no filters provided, calculate the number of all model instances.
+
+        Args:
+            filters: Sequence of compare expressions.
+
+        Returns:
+            Number of model instances.
+        """
         return self.session.query(self.model.id).count()
 
     def exists(self, id_: int = 0, **kwargs: Any) -> bool:
