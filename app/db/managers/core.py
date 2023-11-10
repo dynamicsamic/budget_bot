@@ -2,7 +2,7 @@ import datetime as dt
 import logging
 from dataclasses import dataclass
 from types import MethodType
-from typing import Any, Callable, List, Literal, Self, Sequence, Type
+from typing import Any, Callable, List, Literal, Self, Sequence, Type, TypeVar
 
 from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -29,6 +29,8 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+_ComparingExpression = TypeVar("_ComparingExpression", str)
+
 DEFAULT_SESSION = None
 DEFAULT_ORDER_BY = ("created_at", "id")
 DEFAULT_FILTERS = None
@@ -44,7 +46,7 @@ class BaseModelManager:
     like fetch first and last added items, learn if a instance with
     give kwargs exists and more.
 
-    All select queries are ordered and support filtering either via the
+    All SELECT queries are ordered and support filtering either via the
     pre-set `.filters` instance attribute or via passing values to `filters`
     parameter of some methods.
 
@@ -76,7 +78,7 @@ class BaseModelManager:
     order_by: Sequence[str] = ManagerFieldDescriptor(
         default=DEFAULT_ORDER_BY, validators=[validate_order_by]
     )
-    filters: Sequence[str] = ManagerFieldDescriptor(
+    filters: Sequence[_ComparingExpression] = ManagerFieldDescriptor(
         default=DEFAULT_FILTERS, validators=[validate_filters]
     )
 
@@ -134,7 +136,7 @@ class BaseModelManager:
 
         Args:
             id_: Instance `id` field.
-            kwrags: A mapping of `model's` attribute names (fields) that should be updated
+            kwargs: A mapping of `model's` attribute names (fields) that should be updated
             to new values.
 
         Returns:
@@ -213,7 +215,8 @@ class BaseModelManager:
         A more flexible variation of `get` method.
 
         Args:
-            kwrags: A mapping of `model's` attribute names (fields) to their values.
+            kwargs: A mapping of `model's` attribute names (fields)
+            to their values.
 
         Returns:
             `self.model` instance or None.
@@ -250,13 +253,13 @@ class BaseModelManager:
     def select(
         self,
         *,
-        filters: Sequence[str],
+        filters: Sequence[_ComparingExpression],
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
         """Produce a SELECT query with arbitrary filtering.
 
         Args:
-            filters: Sequence of compare expressions.
+            filters: Sequence of comparing expressions.
             reverse: Flag to reverse the order of resulting query.
 
         Returns:
@@ -264,20 +267,47 @@ class BaseModelManager:
         """
         return self._fetch(filters, reverse)
 
-    def count(self) -> int:
+    def count(self, *, filters: Sequence[_ComparingExpression] = None) -> int:
         """Calculate the number of model instances filtered by provided values.
         If no filters provided, calculate the number of all model instances.
 
         Args:
-            filters: Sequence of compare expressions.
+            filters: Sequence of comparing expressions.
 
         Returns:
             Number of model instances.
+
+        Examples:
+            ```
+            manager.count()
+            ```
+        or
+            ```
+            manager.count(filters=["sum>100"])
+            ```
         """
-        return self.session.query(self.model.id).count()
+        return self._fetch(filters).count()
 
     def exists(self, id_: int = 0, **kwargs: Any) -> bool:
-        """Tell wether `self.model` object with given id exists or not."""
+        """Find out if a model instance with provided id or kwargs exists.
+
+        Args:
+            id_: Instance `id` field.
+            kwargs: A mapping of `model's` attribute names (fields)
+            to their values.
+
+        Returns:
+            True if an instance exists, False otherwise.
+
+        Examples:
+            ```
+            manager.exists(53)
+            ```
+        or
+            ```
+            manager.exists(budget_id=25)
+            ```
+        """
         if id_:
             kwargs["id"] = id_
 
@@ -292,34 +322,70 @@ class BaseModelManager:
             return False
 
     def first(
-        self, *, filters: Sequence[str] = None
+        self, *, filters: Sequence[_ComparingExpression] = None
     ) -> AbstractBaseModel | None:
-        """Retrieve first `model` instance in ascending query."""
+        """Fetch first added `model` instance.
+
+        Args:
+            filters: Sequence of comparing expressions.
+        Returns:
+            `self.model` instance or None.
+        """
         return self.first_n(1, filters=filters).one_or_none()
 
     def last(
-        self, *, filters: Sequence[str] = None
+        self, *, filters: Sequence[_ComparingExpression] = None
     ) -> AbstractBaseModel | None:
-        """Retrieve last `model` instance in discending query."""
+        """Fetch last added `model` instance.
+
+        Args:
+            filters: Sequence of comparing expressions.
+
+        Returns:
+            `self.model` instance or None.
+        """
         return self.last_n(1, filters=filters).one_or_none()
 
     def first_n(
-        self, n: int, *, filters: Sequence[str] = None
+        self, n: int, *, filters: Sequence[_ComparingExpression] = None
     ) -> Query[AbstractBaseModel]:
-        """Retrieve specific number of `model` instances
-        sorted in ascending order.
+        """Fetch specified number of the earliest `model` instances.
+
+        Args:
+            n: Number of `self.model` instances that a query should contain.
+            filters: Sequence of comparing expressions.
+
+        Returns:
+            sqlalchemy.Query that contains specified number
+            of `self.model` instances.
         """
         return self._fetch_n(n, filters)
 
     def last_n(
-        self, n: int, *, filters: Sequence[str] = None
+        self, n: int, *, filters: Sequence[_ComparingExpression] = None
     ) -> Query[AbstractBaseModel]:
-        """Retrieve specific number of `model` instances
-        sorted in descending order.
+        """Fetch specified number of the most recent `model` instances.
+
+        Args:
+            n: Number of `self.model` instances that a query should contain.
+            filters: Sequence of comparing expressions.
+
+        Returns:
+            sqlalchemy.Query that contains specified number
+            of `self.model` instances.
         """
         return self._fetch_n(n, filters, True)
 
     def _clean_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Filter kwargs from keys not related to `model` fields.
+
+        Args:
+            kwargs: A mapping of `model's` attribute names (fields)
+            to their values.
+
+        Returns:
+            A dictionary of filtered model fields and their values.
+        """
         return {
             fieldname: value
             for fieldname, value in kwargs.items()
@@ -327,13 +393,41 @@ class BaseModelManager:
         }
 
     def _fetch_n(
-        self, n: int, filters: Sequence[str] = None, reverse: bool = False
+        self,
+        n: int,
+        filters: Sequence[_ComparingExpression] = None,
+        reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Basic SELECT query with ordering, optional filtering and a limit.
+
+        Args:
+            n: Number of `self.model` instances that a query should contain.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlalchemy.Query that contains specified number
+            of `self.model` instances.
+        """
         return self._fetch(filters, reverse).limit(n)
 
     def _fetch(
-        self, filters: Sequence[str] = None, reverse: bool = False
+        self,
+        filters: Sequence[_ComparingExpression] = None,
+        reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Basic SELECT query with ordering and optional filtering.
+
+        This is the underlying query for almost all SELECT methods
+        that are part of the public API of this class.
+
+        Args:
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlalchemy.Query that contains selected `self.model` instances.
+        """
         q = self.session.query(self.model).order_by(
             *self._compile_order_by(reverse)
         )
@@ -346,6 +440,15 @@ class BaseModelManager:
     def _compile_order_by(
         self, reverse: bool
     ) -> List[InstrumentedAttribute | UnaryExpression]:
+        """Construct a sequence of model attributes
+        to be used in ORDER BY clause.
+
+        Args:
+            reverse: Flag to reverse the default ordering of fields.
+
+        Returns:
+            List of sqlalchemy model attributes.
+        """
         order_by_ = []
         order_by_dict = (
             self._reversed_order_by_dict if reverse else self._order_by_dict
@@ -358,7 +461,7 @@ class BaseModelManager:
         return order_by_
 
     def _compile_filter_expr(
-        self, filters: Sequence[str] = None
+        self, filters: Sequence[_ComparingExpression] = None
     ) -> ColumnElement[True] | None:
         filters = filters or self.filters
 
