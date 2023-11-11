@@ -5,7 +5,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
-from app.db import base, models
+from app.db import models
+from app.db.models.base import Base
 from tests.conf import constants
 
 
@@ -23,9 +24,9 @@ def engine():
 
 @pytest.fixture(scope="session")
 def create_tables(engine):
-    base.Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     yield
-    base.Base.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture
