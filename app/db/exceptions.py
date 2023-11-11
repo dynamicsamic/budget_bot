@@ -6,6 +6,10 @@ class InvalidOrderByValue(BudgetBotDataBaseException):
     pass
 
 
+class InvalidDBSession(BudgetBotDataBaseException):
+    pass
+
+
 class InvalidFilter(BudgetBotDataBaseException):
     pass
 
