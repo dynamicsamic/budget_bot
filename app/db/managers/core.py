@@ -1,18 +1,16 @@
 import datetime as dt
 import logging
 from dataclasses import dataclass
-from types import MethodType
 from typing import Any, Callable, List, Literal, Self, Sequence, Type, TypeVar
 
 from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Query, Session, joinedload, scoped_session
+from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql._typing import _DMLColumnArgument
 from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
 
 from app.db.exceptions import InvalidDBSession
-from app.db.models import Budget, Entry, EntryCategory, User
 from app.db.models.base import AbstractBaseModel
 from app.utils import DateGen
 
@@ -20,6 +18,8 @@ from .utils import (
     ManagerFieldDescriptor,
     SumExtendedQuery,
     transform_to_order_by_dict,
+)
+from .validation import (
     validate_cashflowfield,
     validate_datefield,
     validate_db_session,
@@ -463,6 +463,18 @@ class BaseModelManager:
     def _compile_filter_expr(
         self, filters: Sequence[_ComparingExpression] = None
     ) -> ColumnElement[True] | None:
+        """Construct a filtering expression to be used in WHERE clause.
+
+        All parts of the `filters` argument will be glued together by
+        the AND expression. Thus filters will generate a matching
+        expression only if all the `filters` parts are true.
+
+        Args:
+            filters: Sequence of comparing expressions.
+
+        Returns:
+            sqlalchemy and_ expression that contains validated filters.
+        """
         filters = filters or self.filters
 
         if not filters:
@@ -484,10 +496,10 @@ class BaseModelManager:
         }
 
     def _set_default_order_by(self):
-        self._order_by = DEFAULT_ORDER_BY
+        self.order_by = DEFAULT_ORDER_BY
 
     def _reset_filters(self):
-        self._filters = DEFAULT_FILTERS
+        self.filters = DEFAULT_FILTERS
 
 
 @dataclass
@@ -608,121 +620,3 @@ class CashFlowQueryManager(DateRangeQueryManager):
 
     def _set_default_cashflowfield(self) -> None:
         self._cashflowfield = DEFAULT_CASHFLOWFIELD
-
-
-def fetch_joined(
-    self, filters: Sequence[str] = None, reverse: bool = False
-) -> Query[AbstractBaseModel]:
-    """Fetch budget and category data when querying entries."""
-    q = super(self.__class__, self)._fetch(filters, reverse)
-    return q.options(
-        joinedload(self.model.budget, innerjoin=True),
-        joinedload(self.model.category, innerjoin=True),
-    )
-
-
-def EntryManager(
-    manager: Type[BaseModelManager],
-    session: Session | scoped_session = None,
-    order_by: Sequence[str] = DEFAULT_ORDER_BY,
-    filters: Sequence[str] = DEFAULT_FILTERS,
-    datefield: str = DEFAULT_DATEFIELD,
-    cashflowfield: str = DEFAULT_CASHFLOWFIELD,
-) -> BaseModelManager:
-    if manager is BaseModelManager:
-        manager = manager(Entry, session, order_by, filters)
-    elif manager is DateRangeQueryManager:
-        manager = manager(Entry, session, order_by, filters, datefield)
-    elif manager is CashFlowQueryManager:
-        manager = manager(
-            Entry, session, order_by, filters, datefield, cashflowfield
-        )
-    else:
-        return
-
-    manager._fetch = MethodType(fetch_joined, manager)
-    return manager
-
-
-class ModelManagerSet:
-    def __init__(
-        self,
-        model: Type[AbstractBaseModel],
-        **manager_init_kwargs: dict[str, Any],
-    ) -> None:
-        self.model = model
-        self.manager_init_kwargs = manager_init_kwargs
-
-    def __repr__(self) -> str:
-        manager_methods = [
-            name
-            for name, attr in self.__dict__.items()
-            if callable(attr) and not name.startswith("_") and name != "model"
-        ]
-        return (
-            f"{self.__class__.__name__}(model={self.model.__tablename__}, "
-            f"managers=[{', '.join(manager_methods)}])"
-        )
-
-
-@dataclass
-class ModelManagerSetMethod:
-    manager: Type[BaseModelManager]
-    manager_set: ModelManagerSet
-
-    def __call__(self, **manager_init_kwargs: dict[str, Any]):
-        return self.manager(
-            self.manager_set.model, **self.filter_kwargs(manager_init_kwargs)
-        )
-
-    def filter_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        manager_set_kwargs = self.manager_set.manager_init_kwargs or {}
-        for attr, value in kwargs.items():
-            if attr in self.manager_fields and value is not None:
-                manager_set_kwargs.update({attr: value})
-        return manager_set_kwargs
-
-    @property
-    def manager_fields(self) -> set[str]:
-        valid_fields = set(self.manager.__match_args__)
-        valid_fields.discard("model")
-        return valid_fields
-
-
-class ModelManagerFactory:
-    def __init__(
-        self,
-        model: Type[AbstractBaseModel],
-        managers: Sequence[Type[BaseModelManager]],
-        **manager_init_kwargs: dict[str, Any],
-    ) -> None:
-        self.model = model
-        self.managers = managers
-        self.manager_init_kwargs = manager_init_kwargs
-
-        self.manager_set = ModelManagerSet(model, **self.manager_init_kwargs)
-
-        for manager in self.managers:
-            setattr(
-                self.manager_set,
-                manager.__short_name__,
-                ModelManagerSetMethod(manager, self.manager_set),
-            )
-
-    def get_managers(self) -> ModelManagerSet:
-        return self.manager_set
-
-
-UserManagers = ModelManagerFactory(
-    User, [BaseModelManager, DateRangeQueryManager]
-).get_managers()
-
-BudgetManagers = ModelManagerFactory(
-    Budget, [BaseModelManager, DateRangeQueryManager]
-).get_managers()
-
-CategorytManagers = ModelManagerFactory(
-    EntryCategory,
-    [BaseModelManager, DateRangeQueryManager],
-    order_by=["-last_used", "id"],
-).get_managers()
