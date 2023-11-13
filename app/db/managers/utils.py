@@ -1,12 +1,27 @@
-from typing import Any, Callable, Iterable, Literal, Sequence
+import operator as operators
+import re
+from typing import Any, Callable, Iterable, Literal, Sequence, Type, TypeVar
 
 from sqlalchemy import func as sql_func
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import InstrumentedAttribute, Query
+from sqlalchemy.sql.elements import BinaryExpression
 
-from app.db.exceptions import InvalidOrderByValue, InvalidSumField
+from app.db.exceptions import (
+    BudgetBotDataBaseException,
+    ImproperlyConfigured,
+    InvalidFilter,
+    InvalidOrderByValue,
+    InvalidSumField,
+)
 from app.db.models.base import AbstractBaseModel
 
-from . import BaseModelManager
+from . import core
+
+# strings like: "id>1", "created_at == 12.01.2020", "sum<10000" etc.
+_ComparingExpression = TypeVar("_ComparingExpression", bound=str)
+
+# string like: "-id", "created_at", "sum-" etc.
+_OrderByValue = TypeVar("_OrderByValue", bound=str)
 
 
 class ManagerFieldDescriptor:
@@ -15,7 +30,7 @@ class ManagerFieldDescriptor:
         *,
         default,
         validators: Iterable[
-            Callable[[BaseModelManager, Any], None]
+            Callable[["core.BaseModelManager", Any], None]
         ] = tuple(),
     ):
         self._default = default
@@ -37,8 +52,8 @@ class ManagerFieldDescriptor:
 
 
 def transform_to_order_by_dict(
-    order_by: Sequence[str],
-) -> dict[str, Literal["asc", "desc"]]:
+    order_by: Sequence[_OrderByValue],
+) -> dict[_OrderByValue, Literal["asc", "desc"]]:
     order_by_dict = {}
     for attr in order_by:
         if not isinstance(attr, str):
@@ -85,3 +100,74 @@ class SumExtendedQuery:
 
     def _sum(self, q: Query) -> int:
         return q.with_entities(sql_func.sum(self.sum_field)).scalar() or 0
+
+
+class FilterExpression:
+    valid_operators = {
+        ">": "gt",
+        ">=": "ge",
+        "<": "lt",
+        "<=": "le",
+        "==": "eq",
+        "!=": "ne",
+    }
+
+    def __init__(
+        self, expression: _ComparingExpression, model: Type[AbstractBaseModel]
+    ) -> None:
+        try:
+            attr_name, sign, value = re.split("([<>!=]+)", expression)
+        except ValueError:
+            raise InvalidFilter(
+                """Filter should follow pattern:
+                      <model_attribute><compare_operator><value>.
+                      Example: `sum>1`, `id == 2`"""
+            )
+
+        self.model = model
+        self._attr_name: str = attr_name.strip()
+        self._sign: str = sign
+        self._value: str = value.strip()
+
+        self._operator: Callable | None = None
+        self._attr: InstrumentedAttribute | None = None
+
+    def validate(self):
+        if not self._value or not self._attr_name:
+            raise InvalidFilter(
+                "Filter must contain a model attribute name and a value."
+            )
+
+        operator = getattr(
+            operators, self.valid_operators.get(self._sign, "None"), None
+        )
+        attr = getattr(self.model, self._attr_name, None)
+
+        if operator is None:
+            raise InvalidFilter(f"Invalid comparing sign: `{self._sign}`")
+
+        if attr is None:
+            raise InvalidFilter(
+                f"""Model `{self.model}` 
+                   does not have `{self._attr_name}` attribute."""
+            )
+
+        self._operator = operator
+        self._attr = attr
+
+    @property
+    def is_valid(self):
+        try:
+            self.validate()
+        except BudgetBotDataBaseException:
+            return False
+        return True
+
+    def build(self) -> BinaryExpression:
+        if self.is_valid:
+            return self._operator(self._attr, self._value)
+        else:
+            raise ImproperlyConfigured(
+                "Cannot call `build` on invalid FilterExpression."
+                "Run `self.validate` to check errors."
+            )
