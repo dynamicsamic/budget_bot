@@ -1,25 +1,33 @@
 import datetime as dt
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, List, Literal, Self, Sequence, Type, TypeVar
+from typing import Any, Callable, List, Literal, Self, Sequence, Type
 
 from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, scoped_session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql._typing import _DMLColumnArgument
-from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
+from sqlalchemy.sql.elements import (
+    BinaryExpression,
+    ColumnElement,
+    UnaryExpression,
+)
 
-from app.db.exceptions import InvalidDBSession
+from app.db.exceptions import InvalidDBSession, InvalidFilter
 from app.db.models.base import AbstractBaseModel
 from app.utils import DateGen
 
 from .utils import (
+    FilterExpression,
     ManagerFieldDescriptor,
     SumExtendedQuery,
+    _ComparingExpression,
+    _OrderByValue,
     transform_to_order_by_dict,
 )
 from .validation import (
+    check_iterable,
     validate_cashflowfield,
     validate_datefield,
     validate_db_session,
@@ -29,7 +37,6 @@ from .validation import (
 
 logger = logging.getLogger(__name__)
 
-_ComparingExpression = TypeVar("_ComparingExpression", str)
 
 DEFAULT_SESSION = None
 DEFAULT_ORDER_BY = ("created_at", "id")
@@ -58,7 +65,7 @@ class BaseModelManager:
         order_by: A sequence of valid model fields which shape the order of
             performed db queries.
             Valid arguments may include `["-id", "created_at", "updated_at-"]`
-        filters: A sequence of comparative expressions which provide
+        filters: A sequence of comparing expressions which provide
             query post-filtering. Each expression consists of a model field
             (`e.g. 'id' or 'name')`, a comparing sign (`e.g. '>' or '=='`) and
             a value (`e.g. '2' or 'jack'`).
@@ -75,7 +82,7 @@ class BaseModelManager:
     session: Session | scoped_session = ManagerFieldDescriptor(
         default=DEFAULT_SESSION, validators=[validate_db_session]
     )
-    order_by: Sequence[str] = ManagerFieldDescriptor(
+    order_by: Sequence[_OrderByValue] = ManagerFieldDescriptor(
         default=DEFAULT_ORDER_BY, validators=[validate_order_by]
     )
     filters: Sequence[_ComparingExpression] = ManagerFieldDescriptor(
@@ -376,41 +383,6 @@ class BaseModelManager:
         """
         return self._fetch_n(n, filters, True)
 
-    def _clean_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """Filter kwargs from keys not related to `model` fields.
-
-        Args:
-            kwargs: A mapping of `model's` attribute names (fields)
-            to their values.
-
-        Returns:
-            A dictionary of filtered model fields and their values.
-        """
-        return {
-            fieldname: value
-            for fieldname, value in kwargs.items()
-            if fieldname in self.model.fieldnames
-        }
-
-    def _fetch_n(
-        self,
-        n: int,
-        filters: Sequence[_ComparingExpression] = None,
-        reverse: bool = False,
-    ) -> Query[AbstractBaseModel]:
-        """Basic SELECT query with ordering, optional filtering and a limit.
-
-        Args:
-            n: Number of `self.model` instances that a query should contain.
-            filters: Sequence of comparing expressions.
-            reverse: Flag to reverse the order of resulting query.
-
-        Returns:
-            sqlalchemy.Query that contains specified number
-            of `self.model` instances.
-        """
-        return self._fetch(filters, reverse).limit(n)
-
     def _fetch(
         self,
         filters: Sequence[_ComparingExpression] = None,
@@ -436,6 +408,25 @@ class BaseModelManager:
             return q.filter(filter_by)
 
         return q
+
+    def _fetch_n(
+        self,
+        n: int,
+        filters: Sequence[_ComparingExpression] = None,
+        reverse: bool = False,
+    ) -> Query[AbstractBaseModel]:
+        """Basic SELECT query with ordering, optional filtering and a limit.
+
+        Args:
+            n: Number of `self.model` instances that a query should contain.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlalchemy.Query that contains specified number
+            of `self.model` instances.
+        """
+        return self._fetch(filters, reverse).limit(n)
 
     def _compile_order_by(
         self, reverse: bool
@@ -480,25 +471,61 @@ class BaseModelManager:
         if not filters:
             return
 
-        return and_(
-            True, *validate_filters(self, filters, return_filters=True)
-        )
+        return and_(True, *self._collect_filters(filters))
+
+    def _collect_filters(
+        self, filters: Sequence[_ComparingExpression]
+    ) -> List[BinaryExpression]:
+        """Convert filters into list of expressions for further processing.
+
+        If any of expressions in filters is invalid,
+        InvalidFilter will be raised
+
+        Args:
+            filters: A sequence of comparing expressions.
+
+        Returns:
+            List of built filter expressions.
+        """
+        check_iterable(filters, InvalidFilter)
+        return [
+            FilterExpression(expression, self.model).build()
+            for expression in filters
+        ]
+
+    def _clean_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Filter kwargs from keys not related to `model` fields.
+
+        Args:
+            kwargs: A mapping of `model's` attribute names (fields)
+            to their values.
+
+        Returns:
+            A dictionary of filtered model fields and their values.
+        """
+        return {
+            fieldname: value
+            for fieldname, value in kwargs.items()
+            if fieldname in self.model.fieldnames
+        }
 
     @property
-    def _order_by_dict(self) -> dict[str, Literal["asc", "desc"]]:
+    def _order_by_dict(self) -> dict[_OrderByValue, Literal["asc", "desc"]]:
         return transform_to_order_by_dict(self.order_by)
 
     @property
-    def _reversed_order_by_dict(self) -> dict[str, Literal["asc", "desc"]]:
+    def _reversed_order_by_dict(
+        self,
+    ) -> dict[_OrderByValue, Literal["asc", "desc"]]:
         return {
             attr: "desc" if order == "asc" else "asc"
             for attr, order in self._order_by_dict.items()
         }
 
-    def _set_default_order_by(self):
+    def _set_default_order_by(self) -> None:
         self.order_by = DEFAULT_ORDER_BY
 
-    def _reset_filters(self):
+    def _reset_filters(self) -> None:
         self.filters = DEFAULT_FILTERS
 
 
