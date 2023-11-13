@@ -1,9 +1,6 @@
-import operator as operators
-import re
-from typing import Any, Sequence
+from typing import Any, Sequence, Type
 
 from sqlalchemy.orm import Session, scoped_session
-from sqlalchemy.sql.expression import ColumnOperators
 from sqlalchemy.types import Date, DateTime, Float, Integer, Numeric
 
 from app.db.exceptions import (
@@ -14,29 +11,77 @@ from app.db.exceptions import (
     InvalidOrderByValue,
 )
 
-from .utils import transform_to_order_by_dict
+from . import core
+from .utils import (
+    FilterExpression,
+    _ComparingExpression,
+    _OrderByValue,
+    transform_to_order_by_dict,
+)
 
 
-def check_iterable(obj: Any, exception: Exception):
+def check_iterable(obj: Any, exception: Type[Exception]) -> None:
+    """Check if given object is an iterable.
+
+    Args:
+        obj: Any Python object, that should be checked.
+        exception: Any subclass of Python's Exception.
+    Returns:
+        None.
+    Raises:
+        Instance of provided exception.
+    """
     if not hasattr(obj, "__iter__"):
         raise exception(f"{obj} must be a sequence, not a {type(obj)}")
 
 
-def validate_db_session(manager, session: Any) -> None:
+def validate_db_session(_: "core.BaseModelManager", session: Any) -> None:
+    """Check if given database session is a valid sqlalchemy session.
+
+    Args:
+        _: A placeholder for manager argument being passed by a caller.
+            This serves only one purpose: be compatible with
+            `ManagerFieldDescriptor` __set__ method.
+        session: Any object that should be tested as valid sqlalchemy session.
+
+    Returns:
+        None.
+
+    Raises:
+        InvalidDBSession if given session is not instance of sqlalchemy session
+        or if given session is not active.
+    """
+
     if session is None:
         return
+
     if not isinstance(session, (Session, scoped_session)):
         raise InvalidDBSession(
             f"session must be an instance of either sqlalchemy.orm "
             f"Session or scoped_session, not `{type(session)}.` "
         )
+
     if not session.is_active:
         raise InvalidDBSession(
             "Inactive session detected! `session` must be active."
         )
 
 
-def validate_order_by(manager, order_by: Sequence[str]) -> None:
+def validate_order_by(
+    manager: "core.BaseModelManager", order_by: Sequence[_OrderByValue]
+) -> None:
+    """Check if a sequence may serve as `BaseModelManager.order_by` argument.
+
+    Args:
+        manager: Instance of BaseModelManager.
+        order_by: A sequence of order_by values.
+
+    Returns:
+        None.
+
+    Raises:
+        InvalidOrderByValue if any of order_by values is invalid.
+    """
     check_iterable(order_by, InvalidOrderByValue)
     order_by_dict = transform_to_order_by_dict(order_by)
     if invalid_fields := set(order_by_dict.keys()) - manager.model.fieldnames:
@@ -47,69 +92,71 @@ def validate_order_by(manager, order_by: Sequence[str]) -> None:
 
 
 def validate_filters(
-    manager,
-    filters: Sequence[str] = None,
-    return_filters: bool = False,
-) -> list[ColumnOperators] | None:
-    filters = filters or manager.filters
-    validated = []
+    manager: "core.BaseModelManager",
+    filters: Sequence[_ComparingExpression],
+) -> None:
+    """Check if a sequence may serve as `BaseModelManager.filters` argument.
 
-    if filters:
-        check_iterable(filters, InvalidFilter)
-        valid_signs = {
-            ">": "gt",
-            ">=": "ge",
-            "<": "lt",
-            "<=": "le",
-            "==": "eq",
-            "!=": "ne",
-        }
-        for filter in filters:
-            try:
-                attr_, sign, value = re.split("([<>!=]+)", filter)
-            except ValueError:
-                raise InvalidFilter(
-                    """Filter should follow pattern:
-                          <model_attribute><compare_operator><value>.
-                          Example: `sum>1`, `id == 2`"""
-                )
+    Args:
+        manager: Instance of BaseModelManager.
+        filters: A sequence of comparing expressions.
 
-            attr = getattr(manager.model, attr_.strip(), None)
-            operator = getattr(operators, valid_signs.get(sign, "None"), None)
+    Returns:
+        None.
 
-            if attr is None:
-                raise InvalidFilter(
-                    f"""Model `{manager.model}` 
-                        does not have `{attr_}` atribute."""
-                )
+    Raises:
+        InvalidFilter if any of expressions in filters is invalid.
+    """
+    check_iterable(filters, InvalidFilter)
 
-            elif operator is None:
-                raise InvalidFilter(f"Invalid comparing sign: `{sign}`")
-
-            elif not value:
-                raise InvalidFilter("Filter must have a value.")
-
-            if return_filters:
-                validated.append(operator(attr, value.strip()))
-
-    if return_filters:
-        return validated
+    for expression in filters:
+        FilterExpression(expression, manager.model).validate()
 
 
-def validate_datefield(self, datefield_: str):
-    if datefield := getattr(self.model, datefield_, None):
+def validate_datefield(manager: "core.DateRangeQueryManager", datefield_: str):
+    """Check if a value may serve as
+    `DateRangeQueryManager.datefield` argument.
+
+    Args:
+        manager: Instance of DateRangeQueryManager.
+        datefield_: Fieldname that should be tested as valid datefield.
+
+    Returns:
+        None.
+
+    Raises:
+        InvalidDateField if either manager's model doesn't have a field
+        with such name or if it's not a date or datetime field.
+    """
+    if datefield := getattr(manager.model, datefield_, None):
         if not isinstance(datefield.type, (Date, DateTime)):
             raise InvalidDateField(
                 "Datefield must be of sqlalchemy `Date` or `Datetime` types."
             )
     else:
         raise InvalidDateField(
-            f"""Model `{self.model}`
+            f"""Model `{manager.model}`
                 does not have `{datefield_}` atribute."""
         )
 
 
-def validate_cashflowfield(manager, cf_field_name: str) -> None:
+def validate_cashflowfield(
+    manager: "core.CashFlowQueryManager", cf_field_name: str
+) -> None:
+    """Check if a value may serve as
+    `CashFlowQueryManager.cashflowfield` argument.
+
+    Args:
+        manager: Instance of CashFlowQueryManager.
+        cf_field_name: Fieldname that should be tested as valid cashflowfield.
+
+    Returns:
+        None.
+
+    Raises:
+        InvalidCashflowield if either manager's model doesn't have a field
+        with such name or if it is not a numeric field.
+    """
     if cashflowfield := getattr(manager.model, cf_field_name, None):
         if not isinstance(
             cashflowfield.type, (Integer, Float, Numeric)
