@@ -28,3 +28,7 @@ class InvalidCashflowield(BudgetBotDataBaseException):
 
 class ModelInstanceCreateError(BudgetBotDataBaseException):
     pass
+
+
+class ImproperlyConfigured(BudgetBotDataBaseException):
+    pass
