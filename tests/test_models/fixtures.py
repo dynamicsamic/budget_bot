@@ -6,8 +6,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import models
-from app.db.models.base import Base
+from app.db.models.base import AbstractBaseModel, Base
 from tests.conf import constants
+
+
+class AbstractSubclass(AbstractBaseModel):
+    __tablename__ = "fake_test_model"
 
 
 @event.listens_for(Engine, "connect")
@@ -40,6 +44,17 @@ def db_session(engine, create_tables) -> Session:
     session.close()
     # transaction.rollback()
     connection.close()
+
+
+@pytest.fixture
+def create_fake_test_objects(db_session):
+    db_session.add_all(
+        [
+            AbstractSubclass(id=i)
+            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
+        ]
+    )
+    db_session.commit()
 
 
 @pytest.fixture
