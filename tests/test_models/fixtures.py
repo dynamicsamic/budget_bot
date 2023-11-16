@@ -11,7 +11,7 @@ from tests.conf import constants
 
 
 class AbstractSubclass(AbstractBaseModel):
-    __tablename__ = "fake_test_model"
+    __tablename__ = "abstract_subclass"
 
 
 @event.listens_for(Engine, "connect")
@@ -47,14 +47,10 @@ def db_session(engine, create_tables) -> Session:
 
 
 @pytest.fixture
-def create_fake_test_objects(db_session):
-    db_session.add_all(
-        [
-            AbstractSubclass(id=i)
-            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
-        ]
-    )
+def abstract_object(db_session):
+    db_session.add(obj := AbstractSubclass(id=1))
     db_session.commit()
+    yield obj
 
 
 @pytest.fixture
