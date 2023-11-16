@@ -1,1 +1,1 @@
-from .active import Budget, Entry, EntryCategory, User
+from .active import Budget, Entry, EntryCategory, EntryType, User
