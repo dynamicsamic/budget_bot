@@ -1,7 +1,7 @@
 import datetime as dt
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, List, Literal, Self, Sequence, Type
+from typing import Any, Callable, List, Literal, Optional, Self, Sequence, Type
 
 from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,14 +16,12 @@ from sqlalchemy.sql.elements import (
 
 from app.db.exceptions import InvalidDBSession, InvalidFilter
 from app.db.models.base import AbstractBaseModel
-from app.utils import DateGen
+from app.utils import DateGen, _ComparingExpression, _OrderByValue
 
 from .utils import (
     FilterExpression,
     ManagerFieldDescriptor,
     SumExtendedQuery,
-    _ComparingExpression,
-    _OrderByValue,
     transform_to_order_by_dict,
 )
 from .validation import (
@@ -79,13 +77,13 @@ class BaseModelManager:
     __short_name__ = "base"
 
     model: Type[AbstractBaseModel]
-    session: Session | scoped_session = ManagerFieldDescriptor(
+    session: Optional[Session | scoped_session] = ManagerFieldDescriptor(
         default=DEFAULT_SESSION, validators=[validate_db_session]
     )
-    order_by: Sequence[_OrderByValue] = ManagerFieldDescriptor(
+    order_by: Optional[Sequence[_OrderByValue]] = ManagerFieldDescriptor(
         default=DEFAULT_ORDER_BY, validators=[validate_order_by]
     )
-    filters: Sequence[_ComparingExpression] = ManagerFieldDescriptor(
+    filters: Optional[Sequence[_ComparingExpression]] = ManagerFieldDescriptor(
         default=DEFAULT_FILTERS, validators=[validate_filters]
     )
 
@@ -260,7 +258,7 @@ class BaseModelManager:
     def select(
         self,
         *,
-        filters: Sequence[_ComparingExpression],
+        filters: Optional[Sequence[_ComparingExpression]],
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
         """Produce a SELECT query with arbitrary filtering.
@@ -274,7 +272,9 @@ class BaseModelManager:
         """
         return self._fetch(filters, reverse)
 
-    def count(self, *, filters: Sequence[_ComparingExpression] = None) -> int:
+    def count(
+        self, *, filters: Optional[Sequence[_ComparingExpression]] = None
+    ) -> int:
         """Calculate the number of model instances filtered by provided values.
         If no filters provided, calculate the number of all model instances.
 
@@ -329,7 +329,7 @@ class BaseModelManager:
             return False
 
     def first(
-        self, *, filters: Sequence[_ComparingExpression] = None
+        self, *, filters: Optional[Sequence[_ComparingExpression]] = None
     ) -> AbstractBaseModel | None:
         """Fetch first added `model` instance.
 
@@ -341,7 +341,7 @@ class BaseModelManager:
         return self.first_n(1, filters=filters).one_or_none()
 
     def last(
-        self, *, filters: Sequence[_ComparingExpression] = None
+        self, *, filters: Optional[Sequence[_ComparingExpression]] = None
     ) -> AbstractBaseModel | None:
         """Fetch last added `model` instance.
 
@@ -354,7 +354,10 @@ class BaseModelManager:
         return self.last_n(1, filters=filters).one_or_none()
 
     def first_n(
-        self, n: int, *, filters: Sequence[_ComparingExpression] = None
+        self,
+        n: int,
+        *,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
     ) -> Query[AbstractBaseModel]:
         """Fetch specified number of the earliest `model` instances.
 
@@ -369,7 +372,10 @@ class BaseModelManager:
         return self._fetch_n(n, filters)
 
     def last_n(
-        self, n: int, *, filters: Sequence[_ComparingExpression] = None
+        self,
+        n: int,
+        *,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
     ) -> Query[AbstractBaseModel]:
         """Fetch specified number of the most recent `model` instances.
 
@@ -385,7 +391,7 @@ class BaseModelManager:
 
     def _fetch(
         self,
-        filters: Sequence[_ComparingExpression] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
         """Basic SELECT query with ordering and optional filtering.
@@ -412,7 +418,7 @@ class BaseModelManager:
     def _fetch_n(
         self,
         n: int,
-        filters: Sequence[_ComparingExpression] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
         """Basic SELECT query with ordering, optional filtering and a limit.
@@ -531,14 +537,35 @@ class BaseModelManager:
 
 @dataclass
 class DateRangeQueryManager(BaseModelManager):
-    """
-    BaseModelManager extended with methods for
-    making queries with datetime gaps.
+    """BaseModelManager extended with methods for
+    making queries with datetime ranges.
+
+    Attributes:
+        model: A subclass of `app.models.base.AbstractBaseModel`
+        session: An instance of `sqlalchemy.orm.Session` or `scoped_session`
+            Initially is set to None, and should be passed to a manager to
+            connect it to a database and perform real operations.
+        order_by: A sequence of valid model fields which shape the order of
+            performed db queries.
+            Valid arguments may include `["-id", "created_at", "updated_at-"]`
+        filters: A sequence of comparing expressions which provide
+            query post-filtering. Each expression consists of a model field
+            (`e.g. 'id' or 'name')`, a comparing sign (`e.g. '>' or '=='`) and
+            a value (`e.g. '2' or 'jack'`).
+            Passing values to `filters` sets up manager-level query filtering.
+            Manager-level filtering will be replaced with method-level
+            filtering when providing arguments to `filters` parameter in some
+            instance methods like `select`, `all`, `first` and others.
+            Valid arguments may include `['id>2', 'sum == 1']`
+        datefield: The name of model field that is used for making
+            date range queries. Must reflect a model attribute of
+            sqlalchemy `DATE` or `DATETIME` types. This string will be resolved
+            into a real model attribute via `self._date_column` property.
     """
 
     __short_name__ = "date"
 
-    datefield: str = ManagerFieldDescriptor(
+    datefield: Optional[str] = ManagerFieldDescriptor(
         default=DEFAULT_DATEFIELD, validators=[validate_datefield]
     )
 
@@ -546,64 +573,128 @@ class DateRangeQueryManager(BaseModelManager):
         self,
         date_info: DateGen,
         *,
-        filters: Sequence[str] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Fetch model instances between the start and end of today.
+
+        Args:
+            date_info: Instance of DateGen class.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlclahemy.Query that contains model instances between given gaps.
+        """
         return self._between(*date_info.date_range, filters, reverse)
 
     def yesterday(
         self,
         date_info: DateGen,
         *,
-        filters: Sequence[str] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Fetch model instances between the start and end of yesterday.
+
+        Args:
+            date_info: Instance of DateGen class.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlclahemy.Query that contains model instances between given gaps.
+        """
         return self._between(*date_info.yesterday_range, filters, reverse)
 
     def this_week(
         self,
         date_info: DateGen,
         *,
-        filters: Sequence[str] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Fetch model instances between the start and end of current week.
+
+        Args:
+            date_info: Instance of DateGen class.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlclahemy.Query that contains model instances between given gaps.
+        """
         return self._between(*date_info.week_range, filters, reverse)
 
     def this_month(
         self,
         date_info: DateGen,
         *,
-        filters: Sequence[str] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Fetch model instances between the start and end of current month.
+
+        Args:
+            date_info: Instance of DateGen class.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlclahemy.Query that contains model instances between given gaps.
+        """
         return self._between(*date_info.month_range, filters, reverse)
 
     def this_year(
         self,
         date_info: DateGen,
         *,
-        filters: Sequence[str] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
+        """Fetch model instances between the start and end of current year.
+
+        Args:
+            date_info: Instance of DateGen class.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlclahemy.Query that contains model instances between given gaps.
+        """
         return self._between(*date_info.year_range, filters, reverse)
 
     def _between(
         self,
         start: dt.datetime | dt.date,
         end: dt.datetime | dt.date,
-        filters: Sequence[str] = None,
+        filters: Optional[Sequence[_ComparingExpression]] = None,
         reverse: bool = False,
     ) -> Query[AbstractBaseModel]:
-        """Fetch all instances of `model` filtered
-        between given borders.
+        """Fetch `model` instances between given borders.
+
+        This is the underlying method for all public date range methods.
+
+        Args:
+            start: The start of a datetime (date) range.
+            end: The end of a datetime (date) range.
+            filters: Sequence of comparing expressions.
+            reverse: Flag to reverse the order of resulting query.
+
+        Returns:
+            sqlclahemy.Query that contains model instances between given gaps.
         """
-        date_column = getattr(self.model, self.datefield)
         return self._fetch(filters, reverse).filter(
-            date_column.between(start, end)
+            self._date_column.between(start, end)
         )
 
+    @property
+    def _date_column(self) -> InstrumentedAttribute:
+        """Get model attribute by"""
+        return getattr(self.model, self.datefield)
+
     def _set_default_datefield(self):
-        self._datefield = DEFAULT_DATEFIELD
+        self.datefield = DEFAULT_DATEFIELD
 
 
 @dataclass
@@ -646,4 +737,4 @@ class CashFlowQueryManager(DateRangeQueryManager):
         return inner
 
     def _set_default_cashflowfield(self) -> None:
-        self._cashflowfield = DEFAULT_CASHFLOWFIELD
+        self.cashflowfield = DEFAULT_CASHFLOWFIELD
