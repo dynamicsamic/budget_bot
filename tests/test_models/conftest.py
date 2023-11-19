@@ -1,17 +1,13 @@
 import random
 
 import pytest
-from sqlalchemy import create_engine, event
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import models
-from app.db.models.base import AbstractBaseModel, Base
+from app.db.models.base import Base
 from tests.conf import constants
-
-
-class AbstractSubclass(AbstractBaseModel):
-    __tablename__ = "abstract_subclass"
 
 
 @event.listens_for(Engine, "connect")
@@ -19,11 +15,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
-
-
-@pytest.fixture(scope="session")
-def engine():
-    return create_engine("sqlite://", echo=True)
 
 
 @pytest.fixture(scope="session")
@@ -44,13 +35,6 @@ def db_session(engine, create_tables) -> Session:
     session.close()
     # transaction.rollback()
     connection.close()
-
-
-@pytest.fixture
-def abstract_object(db_session):
-    db_session.add(obj := AbstractSubclass(id=1))
-    db_session.commit()
-    yield obj
 
 
 @pytest.fixture

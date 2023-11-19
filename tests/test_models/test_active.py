@@ -6,16 +6,6 @@ from sqlalchemy.exc import IntegrityError
 from app.db.models import Budget, Entry, EntryCategory, User
 from app.utils import now
 
-from .fixtures import (
-    create_budgets,
-    create_categories,
-    create_entries,
-    create_tables,
-    create_users,
-    db_session,
-    engine,
-)
-
 
 class MockModel:
     def __init__(self, **kwargs) -> None:
@@ -376,7 +366,7 @@ def test_entry_without_description_sets_it_to_none(
     db_session.commit()
 
     entry = db_session.get(Entry, entry_without_description.id)
-    assert entry.description == None
+    assert entry.description is None
 
 
 def test_entry_gets_deleted_when_budget_deleted(db_session, create_entries):

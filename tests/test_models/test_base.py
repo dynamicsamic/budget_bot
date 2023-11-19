@@ -1,12 +1,13 @@
 from sqlalchemy import DateTime, Integer
 
-from .fixtures import (
-    AbstractSubclass,
-    abstract_object,
-    create_tables,
-    db_session,
-    engine,
-)
+from app.db.models.base import AbstractBaseModel
+
+
+class AbstractSubclass(AbstractBaseModel):
+    __tablename__ = "abstract_subclass"
+
+
+abstract_object = AbstractSubclass(id=1)
 
 
 def test_abstract_base_model_attributes_have_correct_sqlalchemy_types():
@@ -15,48 +16,36 @@ def test_abstract_base_model_attributes_have_correct_sqlalchemy_types():
     assert type(AbstractSubclass.last_updated.type) is DateTime
 
 
-def test_abstract_base_model_has_fields_details_attributes(
-    abstract_object,
-):
-    obj = abstract_object
-
-    assert isinstance(obj.fields, dict)
-    assert isinstance(obj.fieldtypes, dict)
-    assert isinstance(obj.fieldnames, set)
-    assert isinstance(obj.primary_keys, set)
+def test_abstract_base_model_has_fields_details_attributes():
+    assert isinstance(abstract_object.fields, dict)
+    assert isinstance(abstract_object.fieldtypes, dict)
+    assert isinstance(abstract_object.fieldnames, set)
+    assert isinstance(abstract_object.primary_keys, set)
 
 
-def test_abstract_base_model_fields_attribute(abstract_object):
-    obj = abstract_object
-
+def test_abstract_base_model_fields_attribute():
     expected_fields = {
         "id": AbstractSubclass.id,
         "created_at": AbstractSubclass.created_at,
         "last_updated": AbstractSubclass.last_updated,
     }
-    assert expected_fields == obj.fields
+    assert expected_fields == abstract_object.fields
 
 
-def test_abstract_base_model_fieldtypes_attribute(abstract_object):
-    obj = abstract_object
-
+def test_abstract_base_model_fieldtypes_attribute():
     expected_fieldtypes = {
         "id": AbstractSubclass.id.type,
         "created_at": AbstractSubclass.created_at.type,
         "last_updated": AbstractSubclass.last_updated.type,
     }
-    assert expected_fieldtypes == obj.fieldtypes
+    assert expected_fieldtypes == abstract_object.fieldtypes
 
 
-def test_abstract_base_model_fieldnames_attribute(abstract_object):
-    obj = abstract_object
-
+def test_abstract_base_model_fieldnames_attribute():
     expected_fieldnames = {"id", "created_at", "last_updated"}
-    assert obj.fieldnames == expected_fieldnames
+    assert abstract_object.fieldnames == expected_fieldnames
 
 
-def test_abstract_base_model_primary_keys(abstract_object):
-    obj = abstract_object
-
+def test_abstract_base_model_primary_keys():
     expected_primary_keys = {"id"}
-    assert obj.primary_keys == expected_primary_keys
+    assert abstract_object.primary_keys == expected_primary_keys
