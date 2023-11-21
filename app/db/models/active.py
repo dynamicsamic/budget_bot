@@ -32,6 +32,11 @@ class User(AbstractBaseModel):
         passive_deletes=True,
     )
 
+    @classmethod
+    @property
+    def _datefield(cls):
+        return cls.created_at
+
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, TelegramId={self.tg_id})"
@@ -62,6 +67,11 @@ class Budget(AbstractBaseModel):
         passive_deletes=True,
     )
 
+    @classmethod
+    @property
+    def _datefield(cls):
+        return cls.created_at
+
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, UserId={self.user_id}, "
@@ -82,6 +92,11 @@ class EntryCategory(AbstractBaseModel):
     )
     budget: Mapped["Budget"] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
+
+    @classmethod
+    @property
+    def _datefield(cls):
+        return cls.last_used
 
     def __repr__(self) -> str:
         return (
@@ -107,6 +122,16 @@ class Entry(AbstractBaseModel):
     budget: Mapped["Budget"] = relationship(back_populates="entries")
     category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
     category: Mapped["EntryCategory"] = relationship(back_populates="entries")
+
+    @classmethod
+    @property
+    def _datefield(cls):
+        return cls.transaction_date
+
+    @classmethod
+    @property
+    def _cashflowfield(cls):
+        return cls.sum
 
     @property
     def _sum(self) -> str:
