@@ -2,7 +2,7 @@ import datetime as dt
 
 import pytest
 
-from app.utils import DateGen
+from app.utils import DateRange
 
 # Make parametrized tests more readable.
 week_range_test_ids = (
@@ -95,7 +95,7 @@ date_week_ranges = (
 def test_date_year_range_calculate_correctly_for_all_months():
     for i in range(1, 13):
         date = dt.date(year=2023, month=i, day=1)
-        dgen = DateGen(date)
+        dgen = DateRange(date)
         assert dgen.year_start == date.replace(month=1, day=1)
         assert dgen.year_end == date.replace(month=12, day=31)
         assert dgen.year_range == (
@@ -108,7 +108,7 @@ def test_date_month_range_calculate_correctly_for_full_months():
     full_month_ordinal = (1, 3, 5, 7, 8, 10, 12)
     for month in full_month_ordinal:
         date = dt.date(year=2023, month=month, day=10)
-        dgen = DateGen(date)
+        dgen = DateRange(date)
         assert dgen.month_start == date.replace(day=1)
         assert dgen.month_end == date.replace(day=31)
         assert dgen.month_range == (date.replace(day=1), date.replace(day=31))
@@ -118,7 +118,7 @@ def test_date_month_range_calculate_correctly_for_short_months():
     short_month_ordinal = (4, 6, 9, 11)
     for month in short_month_ordinal:
         date = dt.date(year=2023, month=month, day=10)
-        dgen = DateGen(date)
+        dgen = DateRange(date)
         assert dgen.month_start == date.replace(day=1)
         assert dgen.month_end == date.replace(day=30)
         assert dgen.month_range == (date.replace(day=1), date.replace(day=30))
@@ -130,7 +130,7 @@ def test_date_month_range_calculate_correctly_for_short_months():
 def test_date_week_range_calculate_correctly_for_all_months(
     date, week_start, week_end
 ):
-    dgen = DateGen(date)
+    dgen = DateRange(date)
     assert dgen.week_range == (week_start, week_end)
 
 
@@ -144,7 +144,7 @@ december_31st = dt.date(year=2023, month=12, day=31)
 
 
 def test_flow_date_gen_for_full_month_date():
-    dgen = DateGen(full_month_date)
+    dgen = DateRange(full_month_date)
     assert dgen.date == full_month_date
     assert dgen.year == full_month_date.year
     assert dgen.month == full_month_date.month
@@ -169,7 +169,7 @@ def test_flow_date_gen_for_full_month_date():
 
 
 def test_flow_date_gen_for_short_month_date():
-    dgen = DateGen(short_month_date)
+    dgen = DateRange(short_month_date)
     assert dgen.date == short_month_date
     assert dgen.year == short_month_date.year
     assert dgen.month == short_month_date.month
@@ -194,7 +194,7 @@ def test_flow_date_gen_for_short_month_date():
 
 
 def test_flow_date_gen_for_february_29th_date():
-    dgen = DateGen(february_29th)
+    dgen = DateRange(february_29th)
     assert dgen.date == february_29th
     assert dgen.year == february_29th.year
     assert dgen.month == february_29th.month
@@ -219,7 +219,7 @@ def test_flow_date_gen_for_february_29th_date():
 
 
 def test_flow_date_gen_for_february_28th_date():
-    dgen = DateGen(february_28th)
+    dgen = DateRange(february_28th)
     assert dgen.date == february_28th
     assert dgen.year == february_28th.year
     assert dgen.month == february_28th.month
@@ -244,7 +244,7 @@ def test_flow_date_gen_for_february_28th_date():
 
 
 def test_flow_date_gen_for_janury_1st_date():
-    dgen = DateGen(january_1st)
+    dgen = DateRange(january_1st)
     assert dgen.date == january_1st
     assert dgen.year == january_1st.year
     assert dgen.month == january_1st.month
@@ -269,7 +269,7 @@ def test_flow_date_gen_for_janury_1st_date():
 
 
 def test_flow_date_gen_for_december_31st_date():
-    dgen = DateGen(december_31st)
+    dgen = DateRange(december_31st)
     assert dgen.date == december_31st
     assert dgen.year == december_31st.year
     assert dgen.month == december_31st.month
@@ -387,7 +387,7 @@ datetime_week_ranges = (
 def test_datetime_year_range_calculate_correctly_for_all_months():
     for i in range(1, 13):
         datetime = dt.datetime(year=2023, month=i, day=1)
-        dgen = DateGen(datetime)
+        dgen = DateRange(datetime)
         assert dgen.year_start == datetime.replace(month=1, day=1)
         assert dgen.year_end == datetime.replace(
             month=12, day=31, hour=23, minute=59, second=59, microsecond=999999
@@ -402,7 +402,7 @@ def test_datetime_month_range_calculate_correctly_for_full_months():
     full_month_ordinal = (1, 3, 5, 7, 8, 10, 12)
     for month in full_month_ordinal:
         datetime = dt.datetime(year=2023, month=month, day=10)
-        dgen = DateGen(datetime)
+        dgen = DateRange(datetime)
         assert dgen.month_start == datetime.replace(day=1)
         assert dgen.month_end == datetime.replace(day=31, **day_end)
         assert dgen.month_range == (
@@ -415,7 +415,7 @@ def test_datetime_month_range_calculate_correctly_for_short_months():
     short_month_ordinal = (4, 6, 9, 11)
     for month in short_month_ordinal:
         datetime = dt.datetime(year=2023, month=month, day=10)
-        dgen = DateGen(datetime)
+        dgen = DateRange(datetime)
         assert dgen.month_start == datetime.replace(day=1)
         assert dgen.month_end == datetime.replace(day=30, **day_end)
         assert dgen.month_range == (
@@ -437,10 +437,10 @@ def test_datetime_date_range_calculate_correctly_for_random_datetimes():
             second=randint(0, 59),
             microsecond=randint(0, 999999),
         )
-        dgen = DateGen(datetime)
-        assert dgen.date_start == datetime.replace(**day_start)
-        assert dgen.date_end == datetime.replace(**day_end)
-        assert dgen.date_range == (
+        dgen = DateRange(datetime)
+        assert dgen.today_start == datetime.replace(**day_start)
+        assert dgen.today_end == datetime.replace(**day_end)
+        assert dgen.today_range == (
             datetime.replace(**day_start),
             datetime.replace(**day_end),
         )
@@ -454,7 +454,7 @@ def test_datetime_date_range_calculate_correctly_for_random_datetimes():
 def test_datetime_week_range_calculate_correctly_for_all_months(
     datetime, week_start, week_end
 ):
-    dgen = DateGen(datetime)
+    dgen = DateRange(datetime)
     assert dgen.week_range == (week_start, week_end)
 
 
@@ -468,7 +468,7 @@ december_31st_datetime = dt.datetime(year=2023, month=12, day=31, **middle_day)
 
 
 def test_flow_date_gen_for_full_month_datetime():
-    dgen = DateGen(full_month_datetime)
+    dgen = DateRange(full_month_datetime)
     assert dgen.date == full_month_datetime
     assert dgen.year == full_month_datetime.year
     assert dgen.month == full_month_datetime.month
@@ -494,16 +494,16 @@ def test_flow_date_gen_for_full_month_datetime():
         full_month_datetime.replace(day=10, **day_start),
         full_month_datetime.replace(day=16, **day_end),
     )
-    assert dgen.date_start == full_month_datetime.replace(**day_start)
-    assert dgen.date_end == full_month_datetime.replace(**day_end)
-    assert dgen.date_range == (
+    assert dgen.today_start == full_month_datetime.replace(**day_start)
+    assert dgen.today_end == full_month_datetime.replace(**day_end)
+    assert dgen.today_range == (
         full_month_datetime.replace(**day_start),
         full_month_datetime.replace(**day_end),
     )
 
 
 def test_flow_date_gen_for_short_month_datetime():
-    dgen = DateGen(short_month_datetime)
+    dgen = DateRange(short_month_datetime)
     assert dgen.date == short_month_datetime
     assert dgen.year == short_month_datetime.year
     assert dgen.month == short_month_datetime.month
@@ -529,16 +529,16 @@ def test_flow_date_gen_for_short_month_datetime():
         short_month_datetime.replace(day=12, **day_start),
         short_month_datetime.replace(day=18, **day_end),
     )
-    assert dgen.date_start == short_month_datetime.replace(**day_start)
-    assert dgen.date_end == short_month_datetime.replace(**day_end)
-    assert dgen.date_range == (
+    assert dgen.today_start == short_month_datetime.replace(**day_start)
+    assert dgen.today_end == short_month_datetime.replace(**day_end)
+    assert dgen.today_range == (
         short_month_datetime.replace(**day_start),
         short_month_datetime.replace(**day_end),
     )
 
 
 def test_flow_date_gen_for_february_29th_datetime():
-    dgen = DateGen(february_29th_datetime)
+    dgen = DateRange(february_29th_datetime)
     assert dgen.date == february_29th_datetime
     assert dgen.year == february_29th_datetime.year
     assert dgen.month == february_29th_datetime.month
@@ -570,16 +570,16 @@ def test_flow_date_gen_for_february_29th_datetime():
         february_29th_datetime.replace(day=24, **day_start),
         february_29th_datetime.replace(month=3, day=1, **day_end),
     )
-    assert dgen.date_start == february_29th_datetime.replace(**day_start)
-    assert dgen.date_end == february_29th_datetime.replace(**day_end)
-    assert dgen.date_range == (
+    assert dgen.today_start == february_29th_datetime.replace(**day_start)
+    assert dgen.today_end == february_29th_datetime.replace(**day_end)
+    assert dgen.today_range == (
         february_29th_datetime.replace(**day_start),
         february_29th_datetime.replace(**day_end),
     )
 
 
 def test_flow_date_gen_for_february_28th_datetime():
-    dgen = DateGen(february_28th_datetime)
+    dgen = DateRange(february_28th_datetime)
     assert dgen.date == february_28th_datetime
     assert dgen.year == february_28th_datetime.year
     assert dgen.month == february_28th_datetime.month
@@ -611,16 +611,16 @@ def test_flow_date_gen_for_february_28th_datetime():
         february_28th_datetime.replace(day=27, **day_start),
         february_28th_datetime.replace(month=3, day=5, **day_end),
     )
-    assert dgen.date_start == february_28th_datetime.replace(**day_start)
-    assert dgen.date_end == february_28th_datetime.replace(**day_end)
-    assert dgen.date_range == (
+    assert dgen.today_start == february_28th_datetime.replace(**day_start)
+    assert dgen.today_end == february_28th_datetime.replace(**day_end)
+    assert dgen.today_range == (
         february_28th_datetime.replace(**day_start),
         february_28th_datetime.replace(**day_end),
     )
 
 
 def test_flow_date_gen_for_janury_1st_datetime():
-    dgen = DateGen(january_1st_datetime)
+    dgen = DateRange(january_1st_datetime)
     assert dgen.date == january_1st_datetime
     assert dgen.year == january_1st_datetime.year
     assert dgen.month == january_1st_datetime.month
@@ -646,16 +646,16 @@ def test_flow_date_gen_for_janury_1st_datetime():
         january_1st_datetime.replace(year=2022, month=12, day=26, **day_start),
         january_1st_datetime.replace(**day_end),
     )
-    assert dgen.date_start == january_1st_datetime.replace(**day_start)
-    assert dgen.date_end == january_1st_datetime.replace(**day_end)
-    assert dgen.date_range == (
+    assert dgen.today_start == january_1st_datetime.replace(**day_start)
+    assert dgen.today_end == january_1st_datetime.replace(**day_end)
+    assert dgen.today_range == (
         january_1st_datetime.replace(**day_start),
         january_1st_datetime.replace(**day_end),
     )
 
 
 def test_flow_date_gen_for_december_31st_datetime():
-    dgen = DateGen(december_31st_datetime)
+    dgen = DateRange(december_31st_datetime)
     assert dgen.date == december_31st_datetime
     assert dgen.year == december_31st_datetime.year
     assert dgen.month == december_31st_datetime.month
@@ -683,9 +683,9 @@ def test_flow_date_gen_for_december_31st_datetime():
         december_31st_datetime.replace(day=25, **day_start),
         december_31st_datetime.replace(**day_end),
     )
-    assert dgen.date_start == december_31st_datetime.replace(**day_start)
-    assert dgen.date_end == december_31st_datetime.replace(**day_end)
-    assert dgen.date_range == (
+    assert dgen.today_start == december_31st_datetime.replace(**day_start)
+    assert dgen.today_end == december_31st_datetime.replace(**day_end)
+    assert dgen.today_range == (
         december_31st_datetime.replace(**day_start),
         december_31st_datetime.replace(**day_end),
     )

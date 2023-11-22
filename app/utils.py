@@ -1,11 +1,21 @@
 import calendar
 import datetime as dt
 import re
+from typing import TypeVar
 
 from app import settings
 
+# strings like: "id>1", "created_at == 12.01.2020", "sum<10000" etc.
+_ComparingExpression = TypeVar("_ComparingExpression", bound=str)
 
-class DateGen:
+# string like: "-id", "created_at", "sum-" etc.
+_OrderByValue = TypeVar("_OrderByValue", bound=str)
+
+# any data type from sqlalchemy.sql.sqltypes
+_SQLAlchemyDataType = TypeVar("_SQLAlchemyDataType")
+
+
+class DateRange:
     # TODO: add middleware var `date_info`
     days_in_month = {
         1: 31,
@@ -59,10 +69,10 @@ class DateGen:
         return self.week_start, self.week_end
 
     @property
-    def date_range(
+    def today_range(
         self,
     ) -> tuple[dt.datetime, dt.datetime]:
-        return self.date_start, self.date_end
+        return self.today_start, self.today_end
 
     @property
     def yesterday_range(
@@ -112,29 +122,29 @@ class DateGen:
     @property
     def week_start(self) -> dt.date | dt.datetime:
         weekday = self.date.weekday()
-        return self.date_start - dt.timedelta(days=weekday)
+        return self.today_start - dt.timedelta(days=weekday)
 
     @property
     def week_end(self) -> dt.date | dt.datetime:
         days_in_week = 6
         weekday = self.date.weekday()
-        return self.date_end + dt.timedelta(days=days_in_week - weekday)
+        return self.today_end + dt.timedelta(days=days_in_week - weekday)
 
     @property
-    def date_start(self) -> dt.date | dt.datetime:
+    def today_start(self) -> dt.date | dt.datetime:
         return self.month_start.replace(day=self.date.day)
 
     @property
-    def date_end(self) -> dt.date | dt.datetime:
+    def today_end(self) -> dt.date | dt.datetime:
         return self.month_end.replace(day=self.date.day)
 
     @property
     def yesterday_start(self) -> dt.date | dt.datetime:
-        return self.date_start - dt.timedelta(days=1)
+        return self.today_start - dt.timedelta(days=1)
 
     @property
     def yesterday_end(self) -> dt.date | dt.datetime:
-        return self.date_end - dt.timedelta(days=1)
+        return self.today_end - dt.timedelta(days=1)
 
 
 def gen_date(today: dt.date | dt.datetime, date_descr: str):
