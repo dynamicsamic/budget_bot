@@ -59,9 +59,7 @@ def update(
         True if update performed successfully, False otherwise.
     """
     try:
-        updated = bool(
-            session.query(model).filter_by(id=id).update(update_kwargs)
-        )
+        updated = bool(session.query(model).filter_by(id=id).update(update_kwargs))
     except Exception as e:
         logger.error(
             f"{model.__tablename__.upper()} " f"instance update [FAILURE]: {e}"
@@ -75,8 +73,7 @@ def update(
         )
     else:
         logger.info(
-            f"No instance of {model.__tablename__.upper()} "
-            f"with id `{id}` found."
+            f"No instance of {model.__tablename__.upper()} " f"with id `{id}` found."
         )
     return updated
 
@@ -121,7 +118,7 @@ def delete(
 def get(
     model: Type[_BaseModel],
     session: Session | scoped_session,
-    id: int,
+    filters: List[BinaryExpression],
 ) -> _BaseModel:
     """Fetch a model instance with given id.
 
@@ -133,7 +130,7 @@ def get(
     Returns:
         model instance or None.
     """
-    return fetch(model, session, filters=[model.id == id]).one_or_none()
+    return fetch(model, session, filters=filters).one_or_none()
 
 
 def get_all(
