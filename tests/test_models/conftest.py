@@ -18,15 +18,15 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 
 @pytest.fixture(scope="session")
-def create_tables(engine):
-    Base.metadata.create_all(bind=engine)
+def create_tables(inmemory_engine):
+    Base.metadata.create_all(bind=inmemory_engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=inmemory_engine)
 
 
 @pytest.fixture
-def db_session(engine, create_tables) -> Session:
-    connection = engine.connect()
+def db_session(inmemory_engine, create_tables) -> Session:
+    connection = inmemory_engine.connect()
     connection.begin()
     session = scoped_session(sessionmaker(bind=connection, autoflush=False))
 
