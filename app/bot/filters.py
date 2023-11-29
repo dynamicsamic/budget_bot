@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from typing import Union
 
@@ -10,6 +11,28 @@ from app.utils import (
     validate_entry_date,
     validate_entry_sum,
 )
+
+
+class BudgetNameFilter(BaseFilter):
+    async def __call__(self, msg: Message) -> dict[str, str | None]:
+        valid_name_pattern = r"^[A-Za-zА-Яа-я0-9-_]{4,25}$"
+        context = {"filtered_budget_name": None}
+
+        if re.match(valid_name_pattern, msg.text):
+            context["filtered_budget_name"] = msg.text
+
+        return context
+
+
+class BudgetCurrencyFilter(BaseFilter):
+    async def __call__(self, msg: Message) -> dict[str, str | None]:
+        valid_currency_pattern = r"^[A-Za-zА-Яа-я]{3,10}$"
+        context = {"filtered_budget_currency": None}
+
+        if re.match(valid_currency_pattern, msg.text):
+            context["filtered_budget_currency"] = msg.text
+
+        return context
 
 
 class CategoryNameFilter(BaseFilter):
