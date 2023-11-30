@@ -2,10 +2,8 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class BudgetCreatetState(StatesGroup):
-    currency = State()
-
-
-class BudgetUpdateState(StatesGroup):
+    # choose_attribute = State()
+    name = State()
     currency = State()
 
 
@@ -18,7 +16,7 @@ class CategoryUpdateState(StatesGroup):
     name = State()
 
 
-class EntryCreateState(StatesGroup):
+class CreateEntry(StatesGroup):
     budget = State()
     category = State()
     sum = State()
@@ -30,3 +28,15 @@ class EntryList(StatesGroup):
     budgets = State()
     entry_id = State()
     action = State()
+    confirm_delete = State()
+
+
+class PreProcessEntry(StatesGroup):
+    choose_budget = State()
+    choose_category = State()
+    choose_entry = State()
+    choose_action = State()
+
+
+class DeleteEntry(StatesGroup):
+    confirm = State()

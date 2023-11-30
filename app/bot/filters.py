@@ -14,9 +14,18 @@ from app.utils import (
 
 
 class BudgetNameFilter(BaseFilter):
+    def __init__(self, *args, is_update: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.is_update = is_update
+
     async def __call__(self, msg: Message) -> dict[str, str | None]:
-        valid_name_pattern = r"^[A-Za-zА-Яа-я0-9-_]{4,25}$"
         context = {"filtered_budget_name": None}
+
+        if self.is_update:
+            if msg.text == ".":
+                context["filtered_budget_name"] = msg.text
+
+        valid_name_pattern = r"^[A-Za-zА-Яа-я0-9-_]{4,25}$"
 
         if re.match(valid_name_pattern, msg.text):
             context["filtered_budget_name"] = msg.text
@@ -25,14 +34,34 @@ class BudgetNameFilter(BaseFilter):
 
 
 class BudgetCurrencyFilter(BaseFilter):
+    def __init__(self, *args, is_update: bool = False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.is_update = is_update
+
     async def __call__(self, msg: Message) -> dict[str, str | None]:
-        valid_currency_pattern = r"^[A-Za-zА-Яа-я]{3,10}$"
         context = {"filtered_budget_currency": None}
+
+        if self.is_update:
+            if msg.text == ".":
+                context["filtered_budget_currency"] = msg.text
+
+        valid_currency_pattern = r"^[A-Za-zА-Яа-я]{3,10}$"
 
         if re.match(valid_currency_pattern, msg.text):
             context["filtered_budget_currency"] = msg.text
 
         return context
+
+
+class ExtractBudgetIdFilter(BaseFilter):
+    async def __call__(self, callback: CallbackQuery) -> dict[str, int | None]:
+        if callback.data.startswith("budget_item"):
+            extracted_budget_id = callback.data.rsplit("_", maxsplit=1)[-1]
+
+            if extracted_budget_id.isdigit():
+                return {"extracted_budget_id": int(extracted_budget_id)}
+
+            return {"extracted_budget_id": None}
 
 
 class CategoryNameFilter(BaseFilter):
