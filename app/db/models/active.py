@@ -46,10 +46,9 @@ class User(AbstractBaseModel):
 class Budget(AbstractBaseModel):
     __tablename__ = "budget"
 
-    name: Mapped[str] = mapped_column(String(length=50), unique=True)
+    name: Mapped[str] = mapped_column(String(length=25), unique=True)
     currency: Mapped[str] = mapped_column(
-        String(length=4),
-        CheckConstraint("length(currency) > 2 AND length(currency) < 5"),
+        String(length=10),
         default="RUB",
     )
     user_id: Mapped[int] = mapped_column(
