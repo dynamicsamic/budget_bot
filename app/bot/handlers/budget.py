@@ -10,7 +10,7 @@ from app.bot.filters import (
     BudgetNameFilter,
     ExtractBudgetIdFilter,
 )
-from app.bot.states import BudgetCreatetState
+from app.bot.states import BudgetCreateState, BudgetUpdateState
 from app.db.models import User
 from app.services.budget import (
     count_user_budgets,
@@ -39,10 +39,10 @@ async def cmd_create_budget(message: types.Message, state: FSMContext):
         reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
     )
 
-    await state.set_state(BudgetCreatetState.name)
+    await state.set_state(BudgetCreateState.set_name)
 
 
-@router.message(BudgetCreatetState.name, BudgetNameFilter())
+@router.message(BudgetCreateState.set_name, BudgetNameFilter())
 async def create_budget_set_name(
     message: types.Message, state: FSMContext, filtered_budget_name: str | None
 ):
@@ -65,10 +65,10 @@ async def create_budget_set_name(
         "(в любом регистре). Цифры и иные символы не допускаются.\n"
         "Отдавайте предпочтение общепринятым сокращениям, например RUB или USD."
     )
-    await state.set_state(BudgetCreatetState.currency)
+    await state.set_state(BudgetCreateState.set_currency)
 
 
-@router.message(BudgetCreatetState.currency, BudgetCurrencyFilter())
+@router.message(BudgetCreateState.set_currency, BudgetCurrencyFilter())
 async def create_budget_set_currency_and_finish(
     message: types.Message,
     state: FSMContext,
@@ -179,26 +179,132 @@ async def budget_delete(
 
 
 @router.callback_query(BudgetItemActionData.filter(F.action == "update"))
-async def update_budget_name(
+async def update_budget_choose_attribute(
     callback: types.CallbackQuery,
     callback_data: BudgetItemActionData,
     state: FSMContext,
 ):
     await callback.message.answer(
         "Желаете изменить ваш бюджет?\n"
-        "Установите новое название бюджета в ответном сообщении.\n"
-        "Если желаете оставить название без изменения и перейти "
-        "к изменению валюты, отправьте точку."
+        "Выберите параметр, который необходимо изменить.",
+        reply_markup=keyboards.create_callback_buttons(
+            button_names={
+                "название": "name",
+                "валюта": "currency",
+                "завершить": "finish",
+            },
+            callback_prefix="update_budget",
+        ),
     )
 
-    await state.set_state(BudgetCreatetState.name)
+    await state.set_state(BudgetUpdateState.choose_attribute)
     await state.set_data({"budget_id": callback_data.budget_id})
     await callback.answer()
 
 
+@router.callback_query(
+    BudgetUpdateState.choose_attribute, F.data == "update_budget_name"
+)
+async def update_budget_provide_name(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+):
+    await callback.message.answer("Введите новое название бюджета.")
+    await state.set_state(BudgetUpdateState.update_name)
+    await callback.answer()
+
+
 @router.message(
-    BudgetCreatetState.name,
-    BudgetNameFilter(is_update=True),
+    BudgetUpdateState.update_name,
+    BudgetNameFilter(),
+)
+async def update_budget_set_name(
+    message: types.Message, state: FSMContext, filtered_budget_name: str | None
+):
+    if filtered_budget_name is None:
+        await message.answer(
+            "Полученное название содержит недопустимые символы или превышает "
+            "предельно допустимую длину.\n"
+            "В названии бюджета можно использовать только буквы, цифры, "
+            "сиволы пробела, тире и нижнего подчеркивания.\n"
+            "Вам необходимо уложиться в 25 символов.",
+            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+        )
+        return
+
+    else:
+        await state.update_data(name=filtered_budget_name)
+
+    await message.answer(
+        f"Вы поменяли название бюджета на `{filtered_budget_name}`.\n"
+        "Вы можете изменить остальные параметры бюджета "
+        "или завершить редактирование.",
+        reply_markup=keyboards.create_callback_buttons(
+            button_names={
+                "название": "name",
+                "валюта": "currency",
+                "завершить": "finish",
+            },
+            callback_prefix="update_budget",
+        ),
+    )
+    await state.set_state(BudgetUpdateState.choose_attribute)
+
+
+@router.callback_query(
+    BudgetUpdateState.choose_attribute, F.data == "update_budget_currency"
+)
+async def update_budget_provide_currency(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+):
+    await callback.message.answer("Введите новую валюту бюджета.")
+    await state.set_state(BudgetUpdateState.update_currency)
+    await callback.answer()
+
+
+@router.message(
+    BudgetUpdateState.update_currency,
+    BudgetCurrencyFilter(),
+)
+async def update_budget_set_currency(
+    message: types.Message,
+    state: FSMContext,
+    filtered_budget_currency: str | None,
+):
+    if filtered_budget_currency is None:
+        await message.answer(
+            "Неверный формат обозначения валюты!\n"
+            "Наименование должно содержать от 3-х до 10-ти букв "
+            "(в любом регистре). Цифры и иные символы не допускаются.\n"
+            "Отдавайте предпочтение общепринятым сокращениям, например "
+            "RUB или USD.",
+            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+        )
+        return
+
+    else:
+        await state.update_data(currency=filtered_budget_currency)
+
+    await message.answer(
+        f"Вы поменяли валюту бюджета на `{filtered_budget_currency}`.\n"
+        "Вы можете изменить остальные параметры бюджета "
+        "или завершить редактирование.",
+        reply_markup=keyboards.create_callback_buttons(
+            button_names={
+                "название": "name",
+                "валюта": "currency",
+                "завершить": "finish",
+            },
+            callback_prefix="update_budget",
+        ),
+    )
+    await state.set_state(BudgetUpdateState.choose_attribute)
+
+
+@router.message(
+    BudgetUpdateState.update_name,
+    BudgetNameFilter(),
 )
 async def update_budget_currency(
     message: types.Message, state: FSMContext, filtered_budget_name: str | None
@@ -219,16 +325,14 @@ async def update_budget_currency(
     else:
         await state.update_data(name=filtered_budget_name)
 
-    await message(
+    await message.answer(
         "Введите новую валюту бюджета."
         "Если желаете оставить валюту без изменения, отправьте точку."
     )
-    await state.set_state(BudgetCreatetState.currency)
+    await state.set_state(BudgetUpdateState.update_currency)
 
 
-@router.message(
-    BudgetCreatetState.currency, BudgetCurrencyFilter(is_update=True)
-)
+@router.message(BudgetUpdateState.update_currency, BudgetCurrencyFilter())
 async def budget_item_update_finish(
     message: types.Message,
     state: FSMContext,

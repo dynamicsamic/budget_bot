@@ -14,41 +14,40 @@ from app.utils import (
 
 
 class BudgetNameFilter(BaseFilter):
-    def __init__(self, *args, is_update: bool = False, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.is_update = is_update
+    async def __call__(
+        self, msg: Message | CallbackQuery
+    ) -> dict[str, str | None]:
+        user_input = (
+            msg.text
+            if isinstance(msg, Message)
+            else CallbackQuery.message.text
+        )
 
-    async def __call__(self, msg: Message) -> dict[str, str | None]:
         context = {"filtered_budget_name": None}
 
-        if self.is_update:
-            if msg.text == ".":
-                context["filtered_budget_name"] = msg.text
-
         valid_name_pattern = r"^[A-Za-zА-Яа-я0-9-_]{4,25}$"
-
-        if re.match(valid_name_pattern, msg.text):
-            context["filtered_budget_name"] = msg.text
+        if re.match(valid_name_pattern, user_input):
+            context["filtered_budget_name"] = user_input
 
         return context
 
 
 class BudgetCurrencyFilter(BaseFilter):
-    def __init__(self, *args, is_update: bool = False, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.is_update = is_update
+    async def __call__(
+        self, msg: Message | CallbackQuery
+    ) -> dict[str, str | None]:
+        user_input = (
+            msg.text
+            if isinstance(msg, Message)
+            else CallbackQuery.message.text
+        )
 
-    async def __call__(self, msg: Message) -> dict[str, str | None]:
         context = {"filtered_budget_currency": None}
-
-        if self.is_update:
-            if msg.text == ".":
-                context["filtered_budget_currency"] = msg.text
 
         valid_currency_pattern = r"^[A-Za-zА-Яа-я]{3,10}$"
 
-        if re.match(valid_currency_pattern, msg.text):
-            context["filtered_budget_currency"] = msg.text
+        if re.match(valid_currency_pattern, user_input):
+            context["filtered_budget_currency"] = user_input
 
         return context
 
