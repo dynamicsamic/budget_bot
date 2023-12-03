@@ -1,12 +1,13 @@
 import logging
 from typing import List, Optional, Type
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, scoped_session
 from sqlalchemy.sql.elements import BinaryExpression
 
 from app.db.custom_types import _BaseModel
 
-from .core import fetch
+from .core import aggregate_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -36,4 +37,12 @@ def count(
         manager.count(filters=["model.id>100"])
         ```
     """
-    return fetch(model, session, filters=filters).count()
+    return aggregate_fetch(session, func.count, model.id, filters)
+
+
+def summate(
+    model: Type[_BaseModel],
+    session: Session | scoped_session,
+    filters: Optional[List[BinaryExpression]] = None,
+) -> int:
+    return aggregate_fetch(session, func.sum, model._cashflowfield, filters)
