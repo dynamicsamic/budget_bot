@@ -1,10 +1,16 @@
 import datetime as dt
 import logging
-from typing import List, Optional, Type
+from typing import Any, List, Optional, Type
 
 from sqlalchemy import and_
-from sqlalchemy.orm import Query, Session, scoped_session
+from sqlalchemy.orm import (
+    InstrumentedAttribute,
+    Query,
+    Session,
+    scoped_session,
+)
 from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy.sql.functions import GenericFunction
 
 from app.db.custom_types import _BaseModel, _ModelWithDatefield, _OrderByValue
 
@@ -14,6 +20,8 @@ logger = logging.getLogger(__name__)
 def fetch(
     model: Type[_BaseModel],
     session: Session | scoped_session,
+    *,
+    columns: Optional[List[InstrumentedAttribute]] = None,
     order_by: Optional[List[_OrderByValue]] = None,
     filters: Optional[List[BinaryExpression]] = None,
 ) -> Query[_BaseModel]:
@@ -54,6 +62,20 @@ def fetch(
     return query
 
 
+def aggregate_fetch(
+    session: Session | scoped_session,
+    aggregate_function: GenericFunction,
+    target_column: InstrumentedAttribute,
+    filters: Optional[List[BinaryExpression]] = None,
+) -> Any:
+    query = session.query(aggregate_function(target_column))
+
+    if filters is not None:
+        query = query.filter(and_(True, *filters))
+
+    return query.scalar()
+
+
 def between(
     model: Type[_ModelWithDatefield],
     session: Session | scoped_session,
@@ -77,4 +99,33 @@ def between(
     """
     filters = filters or []
     filters.append(model._datefield.between(start, end))
-    return fetch(model, session, order_by, filters)
+    return fetch(model, session, order_by=order_by, filters=filters)
+
+
+def aggregate_between(
+    model: Type[_ModelWithDatefield],
+    session: Session | scoped_session,
+    start: dt.datetime | dt.date,
+    end: dt.datetime | dt.date,
+    aggregate_function: GenericFunction,
+    target_column: InstrumentedAttribute,
+    filters: Optional[List[BinaryExpression]] = None,
+) -> Query[_ModelWithDatefield]:
+    """Fetch `model` instances between given borders.
+
+    This is the underlying method for all public date range methods.
+
+    Args:
+        start: The start of a datetime (date) range.
+        end: The end of a datetime (date) range.
+        filters: Sequence of comparing expressions.
+        reverse: Flag to reverse the order of resulting query.
+
+    Returns:
+        sqlclahemy.Query that contains model instances between given gaps.
+    """
+    filters = filters or []
+    filters.append(model._datefield.between(start, end))
+    return aggregate_fetch(
+        session, aggregate_function, target_column, filters=filters
+    )
