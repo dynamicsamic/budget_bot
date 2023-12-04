@@ -70,3 +70,6 @@ class AbstractBaseModel(Base, ModelFieldsDetails):
 
     def __repr__(self) -> str:
         pass
+
+    def render(self) -> str:
+        pass

@@ -1,6 +1,6 @@
 import datetime as dt
 import enum
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -10,7 +10,12 @@ from sqlalchemy import (
     Integer,
     String,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    InstrumentedAttribute,
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app import settings
 
@@ -34,7 +39,7 @@ class User(AbstractBaseModel):
 
     @classmethod
     @property
-    def _datefield(cls):
+    def _datefield(cls) -> InstrumentedAttribute:
         return cls.created_at
 
     def __repr__(self) -> str:
@@ -46,7 +51,7 @@ class User(AbstractBaseModel):
 class Budget(AbstractBaseModel):
     __tablename__ = "budget"
 
-    name: Mapped[str] = mapped_column(String(length=25), unique=True)
+    name: Mapped[str] = mapped_column(String(length=100), unique=True)
     currency: Mapped[str] = mapped_column(
         String(length=10),
         default="RUB",
@@ -65,17 +70,42 @@ class Budget(AbstractBaseModel):
         cascade="delete, merge, save-update",
         passive_deletes=True,
     )
+    num_categories: Mapped[int] = mapped_column(default=0)
+    num_entries: Mapped[int] = mapped_column(default=0)
 
-    @classmethod
-    @property
-    def _datefield(cls):
-        return cls.created_at
+    def __init__(self, **kw: Any) -> None:
+        super().__init__(**kw)
+        self.name = self._make_unique_name()
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, UserId={self.user_id}, "
             f"Currency={self.currency}, Name={self.name})"
         )
+
+    @classmethod
+    @property
+    def _datefield(cls) -> InstrumentedAttribute:
+        return cls.created_at
+
+    @property
+    def public_name(self) -> str:
+        *_, name = self.name.split(":")
+        return name
+
+    def render(self) -> str:
+        num_entries = self.num_entries
+        msg_ending = "операций"
+
+        if num_entries == 1:
+            msg_ending = "операция"
+        elif 1 < num_entries < 5:
+            msg_ending = "операции"
+
+        return f"{self.name}({self.currency}), {num_entries} {msg_ending}"
+
+    def _make_unique_name(self) -> str:
+        return f"user_{self.user_id}:{self.name}"
 
 
 class EntryCategory(AbstractBaseModel):
@@ -94,7 +124,7 @@ class EntryCategory(AbstractBaseModel):
 
     @classmethod
     @property
-    def _datefield(cls):
+    def _datefield(cls) -> InstrumentedAttribute:
         return cls.last_used
 
     def __repr__(self) -> str:
@@ -124,12 +154,12 @@ class Entry(AbstractBaseModel):
 
     @classmethod
     @property
-    def _datefield(cls):
+    def _datefield(cls) -> InstrumentedAttribute:
         return cls.transaction_date
 
     @classmethod
     @property
-    def _cashflowfield(cls):
+    def _cashflowfield(cls) -> InstrumentedAttribute:
         return cls.sum
 
     @property
