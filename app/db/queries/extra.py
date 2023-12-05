@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Type
+from typing import Any, List, Optional, Type
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, scoped_session
@@ -46,3 +46,13 @@ def summate(
     filters: Optional[List[BinaryExpression]] = None,
 ) -> int:
     return aggregate_fetch(session, func.sum, model._cashflowfield, filters)
+
+
+def validate_model_kwargs(model: _BaseModel, kwargs: dict[str, Any]) -> bool:
+    if invalid_fields := set(kwargs.keys()) - model.fieldnames:
+        logger.error(
+            f"Invalid kwargs for {model.__tablename__.capitalize()} "
+            f"model: {', '.join(invalid_fields)}."
+        )
+        return False
+    return True

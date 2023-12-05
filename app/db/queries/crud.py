@@ -9,6 +9,7 @@ from sqlalchemy.sql.elements import BinaryExpression
 from app.db.custom_types import _BaseModel, _OrderByValue
 
 from .core import fetch
+from .extra import validate_model_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,11 @@ def create(
     Returns:
         The newly created instance or None if error occured.
     """
+    if not validate_model_kwargs(model, create_kwargs):
+        return
+
+    obj = model(**create_kwargs)
     try:
-        obj = model(**create_kwargs)
         session.add(obj)
         session.commit()
     except Exception as e:
@@ -58,8 +62,13 @@ def update(
     Returns:
         True if update performed successfully, False otherwise.
     """
+    if not validate_model_kwargs(model, update_kwargs):
+        return False
+
     try:
-        updated = bool(session.query(model).filter_by(id=id).update(update_kwargs))
+        updated = bool(
+            session.query(model).filter_by(id=id).update(update_kwargs)
+        )
     except Exception as e:
         logger.error(
             f"{model.__tablename__.upper()} " f"instance update [FAILURE]: {e}"
@@ -73,7 +82,8 @@ def update(
         )
     else:
         logger.info(
-            f"No instance of {model.__tablename__.upper()} " f"with id `{id}` found."
+            f"No instance of {model.__tablename__.upper()} "
+            f"with id `{id}` found."
         )
     return updated
 
@@ -152,4 +162,4 @@ def get_all(
             when invoking the all() method.
 
     """
-    return fetch(model, session, order_by, filters)
+    return fetch(model, session, order_by=order_by, filters=filters)
