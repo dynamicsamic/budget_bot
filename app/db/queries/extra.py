@@ -49,10 +49,23 @@ def summate(
 
 
 def validate_model_kwargs(model: _BaseModel, kwargs: dict[str, Any]) -> bool:
-    if invalid_fields := set(kwargs.keys()) - model.fieldnames:
-        logger.error(
-            f"Invalid kwargs for {model.__tablename__.capitalize()} "
-            f"model: {', '.join(invalid_fields)}."
-        )
-        return False
+    model_fields = model.fields
+
+    for arg, value in kwargs.items():
+        field = model_fields.get(arg)
+        if field is None:
+            logger.error(
+                "Invalid attribute for model "
+                f"{model.__tablename__.capitalize()}: `{arg}`."
+            )
+            return False
+
+        value_type, field_type = type(value), field.type.python_type
+        if not issubclass(value_type, field_type):
+            logger.error(
+                f"Invalid type for `{arg}` argument: recieved "
+                f"{value_type}, instead of {field_type}"
+            )
+            return False
+
     return True
