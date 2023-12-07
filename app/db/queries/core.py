@@ -1,16 +1,20 @@
 import datetime as dt
 import logging
+from dataclasses import dataclass
+from functools import partial
 from typing import Any, List, Optional, Type
 
-from sqlalchemy import and_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import (
     InstrumentedAttribute,
     Query,
     Session,
     scoped_session,
 )
+from sqlalchemy.sql._typing import _TypedColumnClauseArgument
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.functions import GenericFunction
+from sqlalchemy.sql.selectable import Select
 
 from app.db.custom_types import _BaseModel, _ModelWithDatefield, _OrderByValue
 
@@ -21,7 +25,6 @@ def fetch(
     model: Type[_BaseModel],
     session: Session | scoped_session,
     *,
-    columns: Optional[List[InstrumentedAttribute]] = None,
     order_by: Optional[List[_OrderByValue]] = None,
     filters: Optional[List[BinaryExpression]] = None,
 ) -> Query[_BaseModel]:
@@ -129,3 +132,81 @@ def aggregate_between(
     return aggregate_fetch(
         session, aggregate_function, target_column, filters=filters
     )
+
+
+def session_execute(f):
+    def wrap(*args, **kwargs):
+        session = args[0].session
+        q = f(*args, **kwargs)
+        return session.execute(q)
+
+    return wrap
+
+
+def one_or_none(f):
+    def wrap(*args, **kwargs):
+        session = args[0].session
+        q = f(*args, **kwargs)
+        return session.execute(q).one_or_none()
+
+    return wrap
+
+
+def as_scalar(f):
+    def wrap(*args, **kwargs):
+        session = args[0].session
+        q = f(*args, **kwargs)
+        return session.execute(q).scalar()
+
+    return wrap
+
+
+def as_scalars(f):
+    def wrap(*args, **kwargs):
+        session = args[0].session
+        q = f(*args, **kwargs)
+        return session.execute(q).scalars()
+
+    return wrap
+
+
+@dataclass
+class DbSessionController:
+    session: Session | scoped_session
+    model: Type[_BaseModel]
+
+    def _fetch(
+        self,
+        query_arg: _TypedColumnClauseArgument = None,
+        *,
+        order_by: Optional[List[_OrderByValue]] = None,
+        filters: Optional[List[BinaryExpression]] = None,
+        combine_filters: bool = True,
+    ) -> Select:
+        if query_arg is None:
+            query_arg = self.model
+
+        query = select(query_arg)
+
+        if order_by:
+            query = query.order_by(*order_by)
+
+        if filters:
+            filter_strategy = (
+                partial(and_, True) if combine_filters else partial(or_, False)
+            )
+            query = query.filter(filter_strategy(*filters))
+
+        return query
+
+    @one_or_none
+    def get(self, filters):
+        return self._fetch(filters=filters)
+
+    @as_scalar
+    def count(self, filters, combine_filters=True):
+        return self._fetch(
+            func.count(self.model.id),
+            filters=filters,
+            combine_filters=combine_filters,
+        )
