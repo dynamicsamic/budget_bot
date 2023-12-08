@@ -1,24 +1,55 @@
 import datetime as dt
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, List, Optional, Type
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy import delete as sql_delete
+from sqlalchemy import update as sql_update
+from sqlalchemy.engine.row import Row
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import (
     InstrumentedAttribute,
     Query,
     Session,
     scoped_session,
 )
-from sqlalchemy.sql._typing import _TypedColumnClauseArgument
+from sqlalchemy.sql._typing import (
+    _DMLColumnArgument,
+    _TypedColumnClauseArgument,
+)
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.functions import GenericFunction
 from sqlalchemy.sql.selectable import Select
 
+from app.db import models
 from app.db.custom_types import _BaseModel, _ModelWithDatefield, _OrderByValue
 
 logger = logging.getLogger(__name__)
+
+
+def validate_model_kwargs(model: _BaseModel, kwargs: dict[str, Any]) -> bool:
+    model_fields = model.fields
+
+    for arg, value in kwargs.items():
+        field = model_fields.get(arg)
+        if field is None:
+            logger.error(
+                "Invalid attribute for model "
+                f"{model.__tablename__.capitalize()}: `{arg}`."
+            )
+            return False
+
+        value_type, field_type = type(value), field.type.python_type
+        if not issubclass(value_type, field_type):
+            logger.error(
+                f"Invalid type for `{arg}` argument: recieved "
+                f"{value_type}, instead of {field_type}"
+            )
+            return False
+
+    return True
 
 
 def fetch(
@@ -134,55 +165,134 @@ def aggregate_between(
     )
 
 
-def session_execute(f):
-    def wrap(*args, **kwargs):
-        session = args[0].session
-        q = f(*args, **kwargs)
-        return session.execute(q)
-
-    return wrap
-
-
-def one_or_none(f):
-    def wrap(*args, **kwargs):
-        session = args[0].session
-        q = f(*args, **kwargs)
-        return session.execute(q).one_or_none()
-
-    return wrap
-
-
-def as_scalar(f):
-    def wrap(*args, **kwargs):
-        session = args[0].session
-        q = f(*args, **kwargs)
-        return session.execute(q).scalar()
-
-    return wrap
-
-
-def as_scalars(f):
-    def wrap(*args, **kwargs):
-        session = args[0].session
-        q = f(*args, **kwargs)
-        return session.execute(q).scalars()
-
-    return wrap
-
-
 @dataclass
 class DbSessionController:
     session: Session | scoped_session
     model: Type[_BaseModel]
 
+    def _create(
+        self,
+        **create_kwargs: Any,
+    ) -> _BaseModel | None:
+        """Create an instance of model.
+
+        Args:
+            model: A subclass of app.models.base.AbstractBaseModel.
+            session: An instance of sqlalchemy.orm.Session or scoped_session.
+            create_kwargs: A mapping of model's attribute (field) names
+            to their values.
+
+        Returns:
+            The newly created instance or None if error occured.
+        """
+        if not validate_model_kwargs(self.model, create_kwargs):
+            return
+
+        obj = self.model(**create_kwargs)
+        try:
+            self.session.add(obj)
+            self.session.commit()
+        except Exception as e:
+            logger.error(f"Instance creation [FAILURE]: {e}")
+            return
+        logger.info(f"New instance of {self.model} created")
+        return obj
+
+    def _update(
+        self,
+        id: int,
+        update_kwargs: dict[_DMLColumnArgument, Any],
+    ) -> bool:
+        """Update model instance with given kwargs.
+
+        Args:
+            model: A subclass of app.models.base.AbstractBaseModel.
+            session: An instance of sqlalchemy.orm.Session or scoped_session.
+            id: id of the model instance to be updated.
+            update_kwargs: A mapping of model's attribute names (fields) that
+                should be updated to new values.
+
+        Returns:
+            True if update performed successfully, False otherwise.
+        """
+        if not validate_model_kwargs(self.model, update_kwargs):
+            return False
+
+            # updated = bool(
+            #     self.session.query(self.model).filter_by(id=id).update(update_kwargs)
+            # )
+        update_query = (
+            sql_update(self.model)
+            .where(self.model.id == id)
+            .values(update_kwargs)
+        )
+        try:
+            updated = bool(self.session.execute(update_query).rowcount)
+        except Exception as e:
+            logger.error(
+                f"{self.model.__tablename__.upper()} "
+                f"instance update [FAILURE]: {e}"
+            )
+            return False
+        if updated:
+            self.session.commit()
+            logger.info(
+                f"{self.model.__tablename__.upper()} instance "
+                f"with id `{id}` update [SUCCESS]"
+            )
+        else:
+            logger.info(
+                f"No instance of {self.model.__tablename__.upper()} "
+                f"with id `{id}` found."
+            )
+        return updated
+
+    def _delete(
+        self,
+        id: int,
+    ) -> bool:
+        """Delete `self.model` instance with given id.
+
+        Args:
+            model: A subclass of app.models.base.AbstractBaseModel.
+            session: An instance of sqlalchemy.orm.Session or scoped_session.
+            id: id of the model instance to be updated.
+
+        Returns:
+            True if delete performed successfully, False otherwise.
+        """
+        # deleted = bool(session.query(model).filter_by(id=id).delete())
+        # session.commit()
+        delete_query = sql_delete(self.model).where(self.model.id == id)
+        try:
+            deleted = bool(self.session.execute(delete_query).rowcount)
+        except SQLAlchemyError as e:
+            logger.error(
+                f"{self.model.__tablename__.upper()} "
+                f"instance delete [FAILURE]: {e}"
+            )
+            return False
+        if deleted:
+            logger.info(
+                f"{self.model.__tablename__.upper()} instance "
+                f"with id `{id}` delete [SUCCESS]"
+            )
+        else:
+            logger.warning(
+                f"Attempt to delete instance of "
+                f"{self.model.__tablename__.upper()} with id `{id}`. "
+                "No delete performed."
+            )
+        return deleted
+
     def _fetch(
         self,
-        query_arg: _TypedColumnClauseArgument = None,
+        query_arg: Optional[_TypedColumnClauseArgument] = None,
         *,
         order_by: Optional[List[_OrderByValue]] = None,
         filters: Optional[List[BinaryExpression]] = None,
-        combine_filters: bool = True,
-    ) -> Select:
+        combine_filters: Optional[bool] = True,
+    ) -> Select[Row]:
         if query_arg is None:
             query_arg = self.model
 
@@ -195,18 +305,101 @@ class DbSessionController:
             filter_strategy = (
                 partial(and_, True) if combine_filters else partial(or_, False)
             )
-            query = query.filter(filter_strategy(*filters))
+            query = query.where(filter_strategy(*filters))
 
         return query
 
-    @one_or_none
-    def get(self, filters):
-        return self._fetch(filters=filters)
+    def _get(
+        self,
+        filters: List[BinaryExpression],
+        combine_filters: Optional[bool] = True,
+    ):
+        q = self._fetch(filters=filters, combine_filters=combine_filters)
+        return self.session.execute(q).one_or_none()
 
-    @as_scalar
-    def count(self, filters, combine_filters=True):
-        return self._fetch(
+    def _get_all(
+        self,
+        order_by: Optional[List[_OrderByValue]] = None,
+        filters: Optional[List[BinaryExpression]] = None,
+        offset: int = 0,
+        limit: int = 10,
+    ) -> Select[Row]:
+        q = self._fetch(order_by=order_by, filters=filters).limit(limit)
+        if offset:
+            q = q.offset(offset)
+
+        return self.session.execute(q)
+
+    def _count(
+        self,
+        filters: Optional[List[BinaryExpression]] = None,
+        combine_filters: Optional[bool] = True,
+    ) -> int:
+        q = self._fetch(
             func.count(self.model.id),
             filters=filters,
             combine_filters=combine_filters,
         )
+        return self.session.scalar(q)
+
+    def _exists(
+        self,
+        filters: Optional[List[BinaryExpression]] = None,
+        combine_filters: Optional[bool] = True,
+    ) -> bool:
+        q = self._fetch(
+            self.model.id,
+            filters=filters,
+            combine_filters=combine_filters,
+        ).limit(1)
+        return bool(self.session.scalar(q))
+
+
+@dataclass
+class BudgetModelController(DbSessionController):
+    model: Type[_BaseModel] = field(default=models.Budget, init=False)
+
+    def get_user_budgets(self, user_id: int) -> Select[Row]:
+        return self._get_all(
+            [self.model.created_at.desc()], [self.model.user_id == user_id]
+        )
+
+    def get_budget(self, budget_id: int) -> models.Budget:
+        return self._get(
+            filters=[self.model.id == budget_id],
+        )
+
+    def create_budget(
+        self,
+        user_id: int,
+        name: str,
+        currency: str,
+    ) -> models.Budget | None:
+        return self._create(user_id=user_id, name=name, currency=currency)
+
+    def update_budget(
+        self,
+        budget_id: int,
+        update_kwargs: dict[_DMLColumnArgument, Any],
+    ) -> bool:
+        return self._update(budget_id, update_kwargs)
+
+    def delete_budget(
+        self,
+        budget_id: int,
+    ) -> bool:
+        return self._delete(budget_id)
+
+    def count_user_budgets(self, user_id: int) -> int:
+        return self._count([self.model.user_id == user_id])
+
+    def budget_exists(
+        self, *, budget_id: int = 0, budget_name: str = ""
+    ) -> bool:
+        return self._exists(
+            [self.model.id == budget_id, self.model.name == budget_name],
+            combine_filters=False,
+        )
+
+
+budget_controller = BudgetModelController
