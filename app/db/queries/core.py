@@ -291,7 +291,7 @@ class DbSessionController:
         *,
         order_by: Optional[List[_OrderByValue]] = None,
         filters: Optional[List[BinaryExpression]] = None,
-        combine_filters: Optional[bool] = True,
+        join_filters: Optional[bool] = True,
     ) -> Select[Row]:
         if query_arg is None:
             query_arg = self.model
@@ -303,7 +303,7 @@ class DbSessionController:
 
         if filters:
             filter_strategy = (
-                partial(and_, True) if combine_filters else partial(or_, False)
+                partial(and_, True) if join_filters else partial(or_, False)
             )
             query = query.where(filter_strategy(*filters))
 
@@ -312,9 +312,9 @@ class DbSessionController:
     def _get(
         self,
         filters: List[BinaryExpression],
-        combine_filters: Optional[bool] = True,
+        join_filters: Optional[bool] = True,
     ):
-        q = self._fetch(filters=filters, combine_filters=combine_filters)
+        q = self._fetch(filters=filters, join_filters=join_filters)
         return self.session.execute(q).one_or_none()
 
     def _get_all(
@@ -333,26 +333,58 @@ class DbSessionController:
     def _count(
         self,
         filters: Optional[List[BinaryExpression]] = None,
-        combine_filters: Optional[bool] = True,
+        join_filters: Optional[bool] = True,
     ) -> int:
         q = self._fetch(
             func.count(self.model.id),
             filters=filters,
-            combine_filters=combine_filters,
+            join_filters=join_filters,
         )
         return self.session.scalar(q)
 
     def _exists(
         self,
         filters: Optional[List[BinaryExpression]] = None,
-        combine_filters: Optional[bool] = True,
+        join_filters: Optional[bool] = True,
     ) -> bool:
         q = self._fetch(
             self.model.id,
             filters=filters,
-            combine_filters=combine_filters,
+            join_filters=join_filters,
         ).limit(1)
         return bool(self.session.scalar(q))
+
+
+@dataclass
+class UserModelController(DbSessionController):
+    model: Type[_BaseModel] = field(default=models.User, init=False)
+
+    def get_user(self, user_id: int = 0, tg_id: int = 0) -> models.User:
+        return self._get(
+            filters=[self.model.id == user_id, self.model.tg_id == tg_id],
+            join_filters=False,
+        )
+
+    def create_user(
+        self,
+        tg_id: int,
+    ) -> models.Budget | None:
+        return self._create(tg_id=tg_id)
+
+    def delete_user(
+        self,
+        user_id: int,
+    ) -> bool:
+        return self._delete(user_id)
+
+    def user_exists(self, *, user_id: int = 0, tg_id: int = 0) -> bool:
+        return self._exists(
+            [
+                self.model.id == user_id,
+                self.model.tg_id == tg_id,
+            ],
+            join_filters=False,
+        )
 
 
 @dataclass
@@ -374,7 +406,7 @@ class BudgetModelController(DbSessionController):
         user_id: int,
         name: str,
         currency: str,
-    ) -> models.Budget | None:
+    ) -> models.User | None:
         return self._create(user_id=user_id, name=name, currency=currency)
 
     def update_budget(
@@ -394,12 +426,17 @@ class BudgetModelController(DbSessionController):
         return self._count([self.model.user_id == user_id])
 
     def budget_exists(
-        self, *, budget_id: int = 0, budget_name: str = ""
+        self, *, budget_id: int = 0, budget_name: str = "", user_id: int = 0
     ) -> bool:
         return self._exists(
-            [self.model.id == budget_id, self.model.name == budget_name],
-            combine_filters=False,
+            [
+                self.model.id == budget_id,
+                self.model.name == budget_name,
+                self.model.user_id == user_id,
+            ],
+            join_filters=False,
         )
 
 
+user_controller = UserModelController
 budget_controller = BudgetModelController
