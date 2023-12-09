@@ -1,7 +1,6 @@
 from aiogram import F, Router, types
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
-from sqlalchemy.orm import Session, scoped_session
 
 from app.bot import keyboards
 from app.bot.callback_data import BudgetItemActionData
@@ -10,17 +9,13 @@ from app.bot.filters import (
     BudgetNameFilter,
     ExtractBudgetIdFilter,
 )
+from app.bot.middlewares import AddBudgetControllerMiddleWare
 from app.bot.states import BudgetCreateState, BudgetUpdateState
 from app.db.models import User
-from app.services.budget import (
-    count_user_budgets,
-    create_budget,
-    delete_budget,
-    get_user_budgets,
-    update_budget,
-)
+from app.db.queries.core import budget_controller
 
 router = Router()
+router.message.middleware(AddBudgetControllerMiddleWare())
 
 
 @router.message(Command("create_budget"))
@@ -44,7 +39,11 @@ async def cmd_create_budget(message: types.Message, state: FSMContext):
 
 @router.message(BudgetCreateState.set_name, BudgetNameFilter())
 async def create_budget_set_name(
-    message: types.Message, state: FSMContext, filtered_budget_name: str | None
+    message: types.Message,
+    state: FSMContext,
+    filtered_budget_name: str | None,
+    user: User,
+    budget_controller: budget_controller,
 ):
     if filtered_budget_name is None:
         await message.answer(
@@ -54,6 +53,15 @@ async def create_budget_set_name(
             "сиволы пробела, тире и нижнего подчеркивания.\n"
             "Вам необходимо уложиться в 25 символов.",
             reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+        )
+        return
+
+    elif budget_controller.budget_exists(
+        budget_name=f"user_{user.id}:{filtered_budget_name}"
+    ):
+        await message.answer(
+            f"У Вас уже есть бюджет с названием {filtered_budget_name}.\n"
+            "Пожалуйста, придумайте новое название."
         )
         return
 
@@ -73,8 +81,8 @@ async def create_budget_set_currency_and_finish(
     message: types.Message,
     state: FSMContext,
     user: User,
-    db_session: Session | scoped_session,
     filtered_budget_currency: str | None,
+    budget_controller: budget_controller,
 ):
     if filtered_budget_currency is None:
         await message.answer(
@@ -87,17 +95,19 @@ async def create_budget_set_currency_and_finish(
         )
         return
 
-    created = create_budget(
-        db_session,
+    data = await state.get_data()
+    budget_name = data["name"]
+
+    created = budget_controller.create_budget(
         user_id=user.id,
-        name=f"user{user.tg_id}_{filtered_budget_currency}",
+        name=budget_name,
         currency=filtered_budget_currency,
     )
 
     if created:
         await message.answer(
             "Поздравляем! Вы успешно создали новый личный бюджет.\n"
-            f"Название бюджета: {created.name}, валюта: {created.currency}.\n"
+            f"Название бюджета: {created.public_name}, валюта: {created.currency}.\n"
             "Можете добавить новые транзакции или категории."
         )
 
@@ -120,12 +130,19 @@ async def cmd_show_budgets(
     message: types.Message,
     state: FSMContext,
     user: User,
-    db_session: Session | scoped_session,
+    budget_controller: budget_controller,
 ):
-    if count_user_budgets(db_session, user.id) == 0:
-        await cmd_create_budget(message, state)
+    if not budget_controller.budget_exists(user_id=user.id):
+        await message.answer(
+            "У Вас пока нет ни одного бюджета.\n"
+            "Создайте бюджет, нажав на кнопку ниже.",
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.create_new_budget,
+                keyboards.buttons.main_menu,
+            ),
+        )
     else:
-        budgets = get_user_budgets(db_session, user.id)
+        budgets = budget_controller.get_user_budgets(user.id)
         await message.answer(
             "Кликните на нужный бюджет, чтобы выбрать действие",
             reply_markup=keyboards.budget_item_list_interactive(budgets),
@@ -137,9 +154,9 @@ async def show_budgets(
     callback: types.CallbackQuery,
     state: FSMContext,
     user: User,
-    db_session: Session | scoped_session,
+    budget_controller: budget_controller,
 ):
-    await cmd_show_budgets(callback.message, state, user, db_session)
+    await cmd_show_budgets(callback.message, state, user, budget_controller)
     await callback.answer()
 
 
@@ -166,9 +183,9 @@ async def budget_item_show_options(
 async def budget_delete(
     callback: types.CallbackQuery,
     callback_data: BudgetItemActionData,
-    db_session: Session | scoped_session,
+    budget_controller: budget_controller,
 ):
-    deleted = delete_budget(db_session, callback_data.budget_id)
+    deleted = budget_controller.delete_budget(callback_data.budget_id)
     if deleted:
         await callback.message.answer("Бюджет был успешно удален")
     else:
@@ -219,7 +236,11 @@ async def update_budget_provide_name(
     BudgetNameFilter(),
 )
 async def update_budget_set_name(
-    message: types.Message, state: FSMContext, filtered_budget_name: str | None
+    message: types.Message,
+    state: FSMContext,
+    user: User,
+    filtered_budget_name: str | None,
+    budget_controller: budget_controller,
 ):
     if filtered_budget_name is None:
         await message.answer(
@@ -229,6 +250,14 @@ async def update_budget_set_name(
             "сиволы пробела, тире и нижнего подчеркивания.\n"
             "Вам необходимо уложиться в 25 символов.",
             reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+        )
+        return
+
+    elif budget_controller.budget_exists(
+        budget_name=f"user_{user.id}:{filtered_budget_name}"
+    ):
+        await message.answer(
+            f"У вас уже есть бюджет с названием {filtered_budget_name}"
         )
         return
 
@@ -302,69 +331,24 @@ async def update_budget_set_currency(
     await state.set_state(BudgetUpdateState.choose_attribute)
 
 
-@router.message(
-    BudgetUpdateState.update_name,
-    BudgetNameFilter(),
+@router.callback_query(
+    BudgetUpdateState.choose_attribute, F.data == "update_budget_finish"
 )
-async def update_budget_currency(
-    message: types.Message, state: FSMContext, filtered_budget_name: str | None
-):
-    if filtered_budget_name is None:
-        await message.answer(
-            "Полученное название содержит недопустимые символы или превышает "
-            "предельно допустимую длину.\n"
-            "В названии бюджета можно использовать только буквы, цифры, "
-            "сиволы пробела, тире и нижнего подчеркивания.\n"
-            "Вам необходимо уложиться в 25 символов.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
-        )
-        return
-
-    elif filtered_budget_name.startswith("."):
-        pass
-    else:
-        await state.update_data(name=filtered_budget_name)
-
-    await message.answer(
-        "Введите новую валюту бюджета."
-        "Если желаете оставить валюту без изменения, отправьте точку."
-    )
-    await state.set_state(BudgetUpdateState.update_currency)
-
-
-@router.message(BudgetUpdateState.update_currency, BudgetCurrencyFilter())
-async def budget_item_update_finish(
-    message: types.Message,
+async def update_budget_finish(
+    callback: types.CallbackQuery,
     state: FSMContext,
-    db_session: Session | scoped_session,
-    filtered_budget_currency: str | None,
+    budget_controller: budget_controller,
 ):
-    if filtered_budget_currency is None:
-        await message.answer(
-            "Неверный формат обозначения валюты!\n"
-            "Наименование должно содержать от 3-х до 10-ти букв "
-            "(в любом регистре). Цифры и иные символы не допускаются.\n"
-            "Отдавайте предпочтение общепринятым сокращениям, например "
-            "RUB или USD.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
-        )
-        return
+    user_data = await state.get_data()
+    budget_id = user_data.pop("budget_id")
 
-    elif filtered_budget_currency.startswith("."):
-        pass
-
-    else:
-        await state.update_data(currency=filtered_budget_currency)
-
-    data = await state.get_data()
-    budget_id = data.pop("budget_id")
-
-    updated = update_budget(db_session, budget_id, data)
+    updated = budget_controller.update_budget(budget_id, user_data)
     if updated:
-        await message.answer("Бюджет был успешно обновлен")
+        await callback.message.answer(
+            "Бюджет был успешно обновленbudget_controller."
+        )
 
-    else:
-        await message.answer(
+        await callback.message.answer(
             "Ошибка обновления бюджета. Бюджет отсутствует или был удален ранее."
         )
     await state.clear()
