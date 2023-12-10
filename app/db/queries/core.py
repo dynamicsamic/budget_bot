@@ -4,9 +4,11 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, List, Optional, Type
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_
 from sqlalchemy import delete as sql_delete
+from sqlalchemy import func, or_, select
 from sqlalchemy import update as sql_update
+from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.engine.row import Row
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import (
@@ -313,9 +315,9 @@ class DbSessionController:
         self,
         filters: List[BinaryExpression],
         join_filters: Optional[bool] = True,
-    ):
+    ) -> _BaseModel | None:
         q = self._fetch(filters=filters, join_filters=join_filters)
-        return self.session.execute(q).one_or_none()
+        return self.session.execute(q).scalar_one_or_none()
 
     def _get_all(
         self,
@@ -323,12 +325,12 @@ class DbSessionController:
         filters: Optional[List[BinaryExpression]] = None,
         offset: int = 0,
         limit: int = 10,
-    ) -> Select[Row]:
+    ) -> ScalarResult[_BaseModel]:
         q = self._fetch(order_by=order_by, filters=filters).limit(limit)
         if offset:
             q = q.offset(offset)
 
-        return self.session.execute(q)
+        return self.session.scalars(q)
 
     def _count(
         self,
@@ -359,7 +361,7 @@ class DbSessionController:
 class UserModelController(DbSessionController):
     model: Type[_BaseModel] = field(default=models.User, init=False)
 
-    def get_user(self, user_id: int = 0, tg_id: int = 0) -> models.User:
+    def get_user(self, user_id: int = 0, tg_id: int = 0) -> models.User | None:
         return self._get(
             filters=[self.model.id == user_id, self.model.tg_id == tg_id],
             join_filters=False,
@@ -368,8 +370,11 @@ class UserModelController(DbSessionController):
     def create_user(
         self,
         tg_id: int,
-    ) -> models.Budget | None:
+    ) -> models.User | None:
         return self._create(tg_id=tg_id)
+
+    def update_user(self, user_id: int, is_active: bool) -> bool:
+        return self._update(user_id, {"is_active": is_active})
 
     def delete_user(
         self,
@@ -391,12 +396,12 @@ class UserModelController(DbSessionController):
 class BudgetModelController(DbSessionController):
     model: Type[_BaseModel] = field(default=models.Budget, init=False)
 
-    def get_user_budgets(self, user_id: int) -> Select[Row]:
+    def get_user_budgets(self, user_id: int) -> ScalarResult[models.Budget]:
         return self._get_all(
             [self.model.created_at.desc()], [self.model.user_id == user_id]
         )
 
-    def get_budget(self, budget_id: int) -> models.Budget:
+    def get_budget(self, budget_id: int) -> models.Budget | None:
         return self._get(
             filters=[self.model.id == budget_id],
         )
