@@ -31,6 +31,7 @@ class User(AbstractBaseModel):
     __tablename__ = "user"
 
     tg_id: Mapped[int] = mapped_column(unique=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
     budgets: Mapped[List["Budget"]] = relationship(
         back_populates="user",
         cascade="delete, merge, save-update",
@@ -44,7 +45,8 @@ class User(AbstractBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id}, TelegramId={self.tg_id})"
+            f"{self.__class__.__name__}(Id={self.id}, "
+            f"TelegramId={self.tg_id}, Active={self.is_active})"
         )
 
 
@@ -121,6 +123,7 @@ class EntryCategory(AbstractBaseModel):
     )
     budget: Mapped["Budget"] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
+    num_entries: Mapped[int] = mapped_column(default=0)
 
     @classmethod
     @property
