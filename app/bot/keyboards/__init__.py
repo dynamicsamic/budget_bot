@@ -1,7 +1,8 @@
-from typing import Callable, Literal
+from typing import Callable, Iterable, Literal
 
 from aiogram import types
-from aiogram.types import InlineKeyboardButton
+from aiogram.fsm.state import StatesGroup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.callback_data import (
@@ -16,7 +17,7 @@ from app.bot.render import (
     render_entry_item,
 )
 from app.db import models
-from app.db.base import AbstractBaseModel
+from app.db.custom_types import _BaseModel
 
 from . import buttons
 
@@ -30,9 +31,17 @@ signup_to_proceed = types.InlineKeyboardMarkup(
     ]
 )
 
+
+def button_menu(*buttons, adjust: int = 1) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder([list(buttons)])
+    builder.adjust(adjust)
+    return builder.as_markup()
+
+
 main_menu = InlineKeyboardBuilder(
     [
         [
+            buttons.user_profile,
             buttons.budget_menu,
             buttons.category_menu,
             buttons.entry_menu,
@@ -44,15 +53,15 @@ main_menu.adjust(1)
 
 
 def interactive_item_list(
-    items: list[AbstractBaseModel],
+    items: Iterable[_BaseModel],
     render_func: Callable[..., str],
     callback_prefix: str,
     extra_buttons: list[InlineKeyboardButton] = None,
-) -> InlineKeyboardBuilder:
+) -> InlineKeyboardMarkup:
     buttons = [
         [
             types.InlineKeyboardButton(
-                text=render_func(item),
+                text=item.render(),
                 callback_data=f"{callback_prefix}_{item.id}",
             )
             for item in items
@@ -66,7 +75,36 @@ def interactive_item_list(
     return builder.as_markup()
 
 
-def budget_item_list_interactive(budgets: list[models.EntryCategory]):
+def create_callback_buttons(
+    button_names: dict[str, str], callback_prefix: str
+):
+    builder = InlineKeyboardBuilder()
+
+    for button_name, callback_suffix in button_names.items():
+        builder.button(
+            text=button_name.capitalize(),
+            callback_data=f"{callback_prefix}_{callback_suffix.lower()}",
+        )
+
+    return builder.as_markup()
+
+
+def states_group_callback_buttons(
+    states_group: StatesGroup, callback_prefix: str
+):
+    builder = InlineKeyboardBuilder()
+    for state in states_group.__state_names__:
+        _, state_name = state.split(":")
+        if not state_name.startswith("_"):
+            button_name, callback_suffix = state_name.split("@")
+            builder.button(
+                text=button_name.capitalize(),
+                callback_data=f"{callback_prefix}_{callback_suffix.lower()}",
+            )
+    return builder.as_markup()
+
+
+def budget_item_list_interactive(budgets: Iterable[models.Budget]):
     return interactive_item_list(
         budgets,
         render_budget_item,
@@ -75,7 +113,7 @@ def budget_item_list_interactive(budgets: list[models.EntryCategory]):
     )
 
 
-def category_item_list_interactive(categories: list[models.EntryCategory]):
+def category_item_list_interactive(categories: Iterable[models.EntryCategory]):
     return interactive_item_list(
         categories,
         render_category_item,
@@ -84,7 +122,7 @@ def category_item_list_interactive(categories: list[models.EntryCategory]):
     )
 
 
-def budget_item_choose_action(budget_id: str):
+def budget_item_choose_action(budget_id: int):
     builder = InlineKeyboardBuilder()
     builder.button(
         text="Изменить",
