@@ -24,7 +24,7 @@ async def signup_user(
         )
         return
 
-    elif user.id == -1:
+    elif user.is_anonymous:
         created = user_controller.create_user(tg_id=callback.from_user.id)
         if created is not None:
             await callback.message.answer(
@@ -69,7 +69,7 @@ async def activate_user(
         )
         return
 
-    elif user.is_active is False and user.id > 0:
+    elif not user.is_anonymous and not user.is_active:
         activated = user_controller.update_user(user.id, is_active=True)
 
         if activated:
@@ -121,7 +121,7 @@ async def delete_user(
                 "Что-то пошло не так при удалении Вашего аккаунта."
                 "Обратитесь в поддержку."
             )
-    elif user.is_active is False and user.id > 0:
+    elif not user.is_anonymous and not user.is_active:
         await callback.message.answer(
             "Ваш акканут запланирован к удалению."
             "Вы можете остановить процедуру удаления, нажав кнопку ниже.",
