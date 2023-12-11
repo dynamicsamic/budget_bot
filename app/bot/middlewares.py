@@ -17,11 +17,18 @@ from app.utils import DateRange
 
 
 def AnonymousUser():
-    auser = namedtuple(
+    anonymous = namedtuple(
         "AnonymousUser",
-        ["id", "tg_id", "is_active", "created_at", "updated_at"],
+        [
+            "id",
+            "tg_id",
+            "is_active",
+            "is_anonymous",
+            "created_at",
+            "updated_at",
+        ],
     )
-    return auser(-1, -1, False, -1, -1)
+    return anonymous(-1, -1, False, True, -1, -1)
 
 
 async def redirect_handler(event: TelegramObject, *_, **__):
