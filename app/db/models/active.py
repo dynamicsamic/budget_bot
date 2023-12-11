@@ -43,6 +43,10 @@ class User(AbstractBaseModel):
     def _datefield(cls) -> InstrumentedAttribute:
         return cls.created_at
 
+    @property
+    def is_anonymous(self):
+        return False
+
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, "
