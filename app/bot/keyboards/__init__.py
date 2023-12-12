@@ -75,6 +75,46 @@ def interactive_item_list(
     return builder.as_markup()
 
 
+def paginated_item_list(
+    items: Iterable[_BaseModel],
+    callback_prefix: str,
+    paginator,
+    extra_buttons: list[InlineKeyboardButton] = None,
+) -> InlineKeyboardMarkup:
+    buttons = [
+        [
+            types.InlineKeyboardButton(
+                text=item.render(),
+                callback_data=f"{callback_prefix}_{item.id}",
+            )
+            for item in items
+        ]
+    ]
+    extra_buttons = extra_buttons or []
+
+    if paginator.prev_page_offset is not None:
+        extra_buttons.append(
+            types.InlineKeyboardButton(
+                text="Предыдущие",
+                callback_data=f"{paginator.callback_prefix}_previous",
+            )
+        )
+
+    if paginator.next_page_offset is not None:
+        extra_buttons.append(
+            types.InlineKeyboardButton(
+                text="Следующие",
+                callback_data=f"{paginator.callback_prefix}_next",
+            )
+        )
+
+    buttons.append(extra_buttons)
+
+    builder = InlineKeyboardBuilder(buttons)
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def create_callback_buttons(
     button_names: dict[str, str], callback_prefix: str
 ):
@@ -109,6 +149,15 @@ def budget_item_list_interactive(budgets: Iterable[models.Budget]):
         budgets,
         render_budget_item,
         "budget_item",
+        [buttons.create_new_budget, buttons.main_menu],
+    )
+
+
+def paginated_budget_item_list(budgets: Iterable[models.Budget], paginator):
+    return paginated_item_list(
+        budgets,
+        "budget_item",
+        paginator,
         [buttons.create_new_budget, buttons.main_menu],
     )
 
