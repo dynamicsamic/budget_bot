@@ -10,12 +10,18 @@ from app.bot.filters import (
     ExtractBudgetIdFilter,
 )
 from app.bot.middlewares import AddBudgetControllerMiddleWare
-from app.bot.states import BudgetCreateState, BudgetUpdateState
+from app.bot.states import (
+    BudgetCreateState,
+    BudgetShowState,
+    BudgetUpdateState,
+)
 from app.db.models import User
 from app.db.queries.core import budget_controller
+from app.utils import OffsetPaginator
 
 router = Router()
 router.message.middleware(AddBudgetControllerMiddleWare())
+router.callback_query.middleware(AddBudgetControllerMiddleWare())
 
 
 @router.message(Command("create_budget"))
@@ -52,7 +58,9 @@ async def create_budget_set_name(
             "В названии бюджета можно использовать только буквы, цифры, "
             "сиволы пробела, тире и нижнего подчеркивания.\n"
             "Вам необходимо уложиться в 25 символов.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.cancel_operation
+            ),
         )
         return
 
@@ -61,7 +69,10 @@ async def create_budget_set_name(
     ):
         await message.answer(
             f"У Вас уже есть бюджет с названием {filtered_budget_name}.\n"
-            "Пожалуйста, придумайте новое название."
+            "Пожалуйста, придумайте новое название.",
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.cancel_operation
+            ),
         )
         return
 
@@ -91,7 +102,9 @@ async def create_budget_set_currency_and_finish(
             "(в любом регистре). Цифры и иные символы не допускаются.\n"
             "Отдавайте предпочтение общепринятым сокращениям, например "
             "RUB или USD.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.cancel_operation
+            ),
         )
         return
 
@@ -104,11 +117,16 @@ async def create_budget_set_currency_and_finish(
         currency=filtered_budget_currency,
     )
 
-    if created:
+    if created is not None:
         await message.answer(
             "Поздравляем! Вы успешно создали новый личный бюджет.\n"
             f"Название бюджета: {created.public_name}, валюта: {created.currency}.\n"
-            "Можете добавить новые транзакции или категории."
+            "Можете добавить новые транзакции или категории.",
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.main_menu,
+                keyboards.buttons.create_new_entry,
+                keyboards.buttons.create_new_category,
+            ),
         )
 
     else:
@@ -119,8 +137,8 @@ async def create_budget_set_currency_and_finish(
     await state.clear()
 
 
-@router.callback_query(F.data == "budget_create")
-async def budget_create(callback: types.CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "create_budget")
+async def create_budget(callback: types.CallbackQuery, state: FSMContext):
     await cmd_create_budget(callback.message, state)
     await callback.answer()
 
@@ -132,7 +150,9 @@ async def cmd_show_budgets(
     user: User,
     budget_controller: budget_controller,
 ):
-    if not budget_controller.budget_exists(user_id=user.id):
+    num_budgets = budget_controller.count_user_budgets(user.id)
+    if num_budgets == 0:
+        # if not budget_controller.budget_exists(user_id=user.id):
         await message.answer(
             "У Вас пока нет ни одного бюджета.\n"
             "Создайте бюджет, нажав на кнопку ниже.",
@@ -143,13 +163,44 @@ async def cmd_show_budgets(
         )
     else:
         budgets = budget_controller.get_user_budgets(user.id)
+        paginator = OffsetPaginator("show_budgets_page", num_budgets, 5)
         await message.answer(
             "Кликните на нужный бюджет, чтобы выбрать действие",
-            reply_markup=keyboards.budget_item_list_interactive(budgets),
+            reply_markup=keyboards.paginated_budget_item_list(
+                budgets, paginator
+            ),
         )
+        await state.update_data(paginator=paginator)
+        await state.set_state(BudgetShowState.show_budgets)
 
 
-@router.callback_query(F.data == "budget_menu")
+@router.callback_query(
+    BudgetShowState.show_budgets, F.data.startswith("show_budgets_page")
+)
+async def show_budgets_page(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    user: User,
+    budget_controller: budget_controller,
+):
+    *_, switch_to = callback.data.rsplit("_", maxsplit=1)
+    state_data = await state.get_data()
+    pagiantor = state_data.get("paginator")
+
+    pagiantor.switch_next() if switch_to == "next" else pagiantor.switch_back()
+
+    budgets = budget_controller.get_user_budgets(
+        user.id, pagiantor.current_offset
+    )
+    await callback.message.answer(
+        "Кликните на нужный бюджет, чтобы выбрать действие",
+        reply_markup=keyboards.paginated_budget_item_list(budgets, pagiantor),
+    )
+    await state.update_data(pagiantor=pagiantor)
+    await state.set_state(BudgetShowState.show_budgets)
+
+
+@router.callback_query(F.data == "show_budgets")
 async def show_budgets(
     callback: types.CallbackQuery,
     state: FSMContext,
@@ -183,8 +234,10 @@ async def budget_item_show_options(
 async def budget_delete(
     callback: types.CallbackQuery,
     callback_data: BudgetItemActionData,
+    state: FSMContext,
     budget_controller: budget_controller,
 ):
+    await state.clear()
     deleted = budget_controller.delete_budget(callback_data.budget_id)
     if deleted:
         await callback.message.answer("Бюджет был успешно удален")
@@ -344,10 +397,8 @@ async def update_budget_finish(
 
     updated = budget_controller.update_budget(budget_id, user_data)
     if updated:
-        await callback.message.answer(
-            "Бюджет был успешно обновленbudget_controller."
-        )
-
+        await callback.message.answer("Бюджет был успешно обновлен.")
+    else:
         await callback.message.answer(
             "Ошибка обновления бюджета. Бюджет отсутствует или был удален ранее."
         )
