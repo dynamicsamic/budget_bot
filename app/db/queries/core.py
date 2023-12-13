@@ -4,9 +4,8 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, List, Optional, Type
 
-from sqlalchemy import and_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.engine.row import Row
@@ -321,6 +320,7 @@ class DbSessionController:
 
     def _get_all(
         self,
+        *,
         order_by: Optional[List[_OrderByValue]] = None,
         filters: Optional[List[BinaryExpression]] = None,
         offset: int = 0,
@@ -396,9 +396,14 @@ class UserModelController(DbSessionController):
 class BudgetModelController(DbSessionController):
     model: Type[_BaseModel] = field(default=models.Budget, init=False)
 
-    def get_user_budgets(self, user_id: int) -> ScalarResult[models.Budget]:
+    def get_user_budgets(
+        self, user_id: int, offset: int = 0, limit: int = 5
+    ) -> ScalarResult[models.Budget]:
         return self._get_all(
-            [self.model.created_at.desc()], [self.model.user_id == user_id]
+            order_by=[self.model.created_at.desc()],
+            filters=[self.model.user_id == user_id],
+            offset=offset,
+            limit=limit,
         )
 
     def get_budget(self, budget_id: int) -> models.Budget | None:
@@ -443,5 +448,57 @@ class BudgetModelController(DbSessionController):
         )
 
 
+@dataclass
+class EntryCategoryModelController(DbSessionController):
+    model: Type[_BaseModel] = field(default=models.EntryCategory, init=False)
+
+    def get_budget_categories(
+        self, budget_id: int, offset: int = 0, limit: int = 5
+    ) -> ScalarResult[models.EntryCategory]:
+        return self._get_all(
+            order_by=[self.model.created_at.desc(), self.model.id.desc()],
+            filters=[self.model.budget_id == budget_id],
+            offset=offset,
+            limit=limit,
+        )
+
+    def get_category(
+        self,
+        entry_category_id: int,
+    ) -> models.EntryCategory:
+        return self._get(
+            filters=[self.model.id == entry_category_id],
+        )
+
+    def create_entry_category(
+        self,
+        budget_id: int,
+        name: str,
+        type: models.EntryType,
+    ) -> models.EntryCategory | None:
+        return self._create(
+            budget_id=budget_id,
+            name=name,
+            type=type,
+        )
+
+    def update_entry_category(
+        self,
+        entry_category_id: int,
+        update_kwargs: dict[_DMLColumnArgument, Any],
+    ) -> bool:
+        return self._update(entry_category_id, update_kwargs)
+
+    def delete_entry_category(
+        self,
+        entry_category_id: int,
+    ) -> bool:
+        return self._delete(entry_category_id)
+
+    def count_budget_categories(self, budget_id: int) -> int:
+        return self._count([self.budget_id == budget_id])
+
+
 user_controller = UserModelController
 budget_controller = BudgetModelController
+category_controller = EntryCategoryModelController
