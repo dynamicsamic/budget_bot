@@ -23,8 +23,16 @@ from .base import AbstractBaseModel
 
 
 class EntryType(enum.Enum):
-    EXPENSES = "expenses"
-    INCOME = "income"
+    EXPENSES = ("expenses", "Расходы")
+    INCOME = ("income", "Доходы")
+
+    def __init__(self, value, description) -> None:
+        self._value_ = value
+        self._description = description
+
+    @property
+    def description(self) -> str:
+        return self._description
 
 
 class User(AbstractBaseModel):
@@ -100,15 +108,10 @@ class Budget(AbstractBaseModel):
         return name
 
     def render(self) -> str:
-        num_entries = self.num_entries
-        msg_ending = "операций"
-
-        if num_entries == 1:
-            msg_ending = "операция"
-        elif 1 < num_entries < 5:
-            msg_ending = "операции"
-
-        return f"{self.name}({self.currency}), {num_entries} {msg_ending}"
+        return (
+            f"{self.public_name}({self.currency.upper()}), "
+            f"{self.num_entries} {select_num_entries_ending(self.num_entries)}"
+        )
 
     def _make_unique_name(self) -> str:
         return f"user_{self.user_id}:{self.name}"
@@ -117,7 +120,7 @@ class Budget(AbstractBaseModel):
 class EntryCategory(AbstractBaseModel):
     __tablename__ = "entry_category"
 
-    name: Mapped[str] = mapped_column(String(length=128), unique=True)
+    name: Mapped[str] = mapped_column(String(length=128))
     type: Mapped[Enum] = mapped_column(Enum(EntryType, create_constraint=True))
     last_used: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=dt.datetime(year=1970, month=1, day=1)
@@ -138,6 +141,12 @@ class EntryCategory(AbstractBaseModel):
         return (
             f"{self.__class__.__name__}(Id={self.id}, Name={self.name}, "
             f"Type={self.type.value}, BudgetId={self.budget_id})"
+        )
+
+    def render(self) -> str:
+        return (
+            f"{self.name} ({self.type.description}), "
+            f"{self.num_entries} {select_num_entries_ending(self.num_entries)}"
         )
 
 
@@ -183,3 +192,22 @@ class Entry(AbstractBaseModel):
             f"Date={self._transaction_date}, CategoryId={self.category_id}, "
             f"BudgetId={self.budget_id}, Description={self.description})"
         )
+
+    def render(self) -> str:
+        signed_sum = "+" + self._sum if self.sum > 0 else self._sum
+        rendered = (
+            f"{signed_sum} {self.budget.currency}, "
+            f"{self.category.name}, {self._transaction_date}"
+        )
+        if self.description:
+            rendered += f", {self.description}"
+
+        return rendered
+
+
+def select_num_entries_ending(num_entries: int) -> str:
+    if num_entries == 1:
+        return "операция"
+    elif 1 < num_entries < 5:
+        return "операции"
+    return "операций"
