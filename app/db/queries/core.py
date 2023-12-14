@@ -2,7 +2,7 @@ import datetime as dt
 import logging
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Tuple, Type
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy import delete as sql_delete
@@ -396,6 +396,11 @@ class UserModelController(DbSessionController):
 class BudgetModelController(DbSessionController):
     model: Type[_BaseModel] = field(default=models.Budget, init=False)
 
+    def get_budget(self, budget_id: int) -> models.Budget | None:
+        return self._get(
+            filters=[self.model.id == budget_id],
+        )
+
     def get_user_budgets(
         self, user_id: int, offset: int = 0, limit: int = 5
     ) -> ScalarResult[models.Budget]:
@@ -404,11 +409,6 @@ class BudgetModelController(DbSessionController):
             filters=[self.model.user_id == user_id],
             offset=offset,
             limit=limit,
-        )
-
-    def get_budget(self, budget_id: int) -> models.Budget | None:
-        return self._get(
-            filters=[self.model.id == budget_id],
         )
 
     def create_budget(
@@ -452,22 +452,25 @@ class BudgetModelController(DbSessionController):
 class EntryCategoryModelController(DbSessionController):
     model: Type[_BaseModel] = field(default=models.EntryCategory, init=False)
 
-    def get_budget_categories(
-        self, budget_id: int, offset: int = 0, limit: int = 5
-    ) -> ScalarResult[models.EntryCategory]:
-        return self._get_all(
-            order_by=[self.model.created_at.desc(), self.model.id.desc()],
-            filters=[self.model.budget_id == budget_id],
-            offset=offset,
-            limit=limit,
-        )
-
     def get_category(
         self,
         entry_category_id: int,
     ) -> models.EntryCategory:
         return self._get(
             filters=[self.model.id == entry_category_id],
+        )
+
+    def get_budget_categories(
+        self, budget_id: int, offset: int = 0, limit: int = 5
+    ) -> ScalarResult[models.EntryCategory]:
+        return self._get_all(
+            order_by=[
+                self.model.last_used.desc(),
+                self.model.created_at.desc(),
+            ],
+            filters=[self.model.budget_id == budget_id],
+            offset=offset,
+            limit=limit,
         )
 
     def create_entry_category(
@@ -497,6 +500,27 @@ class EntryCategoryModelController(DbSessionController):
 
     def count_budget_categories(self, budget_id: int) -> int:
         return self._count([self.budget_id == budget_id])
+
+    def entry_category_exists(
+        self,
+        *,
+        entry_category_id: int = 0,
+        budget_id: int = 0,
+        search_by_category_name_args: Tuple[str, int] = None,
+    ) -> bool:
+        if search_by_category_name_args:
+            name, budget_id = search_by_category_name_args
+            return self._exists(
+                [self.model.name == name, self.model.budget_id == budget_id]
+            )
+
+        return self._exists(
+            [
+                self.model.id == entry_category_id,
+                self.model.budget_id == budget_id,
+            ],
+            join_filters=False,
+        )
 
 
 user_controller = UserModelController
