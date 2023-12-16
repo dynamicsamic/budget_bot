@@ -1,11 +1,13 @@
 import datetime as dt
 import logging
+from collections import namedtuple
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, List, Optional, Tuple, Type
+from typing import Any, Generator, List, Optional, Tuple, Type
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_
 from sqlalchemy import delete as sql_delete
+from sqlalchemy import func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.engine.row import Row
@@ -51,6 +53,31 @@ def validate_model_kwargs(model: _BaseModel, kwargs: dict[str, Any]) -> bool:
             return False
 
     return True
+
+
+def linked_generator(
+    head: _BaseModel, tail: ScalarResult[_BaseModel]
+) -> Generator[_BaseModel, None, None]:
+    yield head
+    for i in tail:
+        yield i
+
+
+AttributedResult = namedtuple(
+    "AttributedResult", ["is_empty", "head", "result"]
+)
+
+
+def attributed_result(f):
+    def wrapped(*args, **kwargs) -> AttributedResult:
+        res: ScalarResult = f(*args, **kwargs)
+        try:
+            head = next(res)
+        except StopIteration:
+            return AttributedResult(True, None, [])
+        return AttributedResult(False, head, linked_generator(head, res))
+
+    return wrapped
 
 
 def fetch(
@@ -401,9 +428,10 @@ class BudgetModelController(DbSessionController):
             filters=[self.model.id == budget_id],
         )
 
+    @attributed_result
     def get_user_budgets(
         self, user_id: int, offset: int = 0, limit: int = 5
-    ) -> ScalarResult[models.Budget]:
+    ) -> AttributedResult[bool, models.Budget, Generator]:
         return self._get_all(
             order_by=[self.model.created_at.desc()],
             filters=[self.model.user_id == user_id],
@@ -460,6 +488,7 @@ class EntryCategoryModelController(DbSessionController):
             filters=[self.model.id == entry_category_id],
         )
 
+    @attributed_result
     def get_budget_categories(
         self, budget_id: int, offset: int = 0, limit: int = 5
     ) -> ScalarResult[models.EntryCategory]:
