@@ -15,6 +15,10 @@ class BudgetUpdateState(StatesGroup):
     finish = State()
 
 
+class BudgetShowState(StatesGroup):
+    show_budgets = State()
+
+
 class CategoryCreateState(StatesGroup):
     name = State()
     type = State()
