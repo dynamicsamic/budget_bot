@@ -1,6 +1,6 @@
 import datetime as dt
 import enum
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -22,7 +22,7 @@ from app import settings
 from .base import AbstractBaseModel
 
 
-class EntryType(enum.Enum):
+class CategoryType(enum.Enum):
     EXPENSES = ("expenses", "Расходы")
     INCOME = ("income", "Доходы")
 
@@ -40,7 +40,11 @@ class User(AbstractBaseModel):
 
     tg_id: Mapped[int] = mapped_column(unique=True)
     is_active: Mapped[bool] = mapped_column(default=True)
-    budgets: Mapped[List["Budget"]] = relationship(
+    budget_currency: Mapped[str] = mapped_column(
+        String(length=10),
+        default="RUB",
+    )
+    categories: Mapped[List["Category"]] = relationship(
         back_populates="user",
         cascade="delete, merge, save-update",
         passive_deletes=True,
@@ -62,73 +66,20 @@ class User(AbstractBaseModel):
         )
 
 
-class Budget(AbstractBaseModel):
-    __tablename__ = "budget"
+class Category(AbstractBaseModel):
+    __tablename__ = "entry_category"
 
-    name: Mapped[str] = mapped_column(String(length=100), unique=True)
-    currency: Mapped[str] = mapped_column(
-        String(length=10),
-        default="RUB",
+    name: Mapped[str] = mapped_column(String(length=128))
+    type: Mapped[Enum] = mapped_column(
+        Enum(CategoryType, create_constraint=True)
+    )
+    last_used: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime(year=1970, month=1, day=1)
     )
     user_id: Mapped[int] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE")
     )
-    user: Mapped["User"] = relationship(back_populates="budgets")
-    categories: Mapped[List["EntryCategory"]] = relationship(
-        back_populates="budget",
-        cascade="delete, merge, save-update",
-        passive_deletes=True,
-    )
-    entries: Mapped[List["Entry"]] = relationship(
-        back_populates="budget",
-        cascade="delete, merge, save-update",
-        passive_deletes=True,
-    )
-    num_categories: Mapped[int] = mapped_column(default=0)
-    num_entries: Mapped[int] = mapped_column(default=0)
-
-    def __init__(self, **kw: Any) -> None:
-        super().__init__(**kw)
-        self.name = self._make_unique_name()
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}(Id={self.id}, UserId={self.user_id}, "
-            f"Currency={self.currency}, Name={self.name})"
-        )
-
-    @classmethod
-    @property
-    def _datefield(cls) -> InstrumentedAttribute:
-        return cls.created_at
-
-    @property
-    def public_name(self) -> str:
-        *_, name = self.name.split(":")
-        return name
-
-    def render(self) -> str:
-        return (
-            f"{self.public_name}({self.currency.upper()}), "
-            f"{self.num_entries} {select_num_entries_ending(self.num_entries)}"
-        )
-
-    def _make_unique_name(self) -> str:
-        return f"user_{self.user_id}:{self.name}"
-
-
-class EntryCategory(AbstractBaseModel):
-    __tablename__ = "entry_category"
-
-    name: Mapped[str] = mapped_column(String(length=128))
-    type: Mapped[Enum] = mapped_column(Enum(EntryType, create_constraint=True))
-    last_used: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), default=dt.datetime(year=1970, month=1, day=1)
-    )
-    budget_id: Mapped[int] = mapped_column(
-        ForeignKey("budget.id", ondelete="CASCADE")
-    )
-    budget: Mapped["Budget"] = relationship(back_populates="categories")
+    user: Mapped[User] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
     num_entries: Mapped[int] = mapped_column(default=0)
 
@@ -140,7 +91,7 @@ class EntryCategory(AbstractBaseModel):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, Name={self.name}, "
-            f"Type={self.type.value}, BudgetId={self.budget_id})"
+            f"Type={self.type.value}, UserId={self.user_id})"
         )
 
     def render(self) -> str:
@@ -161,12 +112,12 @@ class Entry(AbstractBaseModel):
     transaction_date: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
     )
-    budget_id: Mapped[int] = mapped_column(
-        ForeignKey("budget.id", ondelete="CASCADE")
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE")
     )
-    budget: Mapped["Budget"] = relationship(back_populates="entries")
     category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
-    category: Mapped["EntryCategory"] = relationship(back_populates="entries")
+    user: Mapped[User] = relationship(back_populates="entries")
+    category: Mapped["Category"] = relationship(back_populates="entries")
 
     @classmethod
     @property
@@ -190,13 +141,13 @@ class Entry(AbstractBaseModel):
         return (
             f"{self.__class__.__name__}(Id={self.id}, Sum={self._sum}, "
             f"Date={self._transaction_date}, CategoryId={self.category_id}, "
-            f"BudgetId={self.budget_id}, Description={self.description})"
+            f"UserId={self.user_id}, Description={self.description})"
         )
 
     def render(self) -> str:
         signed_sum = "+" + self._sum if self.sum > 0 else self._sum
         rendered = (
-            f"{signed_sum} {self.budget.currency}, "
+            f"{signed_sum} {self.user.budget_currency}, "
             f"{self.category.name}, {self._transaction_date}"
         )
         if self.description:
