@@ -39,12 +39,17 @@ class User(AbstractBaseModel):
     __tablename__ = "user"
 
     tg_id: Mapped[int] = mapped_column(unique=True)
-    is_active: Mapped[bool] = mapped_column(default=True)
     budget_currency: Mapped[str] = mapped_column(
         String(length=10),
         default="RUB",
     )
+    is_active: Mapped[bool] = mapped_column(default=True)
     categories: Mapped[List["Category"]] = relationship(
+        back_populates="user",
+        cascade="delete, merge, save-update",
+        passive_deletes=True,
+    )
+    entries: Mapped[List["Entry"]] = relationship(
         back_populates="user",
         cascade="delete, merge, save-update",
         passive_deletes=True,
@@ -62,7 +67,7 @@ class User(AbstractBaseModel):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}(Id={self.id}, "
-            f"TelegramId={self.tg_id}, Active={self.is_active})"
+            f"TelegramId={self.tg_id}, IsActive={self.is_active})"
         )
 
 
@@ -90,8 +95,9 @@ class Category(AbstractBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id}, Name={self.name}, "
-            f"Type={self.type.value}, UserId={self.user_id})"
+            f"{self.__class__.__name__}(Id={self.id}, "
+            f"Name={self.name}, Type={self.type.value}, "
+            f"UserId={self.user_id}, NumEntries={self.num_entries})"
         )
 
     def render(self) -> str:
