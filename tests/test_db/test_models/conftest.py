@@ -27,6 +27,7 @@ def create_tables(inmemory_engine):
 @pytest.fixture
 def db_session(inmemory_engine, create_tables) -> Session:
     connection = inmemory_engine.connect()
+    connection.execution_options(stream_results=True, max_row_buffer=1)
     connection.begin()
     session = scoped_session(sessionmaker(bind=connection, autoflush=False))
 
@@ -49,31 +50,16 @@ def create_users(db_session):
 
 
 @pytest.fixture
-def create_budgets(db_session, create_users):
+def create_categories(db_session, create_users):
     db_session.add_all(
         [
-            models.Budget(
-                id=i,
-                name=f"budget{i}",
-                user_id=i,
-            )
-            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
-        ]
-    )
-    db_session.commit()
-
-
-@pytest.fixture
-def create_categories(db_session, create_budgets):
-    db_session.add_all(
-        [
-            models.EntryCategory(
+            models.Category(
                 id=i,
                 name=f"category{i}",
-                type=models.EntryType.EXPENSES
+                type=models.CategoryType.EXPENSES
                 if i % 2
-                else models.EntryType.INCOME,
-                budget_id=i,
+                else models.CategoryType.INCOME,
+                user_id=i,
             )
             for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
         ]
@@ -88,7 +74,7 @@ def create_entries(db_session, create_categories):
             id=i,
             sum=random.randint(1, 1000000),
             description=f"test{i}",
-            budget_id=i,
+            user_id=i,
             category_id=i,
         )
         for i in range(1, constants["TEST_SAMPLE_SIZE"] // 2 + 1)
@@ -98,7 +84,7 @@ def create_entries(db_session, create_categories):
             id=i,
             sum=random.randint(-1000000, -1),
             description=f"test{i}",
-            budget_id=i,
+            user_id=i,
             category_id=i,
         )
         for i in range(
