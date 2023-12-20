@@ -9,7 +9,7 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 from app import settings
 from app.bot import keyboards
 from app.db import get_session
-from app.db.queries.core import BudgetModelController, user_controller
+from app.db.repository import CategoryRepository, UserRepository
 from app.services.user import get_user
 from app.utils import DateRange
 
@@ -110,7 +110,7 @@ class RedirectAnonymousUserMiddleWare(BaseMiddleware):
         return await handler(event, data)
 
 
-class AddUserControllerMiddleWare(BaseMiddleware):
+class UserRepositoryMiddleWare(BaseMiddleware):
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
@@ -119,14 +119,14 @@ class AddUserControllerMiddleWare(BaseMiddleware):
     ) -> Any:
         db_session = data.get("db_session")
         if db_session is not None and db_session.is_active:
-            data["user_controller"] = user_controller(db_session)
+            data["repository"] = UserRepository(db_session)
         else:
             with get_session() as db_session:
-                data["user_controller"] = user_controller(db_session)
+                data["repository"] = UserRepository(db_session)
         return await handler(event, data)
 
 
-class AddBudgetControllerMiddleWare(BaseMiddleware):
+class CategoryRepositoryMiddleWare(BaseMiddleware):
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
@@ -135,8 +135,8 @@ class AddBudgetControllerMiddleWare(BaseMiddleware):
     ) -> Any:
         db_session = data.get("db_session")
         if db_session is not None and db_session.is_active:
-            data["budget_controller"] = BudgetModelController(db_session)
+            data["repository"] = CategoryRepository(db_session)
         else:
             with get_session() as db_session:
-                data["budget_controller"] = BudgetModelController(db_session)
+                data["repository"] = CategoryRepository(db_session)
         return await handler(event, data)
