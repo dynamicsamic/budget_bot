@@ -1,8 +1,9 @@
+import inspect
 import logging
 from collections import namedtuple
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Generator, List, Optional, Type
+from typing import Any, Callable, Generator, List, Optional, Type
 
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.engine.result import ScalarResult
@@ -16,13 +17,27 @@ from sqlalchemy.sql._typing import (
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.selectable import Select
 
-from app.db.custom_types import _BaseModel, _OrderByValue
-from app.db.models import Category, CategoryType, User
+from .custom_types import (
+    GeneratorResult,
+    ModelCreateResult,
+    ModelUpdateDeleteResult,
+    ModelValidationResult,
+    _BaseModel,
+    _OrderByValue,
+)
+from .exceptions import (
+    InvalidModelArgType,
+    InvalidModelArgValue,
+    ModelInstanceNotFound,
+)
+from .models import Category, CategoryType, User
 
 logger = logging.getLogger(__name__)
 
 
-def validate_model_kwargs(model: _BaseModel, kwargs: dict[str, Any]) -> bool:
+def validate_model_kwargs(
+    model: _BaseModel, kwargs: dict[str, Any]
+) -> ModelValidationResult:
     model_fields = model.fields
 
     for arg, value in kwargs.items():
@@ -32,7 +47,10 @@ def validate_model_kwargs(model: _BaseModel, kwargs: dict[str, Any]) -> bool:
                 "Invalid attribute for model "
                 f"{model.__tablename__.capitalize()}: `{arg}`."
             )
-            return False
+            return ModelValidationResult(
+                result=False,
+                error=InvalidModelArgValue(model=model, invalid_arg=arg),
+            )
 
         value_type, field_type = type(value), field.type.python_type
         if not issubclass(value_type, field_type):
@@ -40,14 +58,22 @@ def validate_model_kwargs(model: _BaseModel, kwargs: dict[str, Any]) -> bool:
                 f"Invalid type for `{arg}` argument: recieved "
                 f"{value_type}, instead of {field_type}"
             )
-            return False
+            return ModelValidationResult(
+                result=False,
+                error=InvalidModelArgType(
+                    model=model,
+                    arg_name=arg,
+                    expected_type=field_type,
+                    invalid_type=value_type,
+                ),
+            )
 
-    return True
+    return ModelValidationResult(result=True, error=None)
 
 
 def linked_generator(
     head: _BaseModel, tail: ScalarResult[_BaseModel]
-) -> Generator[_BaseModel, None, None]:
+) -> Generator[_BaseModel, _BaseModel, None]:
     yield head
     for i in tail:
         yield i
@@ -58,16 +84,30 @@ AttributedResult = namedtuple(
 )
 
 
-def attributed_result(f):
-    def wrapped(*args, **kwargs) -> AttributedResult:
-        res: ScalarResult = f(*args, **kwargs)
+def attributed_result(f: Callable[..., ScalarResult]):
+    def wrapper(*args, **kwargs):
+        res = f(*args, **kwargs)
         try:
             head = next(res)
         except StopIteration:
-            return AttributedResult(True, None, [])
-        return AttributedResult(False, head, linked_generator(head, res))
+            return GeneratorResult(result=[], is_empty=True, head=None)
 
-    return wrapped
+        return GeneratorResult(
+            result=linked_generator(head, res), is_empty=False, head=head
+        )
+
+    wrapper.__signature__ = inspect.signature(f)
+    return wrapper
+
+
+def query_logger(f: Callable[..., ScalarResult]):
+    def wrapper(*args, **kwargs):
+        res = f(*args, **kwargs)
+        logger.info(f"executed query function: {f.__code__.co_name}")
+        return res
+
+    wrapper.__signature__ = inspect.signature(f)
+    return wrapper
 
 
 @dataclass
@@ -78,7 +118,7 @@ class CommonRepository:
     def _create(
         self,
         **create_kwargs: Any,
-    ) -> _BaseModel | None:
+    ) -> ModelCreateResult:
         """Create an instance of model.
 
         Args:
@@ -90,8 +130,12 @@ class CommonRepository:
         Returns:
             The newly created instance or None if error occured.
         """
-        if not validate_model_kwargs(self.model, create_kwargs):
-            return
+        validated, error = validate_model_kwargs(
+            self.model, create_kwargs
+        ).astuple()
+
+        if not validated:
+            return ModelCreateResult(result=None, error=error)
 
         obj = self.model(**create_kwargs)
         try:
@@ -99,15 +143,17 @@ class CommonRepository:
             self.session.commit()
         except Exception as e:
             logger.error(f"Instance creation [FAILURE]: {e}")
-            return
+            return ModelCreateResult(result=None, error=e)
+
         logger.info(f"New instance of {self.model} created")
-        return obj
+        self.session.refresh(obj)
+        return ModelCreateResult(result=obj, error=None)
 
     def _update(
         self,
         id: int,
         update_kwargs: dict[_DMLColumnArgument, Any],
-    ) -> bool:
+    ) -> ModelUpdateDeleteResult:
         """Update model instance with given kwargs.
 
         Args:
@@ -120,8 +166,12 @@ class CommonRepository:
         Returns:
             True if update performed successfully, False otherwise.
         """
-        if not validate_model_kwargs(self.model, update_kwargs):
-            return False
+        validated, error = validate_model_kwargs(
+            self.model, update_kwargs
+        ).astuple()
+
+        if not validated:
+            return ModelUpdateDeleteResult(result=None, error=error)
 
         update_query = (
             update(self.model).where(self.model.id == id).values(update_kwargs)
@@ -133,24 +183,30 @@ class CommonRepository:
                 f"{self.model.__tablename__.upper()} "
                 f"instance update [FAILURE]: {e}"
             )
-            return False
+            return ModelUpdateDeleteResult(result=None, error=e)
         if updated:
             self.session.commit()
             logger.info(
                 f"{self.model.__tablename__.upper()} instance "
                 f"with id `{id}` update [SUCCESS]"
             )
+            return ModelUpdateDeleteResult(result=True, error=None)
         else:
             logger.info(
                 f"No instance of {self.model.__tablename__.upper()} "
                 f"with id `{id}` found."
             )
-        return updated
+            return ModelUpdateDeleteResult(
+                result=False,
+                error=ModelInstanceNotFound(
+                    "Записи с такими данными не существует"
+                ),
+            )
 
     def _delete(
         self,
         id: int,
-    ) -> bool:
+    ) -> ModelUpdateDeleteResult:
         """Delete `self.model` instance with given id.
 
         Args:
@@ -169,19 +225,25 @@ class CommonRepository:
                 f"{self.model.__tablename__.upper()} "
                 f"instance delete [FAILURE]: {e}"
             )
-            return False
+            return ModelUpdateDeleteResult(result=None, error=e)
         if deleted:
             logger.info(
                 f"{self.model.__tablename__.upper()} instance "
                 f"with id `{id}` delete [SUCCESS]"
             )
+            return ModelUpdateDeleteResult(result=True, error=None)
         else:
             logger.warning(
                 f"Attempt to delete instance of "
                 f"{self.model.__tablename__.upper()} with id `{id}`. "
                 "No delete performed."
             )
-        return deleted
+            return ModelUpdateDeleteResult(
+                result=False,
+                error=ModelInstanceNotFound(
+                    "Записи с такими данными не существует"
+                ),
+            )
 
     def _fetch(
         self,
@@ -258,7 +320,8 @@ class CommonRepository:
 class UserRepository(CommonRepository):
     model: Type[_BaseModel] = field(default=User, init=False)
 
-    def get_user(self, user_id: int = 0, tg_id: int = 0) -> User | None:
+    @query_logger
+    def get_user(self, *, user_id: int = 0, tg_id: int = 0) -> User | None:
         return self._get(
             filters=[self.model.id == user_id, self.model.tg_id == tg_id],
             join_filters=False,
@@ -268,16 +331,21 @@ class UserRepository(CommonRepository):
         self,
         tg_id: int,
         budget_currency: str,
-    ) -> User | None:
+    ) -> ModelCreateResult:
         return self._create(tg_id=tg_id, budget_currency=budget_currency)
 
-    def update_user(self, user_id: int, is_active: bool) -> bool:
-        return self._update(user_id, {"is_active": is_active})
+    def update_user(
+        self, user_id: int, budget_currency: str, is_active: bool = None
+    ) -> ModelUpdateDeleteResult:
+        update_kwargs = {"budget_currency": budget_currency}
+        if is_active is not None:
+            update_kwargs["is_active"] = is_active
+        return self._update(user_id, update_kwargs)
 
     def delete_user(
         self,
         user_id: int,
-    ) -> bool:
+    ) -> ModelUpdateDeleteResult:
         return self._delete(user_id)
 
     def user_exists(self, *, user_id: int = 0, tg_id: int = 0) -> bool:
@@ -294,17 +362,19 @@ class UserRepository(CommonRepository):
 class CategoryRepository(CommonRepository):
     model: Type[_BaseModel] = field(default=Category, init=False)
 
+    @query_logger
     def get_category(
         self,
-        entry_category_id: int,
+        category_id: int,
     ) -> Category:
         return self._get(
-            filters=[self.model.id == entry_category_id],
+            filters=[self.model.id == category_id],
         )
 
+    # @query_logger
     @attributed_result
     def get_user_categories(
-        self, user_id: int, offset: int = 0, limit: int = 5
+        self, user_id: int, *, offset: int = 0, limit: int = 5
     ) -> AttributedResult[bool, Category, Generator]:
         return self._get_all(
             order_by=[
@@ -321,7 +391,7 @@ class CategoryRepository(CommonRepository):
         user_id: int,
         name: str,
         type: CategoryType,
-    ) -> Category | None:
+    ) -> ModelCreateResult:
         return self._create(
             user_id=user_id,
             name=name,
@@ -332,13 +402,13 @@ class CategoryRepository(CommonRepository):
         self,
         category_id: int,
         update_kwargs: dict[_DMLColumnArgument, Any],
-    ) -> bool:
+    ) -> ModelUpdateDeleteResult:
         return self._update(category_id, update_kwargs)
 
     def delete_category(
         self,
         category_id: int,
-    ) -> bool:
+    ) -> ModelUpdateDeleteResult:
         return self._delete(category_id)
 
     def count_user_categories(self, user_id: int) -> int:
