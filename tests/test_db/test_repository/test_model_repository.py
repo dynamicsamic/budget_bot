@@ -47,13 +47,12 @@ def test_create_user_with_valid_args(usrrep):
 
 
 def test_create_user_with_invalid_tg_id_type(usrrep):
-    print(usrrep.create_user(**invalid_tgid_user))
-    # user, error = usrrep.create_user(**invalid_tgid_user).astuple()
-    # assert user is None
-    # assert isinstance(error, InvalidModelArgType)
-    # assert error.arg_name == "tg_id"
-    # assert error.expected_type == int
-    # assert error.invalid_type == str
+    user, error = usrrep.create_user(**invalid_tgid_user).astuple()
+    assert user is None
+    assert isinstance(error, InvalidModelArgType)
+    assert error.arg_name == "tg_id"
+    assert error.expected_type == int
+    assert error.invalid_type == str
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
@@ -266,3 +265,50 @@ def test_get_user_categories_with_positional_arg_raises_error(
     catrep, create_categories
 ):
     catrep.get_user_categories(1, 1, 1)
+
+
+def test_category_exists_with_valid_category_id(catrep, create_categories):
+    valid_id, invalid_user_id = 1, 9999
+    assert catrep.category_exists(category_id=valid_id) is True
+    assert (
+        catrep.category_exists(category_id=1, user_id=invalid_user_id) is True
+    )
+
+
+def test_category_exists_with_unexisting_category_id(
+    catrep, create_categories
+):
+    assert catrep.category_exists(category_id=99999) is False
+
+
+def test_category_exists_with_valid_user_id(catrep, create_categories):
+    invalid_id, valid_user_id = 9999, 1
+    assert catrep.category_exists(user_id=valid_user_id) is True
+    assert (
+        catrep.category_exists(category_id=invalid_id, user_id=valid_user_id)
+        is True
+    )
+
+
+def test_category_exists_with_unexisting_user_id(catrep, create_categories):
+    assert catrep.category_exists(user_id=9999) is False
+
+
+def test_category_exists_with_valid_category_name_arg(
+    catrep, create_categories
+):
+    catrep.create_category(**valid_category)
+
+    assert (
+        catrep.category_exists(
+            user_id=valid_category.user_id, category_name=valid_category.name
+        )
+        is True
+    )
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_category_exists_with_positional_arg_raises_error(
+    catrep, create_categories
+):
+    catrep.category_exists(1, 1)
