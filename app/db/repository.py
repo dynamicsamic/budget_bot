@@ -1,6 +1,5 @@
 import inspect
 import logging
-from collections import namedtuple
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Callable, Generator, List, Optional, Type
@@ -79,11 +78,6 @@ def linked_generator(
         yield i
 
 
-AttributedResult = namedtuple(
-    "AttributedResult", ["is_empty", "head", "result"]
-)
-
-
 def attributed_result(f: Callable[..., ScalarResult]):
     def wrapper(*args, **kwargs):
         res = f(*args, **kwargs)
@@ -101,9 +95,11 @@ def attributed_result(f: Callable[..., ScalarResult]):
 
 
 def query_logger(f: Callable[..., ScalarResult]):
+    import inspect
+
     def wrapper(*args, **kwargs):
         res = f(*args, **kwargs)
-        logger.info(f"executed query function: {f.__code__.co_name}")
+        logger.info(f"SELECT query emitted by <{inspect.stack()[1].function}>")
         return res
 
     wrapper.__signature__ = inspect.signature(f)
@@ -269,6 +265,7 @@ class CommonRepository:
 
         return query
 
+    @query_logger
     def _get(
         self,
         filters: List[BinaryExpression],
@@ -277,6 +274,7 @@ class CommonRepository:
         q = self._fetch(filters=filters, join_filters=join_filters)
         return self.session.execute(q).scalar_one_or_none()
 
+    @query_logger
     def _get_all(
         self,
         *,
@@ -291,6 +289,7 @@ class CommonRepository:
 
         return self.session.scalars(q)
 
+    @query_logger
     def _count(
         self,
         filters: Optional[List[BinaryExpression]] = None,
@@ -303,6 +302,7 @@ class CommonRepository:
         )
         return self.session.scalar(q)
 
+    @query_logger
     def _exists(
         self,
         filters: Optional[List[BinaryExpression]] = None,
@@ -320,7 +320,6 @@ class CommonRepository:
 class UserRepository(CommonRepository):
     model: Type[_BaseModel] = field(default=User, init=False)
 
-    @query_logger
     def get_user(self, *, user_id: int = 0, tg_id: int = 0) -> User | None:
         return self._get(
             filters=[self.model.id == user_id, self.model.tg_id == tg_id],
@@ -362,7 +361,6 @@ class UserRepository(CommonRepository):
 class CategoryRepository(CommonRepository):
     model: Type[_BaseModel] = field(default=Category, init=False)
 
-    @query_logger
     def get_category(
         self,
         category_id: int,
@@ -371,11 +369,10 @@ class CategoryRepository(CommonRepository):
             filters=[self.model.id == category_id],
         )
 
-    # @query_logger
     @attributed_result
     def get_user_categories(
         self, user_id: int, *, offset: int = 0, limit: int = 5
-    ) -> AttributedResult[bool, Category, Generator]:
+    ) -> GeneratorResult:
         return self._get_all(
             order_by=[
                 self.model.last_used.desc(),
