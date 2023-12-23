@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.db.custom_types import ModelCreateResult
 from app.db.exceptions import InvalidModelArgType, ModelInstanceNotFound
 from app.db.models import Category, CategoryType, User
 from app.utils import epoch_start
@@ -31,10 +32,10 @@ unexisting_user_id_category = MockModel(
     type=CategoryType.EXPENSES,
 )
 
+minimal_valid_entry = MockModel(user_id=1, category_id=1, sum=1000)
+
 
 def test_create_user_with_valid_args(usrrep):
-    from app.db.custom_types import ModelCreateResult
-
     result = usrrep.create_user(**valid_user)
     assert isinstance(result, ModelCreateResult)
 
@@ -141,8 +142,6 @@ def test_delete_user_with_invalid_id_type(usrrep, create_users):
 
 
 def test_create_category_with_valid_args(catrep, create_users):
-    from app.db.custom_types import ModelCreateResult
-
     result = catrep.create_category(**valid_category)
     assert isinstance(result, ModelCreateResult)
 
@@ -312,3 +311,15 @@ def test_category_exists_with_positional_arg_raises_error(
     catrep, create_categories
 ):
     catrep.category_exists(1, 1)
+
+
+def test_create_entry_with_valid_args(entrep, create_categories):
+    result = entrep.create_entry(**minimal_valid_entry)
+    assert isinstance(result, ModelCreateResult)
+
+    entry, error = result.astuple()
+    assert error is None
+    assert entry.user_id == minimal_valid_entry.user_id
+    assert entry.category_id == minimal_valid_entry.category_id
+    assert entry.sum == minimal_valid_entry.sum
+    assert entry.id > 0
