@@ -1,6 +1,7 @@
 import inspect
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from functools import partial
 from typing import Any, Callable, Generator, List, Optional, Type
 
@@ -8,7 +9,7 @@ from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.engine.row import Row
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, scoped_session
+from sqlalchemy.orm import Session, joinedload, scoped_session
 from sqlalchemy.sql._typing import (
     _DMLColumnArgument,
     _TypedColumnClauseArgument,
@@ -29,7 +30,7 @@ from .exceptions import (
     InvalidModelArgValue,
     ModelInstanceNotFound,
 )
-from .models import Category, CategoryType, User
+from .models import Category, CategoryType, Entry, User
 
 logger = logging.getLogger(__name__)
 
@@ -364,10 +365,8 @@ class CategoryRepository(CommonRepository):
     def get_category(
         self,
         category_id: int,
-    ) -> Category:
-        return self._get(
-            filters=[self.model.id == category_id],
-        )
+    ) -> Category | None:
+        return self._get(filters=[self.model.id == category_id])
 
     @attributed_result
     def get_user_categories(
@@ -432,3 +431,38 @@ class CategoryRepository(CommonRepository):
             join_filters = True
 
         return self._exists(filters, join_filters)
+
+
+@dataclass
+class EntryRepository(CommonRepository):
+    model: Type[_BaseModel] = field(default=Entry, init=False)
+
+    def get_entry(self, entry_id: int) -> Entry | None:
+        q = self._fetch(filters=[self.model.id == entry_id]).options(
+            joinedload(self.model.user), joinedload(self.model.category)
+        )
+        return self.session.execute(q).scalar_one_or_none()
+
+    def create_entry(
+        self,
+        user_id: int,
+        category_id: int,
+        sum: int,
+        transaction_date: Optional[datetime] = None,
+        description: Optional[str] = None,
+    ) -> ModelCreateResult:
+        create_kwargs = {
+            "user_id": user_id,
+            "category_id": category_id,
+            "sum": sum,
+        }
+        if transaction_date is not None:
+            create_kwargs["transaction_date"] = transaction_date
+
+        if description is not None:
+            create_kwargs["description"] = description
+
+        return self._create(**create_kwargs)
+
+    def entry_exists(self, entry_id: int) -> bool:
+        return self._exists(filters=[self.model.id == entry_id])
