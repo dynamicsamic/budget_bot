@@ -139,6 +139,7 @@ dmypy.json
 sandbox.py
 trash.py
 *_old.py
+*_old/
 
 # source files
 *.xls
