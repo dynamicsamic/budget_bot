@@ -7,8 +7,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import models
-from app.db.models.base import Base
-from app.db.repository import CategoryRepository, UserRepository
+from app.db.models import Base
+from app.db.repository import (
+    CategoryRepository,
+    EntryRepository,
+    UserRepository,
+)
 from tests.conf import constants
 
 
@@ -121,3 +125,8 @@ def catrep(db_session):
 @pytest.fixture
 def usrrep(db_session):
     yield UserRepository(db_session)
+
+
+@pytest.fixture
+def entrep(db_session):
+    yield EntryRepository(db_session)

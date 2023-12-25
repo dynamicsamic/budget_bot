@@ -1,19 +1,76 @@
-from typing import Any
-
 import pytest
+from sqlalchemy import DateTime, Integer
 from sqlalchemy.exc import IntegrityError
 
-from app.db.models import Category, CategoryType, Entry, User
+from app.db.models import (
+    AbstractBaseModel,
+    Category,
+    CategoryType,
+    Entry,
+    User,
+)
 from app.utils import now
 
+from .conftest import MockModel
 
-class MockModel:
-    def __init__(self, **kwargs) -> None:
-        for attr, value in kwargs.items():
-            setattr(self, attr, value)
+#########################
+##      TESTS FOR      ##
+## ABSTRACT_BASE_MODEL ##
+#########################
 
-    def __call__(self) -> dict[str, Any]:
-        return self.__dict__
+
+class AbstractSubclass(AbstractBaseModel):
+    __tablename__ = "abstract_subclass"
+
+
+abstract_object = AbstractSubclass(id=1)
+
+
+def test_abstract_base_model_attributes_have_correct_sqlalchemy_types():
+    assert type(AbstractSubclass.id.type) is Integer
+    assert type(AbstractSubclass.created_at.type) is DateTime
+    assert type(AbstractSubclass.last_updated.type) is DateTime
+
+
+def test_abstract_base_model_has_fields_details_attributes():
+    assert isinstance(abstract_object.fields, dict)
+    assert isinstance(abstract_object.fieldtypes, dict)
+    assert isinstance(abstract_object.fieldnames, set)
+    assert isinstance(abstract_object.primary_keys, set)
+
+
+def test_abstract_base_model_fields_attribute():
+    expected_fields = {
+        "id": AbstractSubclass.id,
+        "created_at": AbstractSubclass.created_at,
+        "last_updated": AbstractSubclass.last_updated,
+    }
+    assert expected_fields == abstract_object.fields
+
+
+def test_abstract_base_model_fieldtypes_attribute():
+    expected_fieldtypes = {
+        "id": AbstractSubclass.id.type,
+        "created_at": AbstractSubclass.created_at.type,
+        "last_updated": AbstractSubclass.last_updated.type,
+    }
+    assert expected_fieldtypes == abstract_object.fieldtypes
+
+
+def test_abstract_base_model_fieldnames_attribute():
+    expected_fieldnames = {"id", "created_at", "last_updated"}
+    assert abstract_object.fieldnames == expected_fieldnames
+
+
+def test_abstract_base_model_primary_keys():
+    expected_primary_keys = {"id"}
+    assert abstract_object.primary_keys == expected_primary_keys
+
+
+#########################
+##      TESTS FOR      ##
+##     REAL MODELS     ##
+#########################
 
 
 valid_user = MockModel(id=999, tg_id=10999)
@@ -80,7 +137,7 @@ def test_user_has_expected_str_representation(db_session, create_users):
     user = db_session.get(User, 1)
     expected_str = (
         f"User(Id={user.id}, TelegramId={user.tg_id}, "
-        f"IsActive={user.is_active})"
+        f"Currency={user.budget_currency}, IsActive={user.is_active})"
     )
     assert str(user) == expected_str
     assert repr(user) == expected_str
@@ -247,7 +304,7 @@ def test_category_delete_raise_error_if_entries_exist(
 def test_category_render(db_session, create_categories):
     category = db_session.get(Category, 1)
     expected_str = (
-        f"{category.name} ({category.type.description}), "
+        f"{category.name.capitalize()} ({category.type.description}), "
         f"{category.num_entries} операций"
     )
     assert category.render() == expected_str

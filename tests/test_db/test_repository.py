@@ -6,7 +6,7 @@ from app.db.exceptions import InvalidModelArgType, ModelInstanceNotFound
 from app.db.models import Category, CategoryType, User
 from app.utils import epoch_start
 
-from ..conftest import MockModel
+from .conftest import MockModel
 
 valid_user = MockModel(tg_id=100, budget_currency="EUR")
 invalid_tgid_user = MockModel(tg_id="100", budget_currency="RUB")
