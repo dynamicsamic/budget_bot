@@ -1,6 +1,6 @@
 import datetime as dt
 import enum
-from typing import List, Optional
+from typing import List, Optional, Type
 
 from sqlalchemy import (
     CheckConstraint,
@@ -11,15 +11,82 @@ from sqlalchemy import (
     String,
 )
 from sqlalchemy.orm import (
+    DeclarativeBase,
     InstrumentedAttribute,
     Mapped,
     mapped_column,
     relationship,
 )
+from sqlalchemy.orm.attributes import QueryableAttribute
 
 from app import settings
+from app.utils import _SQLAlchemyDataType, epoch_start
 
-from .base import AbstractBaseModel
+
+class Base(DeclarativeBase):
+    pass
+
+
+class ModelFieldsDetails:
+    """Mixin that adds information about actual sqlalchemy model fields."""
+
+    @classmethod
+    @property
+    def fields(cls) -> dict[str, Type[QueryableAttribute]]:
+        """Get actual model fields and their attribute classes."""
+        return {
+            attr_name: attr_obj
+            for attr_name, attr_obj in cls.__dict__.items()
+            if not attr_name.startswith("_")
+            and getattr(attr_obj, "is_attribute", None)
+        }
+
+    @classmethod
+    @property
+    def fieldtypes(cls) -> dict[str, _SQLAlchemyDataType]:
+        """Get actual model fields and their attribute sqlalchemy types."""
+        return {
+            attr_name: attr_obj.type
+            for attr_name, attr_obj in cls.fields.items()
+        }
+
+    @classmethod
+    @property
+    def fieldnames(cls) -> set[str]:
+        """Get actual model field names."""
+        return set(cls.fields.keys())
+
+    @classmethod
+    @property
+    def primary_keys(cls) -> set[str]:
+        """Get actual model's primary keys."""
+        return {
+            fieldname
+            for fieldname, field_obj in cls.fields.items()
+            if getattr(field_obj, "primary_key")
+        }
+
+
+class AbstractBaseModel(Base, ModelFieldsDetails):
+    """Parent class for all active models."""
+
+    __abstract__ = True
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
+    )
+    last_updated: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=dt.datetime.now(settings.TIME_ZONE),
+        onupdate=dt.datetime.now(settings.TIME_ZONE),
+    )
+
+    def __repr__(self) -> str:
+        pass
+
+    def render(self) -> str:
+        pass
 
 
 class CategoryType(enum.Enum):
@@ -66,8 +133,8 @@ class User(AbstractBaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(Id={self.id}, "
-            f"TelegramId={self.tg_id}, IsActive={self.is_active})"
+            f"{self.__class__.__name__}(Id={self.id}, TelegramId={self.tg_id}, "
+            f"Currency={self.budget_currency}, IsActive={self.is_active})"
         )
 
 
@@ -79,7 +146,7 @@ class Category(AbstractBaseModel):
         Enum(CategoryType, create_constraint=True)
     )
     last_used: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), default=dt.datetime(year=1970, month=1, day=1)
+        DateTime(timezone=True), default=epoch_start()
     )
     user_id: Mapped[int] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE")
@@ -102,7 +169,7 @@ class Category(AbstractBaseModel):
 
     def render(self) -> str:
         return (
-            f"{self.name} ({self.type.description}), "
+            f"{self.name.capitalize()} ({self.type.description}), "
             f"{self.num_entries} {select_num_entries_ending(self.num_entries)}"
         )
 
