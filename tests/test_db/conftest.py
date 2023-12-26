@@ -6,14 +6,20 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
-from app.db import models
-from app.db.models import Base
+from app.db.models import Base, Category, CategoryType, Entry, User
 from app.db.repository import (
     CategoryRepository,
     EntryRepository,
     UserRepository,
 )
-from tests.conf import constants
+
+TG_ID_PREFIX = 100
+START_INDEX = 1
+USER_SAMPLE = 5
+EXPENSES_SAMPLE = 30
+INCOME_SAMPLE = 15
+POSITIVE_ENTRIES_SAMPLE = 50
+NEGATIVE_ENTRIES_SAMPLE = 80
 
 
 class MockModel:
@@ -63,8 +69,8 @@ def db_session(inmemory_engine, create_tables) -> Session:
 def create_users(db_session):
     db_session.add_all(
         [
-            models.User(id=i, tg_id=f"100{i}")
-            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
+            User(id=i, tg_id=100 + i)
+            for i in range(START_INDEX, USER_SAMPLE + START_INDEX)
         ]
     )
     db_session.commit()
@@ -72,45 +78,54 @@ def create_users(db_session):
 
 @pytest.fixture
 def create_categories(db_session, create_users):
-    db_session.add_all(
-        [
-            models.Category(
-                id=i,
-                name=f"category{i}",
-                type=models.CategoryType.EXPENSES
-                if i % 2
-                else models.CategoryType.INCOME,
-                user_id=i,
-            )
-            for i in range(1, constants["TEST_SAMPLE_SIZE"] + 1)
-        ]
-    )
+    expenses = [
+        Category(
+            id=i,
+            name=f"category{i}",
+            type=CategoryType.EXPENSES,
+            user_id=i % USER_SAMPLE + 1 or START_INDEX,
+        )
+        for i in range(START_INDEX, EXPENSES_SAMPLE + START_INDEX)
+    ]
+    income = [
+        Category(
+            id=i,
+            name=f"category{i}",
+            type=CategoryType.INCOME,
+            user_id=i % USER_SAMPLE + 1 or START_INDEX,
+        )
+        for i in range(
+            EXPENSES_SAMPLE + START_INDEX,
+            INCOME_SAMPLE + EXPENSES_SAMPLE + START_INDEX,
+        )
+    ]
+    db_session.add_all(expenses + income)
     db_session.commit()
 
 
 @pytest.fixture
 def create_entries(db_session, create_categories):
     positives = [
-        models.Entry(
+        Entry(
             id=i,
             sum=random.randint(1, 1000000),
             description=f"test{i}",
-            user_id=i,
-            category_id=i,
+            user_id=i % USER_SAMPLE + 1 or START_INDEX,
+            category_id=i % INCOME_SAMPLE + 1 or 1,
         )
-        for i in range(1, constants["TEST_SAMPLE_SIZE"] // 2 + 1)
+        for i in range(START_INDEX, POSITIVE_ENTRIES_SAMPLE + START_INDEX)
     ]
     negatives = [
-        models.Entry(
+        Entry(
             id=i,
             sum=random.randint(-1000000, -1),
             description=f"test{i}",
-            user_id=i,
-            category_id=i,
+            user_id=i % USER_SAMPLE + 1 or START_INDEX,
+            category_id=i % EXPENSES_SAMPLE + 1 or 1,
         )
         for i in range(
-            constants["TEST_SAMPLE_SIZE"] // 2 + 1,
-            constants["TEST_SAMPLE_SIZE"] + 1,
+            POSITIVE_ENTRIES_SAMPLE + START_INDEX,
+            NEGATIVE_ENTRIES_SAMPLE + POSITIVE_ENTRIES_SAMPLE + START_INDEX,
         )
     ]
     db_session.add_all(positives + negatives)

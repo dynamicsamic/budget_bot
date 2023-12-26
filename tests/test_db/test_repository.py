@@ -3,13 +3,16 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.db.custom_types import ModelCreateResult
 from app.db.exceptions import InvalidModelArgType, ModelInstanceNotFound
-from app.db.models import Category, CategoryType, User
-from app.utils import epoch_start
+from app.db.models import Category, CategoryType, Entry, User
+from app.utils import epoch_start, now
 
-from .conftest import MockModel
+from .conftest import EXPENSES_SAMPLE, INCOME_SAMPLE, USER_SAMPLE, MockModel
+
+UNEXISTING_ID = -999
+CATEGORIES_PER_USER = (EXPENSES_SAMPLE + INCOME_SAMPLE) // USER_SAMPLE
 
 valid_user = MockModel(tg_id=100, budget_currency="EUR")
-invalid_tgid_user = MockModel(tg_id="100", budget_currency="RUB")
+invalid_tgid_type_user = MockModel(tg_id="100", budget_currency="RUB")
 
 valid_category = MockModel(
     user_id=1,
@@ -27,12 +30,33 @@ invalid_arg_type_category = MockModel(
     type=CategoryType.EXPENSES,
 )
 unexisting_user_id_category = MockModel(
-    user_id=999999999,
+    user_id=UNEXISTING_ID,
     name="test_category",
     type=CategoryType.EXPENSES,
 )
 
 minimal_valid_entry = MockModel(user_id=1, category_id=1, sum=1000)
+full_valid_entry = MockModel(
+    user_id=1,
+    category_id=1,
+    sum=-1000,
+    description="test description",
+    transaction_date=now(),
+)
+unexisting_user_id_entry = MockModel(
+    user_id=UNEXISTING_ID, category_id=1, sum=1000
+)
+unexisting_category_id_entry = MockModel(
+    user_id=1, category_id=UNEXISTING_ID, sum=1000
+)
+invalid_sum_type_entry = MockModel(user_id=1, category_id=1, sum="1000")
+invalid_user_id_type_entry = MockModel(user_id="1", category_id=1, sum=1000)
+invalid_category_id_type_entry = MockModel(
+    user_id=1, category_id="1", sum=1000
+)
+invalid_description_type_entry = MockModel(
+    user_id=1, category_id=1, sum=1000, description=22
+)
 
 
 def test_create_user_with_valid_args(usrrep):
@@ -48,7 +72,7 @@ def test_create_user_with_valid_args(usrrep):
 
 
 def test_create_user_with_invalid_tg_id_type(usrrep):
-    user, error = usrrep.create_user(**invalid_tgid_user).astuple()
+    user, error = usrrep.create_user(**invalid_tgid_type_user).astuple()
     assert user is None
     assert isinstance(error, InvalidModelArgType)
     assert error.arg_name == "tg_id"
@@ -62,7 +86,7 @@ def test_get_user_with_positional_arg_raises_error(usrrep, create_users):
 
 
 def test_get_user_with_valid_kwargs(usrrep, create_users):
-    valid_id, valid_tg_id = 1, 1001
+    valid_id, valid_tg_id = 1, 101
     user = usrrep.get_user(user_id=valid_id)
     assert isinstance(user, User)
     assert user.id == valid_id
@@ -75,7 +99,7 @@ def test_get_user_with_valid_kwargs(usrrep, create_users):
 
 
 def test_get_user_with_unexisting_ids(usrrep, create_users):
-    invalid_id, invalid_tg_id = 99999, 109999
+    invalid_id, invalid_tg_id = UNEXISTING_ID, UNEXISTING_ID
     assert usrrep.get_user(user_id=invalid_id) is None
     assert usrrep.get_user(tg_id=invalid_tg_id) is None
 
@@ -128,8 +152,7 @@ def test_delete_user_with_valid_id(usrrep, create_users):
 
 
 def test_delete_user_with_invalid_id(usrrep, create_users):
-    invalid_id = 199999
-    deleted, error = usrrep.delete_user(invalid_id).astuple()
+    deleted, error = usrrep.delete_user(UNEXISTING_ID).astuple()
     assert deleted is False
     assert isinstance(error, ModelInstanceNotFound)
 
@@ -189,7 +212,7 @@ def test_get_category_with_valid_id(catrep, create_categories):
 
 
 def test_get_category_with_unexisting_id(catrep, create_categories):
-    assert catrep.get_category(9999) is None
+    assert catrep.get_category(UNEXISTING_ID) is None
 
 
 def test_count_user_categories_with_existing_user_id(
@@ -197,7 +220,7 @@ def test_count_user_categories_with_existing_user_id(
 ):
     user_id = 1
     initial_count = catrep.count_user_categories(user_id)
-    assert initial_count == 1
+    assert initial_count == CATEGORIES_PER_USER
 
     catrep.create_category(user_id, "test_name", CategoryType.EXPENSES)
     current_count = catrep.count_user_categories(user_id)
@@ -207,7 +230,7 @@ def test_count_user_categories_with_existing_user_id(
 def test_count_user_categories_with_unexisting_user_id(
     catrep, create_categories
 ):
-    assert catrep.count_user_categories(999999) == 0
+    assert catrep.count_user_categories(UNEXISTING_ID) == 0
 
 
 def test_get_user_categories_with_existing_user_id(
@@ -254,7 +277,7 @@ def test_get_user_categories_with_existing_user_id(
 def test_get_user_categories_with_unexisting_user_id(
     catrep, create_categories
 ):
-    categories = catrep.get_user_categories(999999)
+    categories = catrep.get_user_categories(UNEXISTING_ID)
     assert categories.is_empty is True
     assert categories.result == []
 
@@ -277,11 +300,11 @@ def test_category_exists_with_valid_category_id(catrep, create_categories):
 def test_category_exists_with_unexisting_category_id(
     catrep, create_categories
 ):
-    assert catrep.category_exists(category_id=99999) is False
+    assert catrep.category_exists(category_id=UNEXISTING_ID) is False
 
 
 def test_category_exists_with_valid_user_id(catrep, create_categories):
-    invalid_id, valid_user_id = 9999, 1
+    invalid_id, valid_user_id = UNEXISTING_ID, 1
     assert catrep.category_exists(user_id=valid_user_id) is True
     assert (
         catrep.category_exists(category_id=invalid_id, user_id=valid_user_id)
@@ -290,7 +313,7 @@ def test_category_exists_with_valid_user_id(catrep, create_categories):
 
 
 def test_category_exists_with_unexisting_user_id(catrep, create_categories):
-    assert catrep.category_exists(user_id=9999) is False
+    assert catrep.category_exists(user_id=UNEXISTING_ID) is False
 
 
 def test_category_exists_with_valid_category_name_arg(
@@ -313,13 +336,79 @@ def test_category_exists_with_positional_arg_raises_error(
     catrep.category_exists(1, 1)
 
 
-def test_create_entry_with_valid_args(entrep, create_categories):
+def test_create_entry_with_minimal_valid_args(entrep, create_categories):
     result = entrep.create_entry(**minimal_valid_entry)
     assert isinstance(result, ModelCreateResult)
 
     entry, error = result.astuple()
     assert error is None
+
+    assert isinstance(entry, Entry)
     assert entry.user_id == minimal_valid_entry.user_id
     assert entry.category_id == minimal_valid_entry.category_id
     assert entry.sum == minimal_valid_entry.sum
     assert entry.id > 0
+    assert entry.description is None
+    assert entry.transaction_date is not None
+
+
+def test_create_entry_with_full_valid_args(entrep, create_categories):
+    entry, error = entrep.create_entry(**full_valid_entry).astuple()
+    assert error is None
+    assert entry.user_id == full_valid_entry.user_id
+    assert entry.category_id == full_valid_entry.category_id
+    assert entry.sum == full_valid_entry.sum
+    assert entry.id > 0
+    assert entry.description == full_valid_entry.description
+
+    assert (
+        f"{entry.transaction_date:%Y-%m-%d %H:%M:%S}"
+        == f"{full_valid_entry.transaction_date:%Y-%m-%d %H:%M:%S}"
+    )
+
+
+def test_create_entry_with_unexisting_user_id(entrep, create_categories):
+    result = entrep.create_entry(**unexisting_user_id_entry)
+    assert isinstance(result, ModelCreateResult)
+
+    entry, error = result.astuple()
+    assert entry is None
+    assert isinstance(error, SQLAlchemyError)
+
+
+def test_create_entry_with_unexisting_category_id(entrep, create_categories):
+    result = entrep.create_entry(**unexisting_category_id_entry)
+    assert isinstance(result, ModelCreateResult)
+
+    entry, error = result.astuple()
+    assert entry is None
+    assert isinstance(error, SQLAlchemyError)
+
+
+def test_create_entry_with_invalid_arg_types(entrep, create_categories):
+    category, error = entrep.create_entry(
+        **invalid_user_id_type_entry
+    ).astuple()
+    assert category is None
+    assert isinstance(error, InvalidModelArgType)
+    assert error.arg_name == "user_id"
+    assert error.expected_type == int
+    assert error.invalid_type == str
+
+    category, error = entrep.create_entry(
+        **invalid_category_id_type_entry
+    ).astuple()
+    assert category is None
+    assert isinstance(error, InvalidModelArgType)
+    assert error.arg_name == "category_id"
+    assert error.expected_type == int
+    assert error.invalid_type == str
+
+    category, error = entrep.create_entry(
+        **invalid_description_type_entry
+    ).astuple()
+    assert category is None
+    assert isinstance(error, InvalidModelArgType)
+    assert error.arg_name == "description"
+    assert error.expected_type == str
+    assert error.invalid_type == int
