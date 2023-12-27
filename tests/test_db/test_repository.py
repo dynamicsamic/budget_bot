@@ -6,10 +6,20 @@ from app.db.exceptions import InvalidModelArgType, ModelInstanceNotFound
 from app.db.models import Category, CategoryType, Entry, User
 from app.utils import epoch_start, now
 
-from .conftest import EXPENSES_SAMPLE, INCOME_SAMPLE, USER_SAMPLE, MockModel
+from .conftest import (
+    EXPENSES_SAMPLE,
+    INCOME_SAMPLE,
+    NEGATIVE_ENTRIES_SAMPLE,
+    POSITIVE_ENTRIES_SAMPLE,
+    USER_SAMPLE,
+    MockModel,
+)
 
 UNEXISTING_ID = -999
 CATEGORIES_PER_USER = (EXPENSES_SAMPLE + INCOME_SAMPLE) // USER_SAMPLE
+ENTRIES_PER_USER = (
+    POSITIVE_ENTRIES_SAMPLE + NEGATIVE_ENTRIES_SAMPLE
+) // USER_SAMPLE
 
 valid_user = MockModel(tg_id=100, budget_currency="EUR")
 invalid_tgid_type_user = MockModel(tg_id="100", budget_currency="RUB")
@@ -412,3 +422,24 @@ def test_create_entry_with_invalid_arg_types(entrep, create_categories):
     assert error.arg_name == "description"
     assert error.expected_type == str
     assert error.invalid_type == int
+
+
+def test_get_entry_with_valid_id(entrep, create_entries):
+    entry = entrep.create_entry(**minimal_valid_entry).result
+
+    from_db = entrep.get_entry(entry.id)
+    assert isinstance(from_db, Entry)
+    assert from_db.id == entry.id
+    assert from_db.user_id == entry.user_id
+    assert from_db.category_id == entry.category_id
+    assert from_db.sum == entry.sum
+
+
+def test_get_entry_with_unexisting_id(entrep, create_entries):
+    assert entrep.get_entry(UNEXISTING_ID) is None
+
+
+def test_count_entries_with_valid_ids(entrep, create_entries):
+    valid_user_id = 2
+
+    assert entrep.count_entries(user_id=valid_user_id) == ENTRIES_PER_USER
