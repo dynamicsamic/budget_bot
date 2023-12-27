@@ -294,7 +294,7 @@ class CommonRepository:
     def _count(
         self,
         filters: Optional[List[BinaryExpression]] = None,
-        join_filters: Optional[bool] = True,
+        join_filters: bool = True,
     ) -> int:
         q = self._fetch(
             func.count(self.model.id),
@@ -464,5 +464,25 @@ class EntryRepository(CommonRepository):
 
         return self._create(**create_kwargs)
 
+    def count_entries(self, *, user_id: int = 0, category_id: int = 0) -> bool:
+        return self._count(
+            filters=[
+                self.model.user_id == user_id,
+                self.model.category_id == category_id,
+            ],
+            join_filters=False,
+        )
+
     def entry_exists(self, entry_id: int) -> bool:
         return self._exists(filters=[self.model.id == entry_id])
+
+
+def get_user(
+    db_session: Session | scoped_session, *, user_id: int = 0, tg_id: int = 0
+) -> User | None:
+    if not (user_id or tg_id):
+        raise ValueError(
+            "Provide either a `user_id` or `tg_id` argument for get_user."
+        )
+
+    return UserRepository(db_session).get_user(user_id=user_id, tg_id=tg_id)
