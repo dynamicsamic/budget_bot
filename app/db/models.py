@@ -1,6 +1,6 @@
 import datetime as dt
 import enum
-from typing import List, Optional, Type
+from typing import List, Optional, Type, TypeVar
 
 from sqlalchemy import (
     CheckConstraint,
@@ -20,11 +20,10 @@ from sqlalchemy.orm import (
 from sqlalchemy.orm.attributes import QueryableAttribute
 
 from app import settings
-from app.utils import _SQLAlchemyDataType, epoch_start
+from app.utils import epoch_start
 
-
-class Base(DeclarativeBase):
-    pass
+# any data type from sqlalchemy.sql.sqltypes
+_SQLAlchemyDataType = TypeVar("_SQLAlchemyDataType")
 
 
 class ModelFieldsDetails:
@@ -65,6 +64,10 @@ class ModelFieldsDetails:
             for fieldname, field_obj in cls.fields.items()
             if getattr(field_obj, "primary_key")
         }
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class AbstractBaseModel(Base, ModelFieldsDetails):
