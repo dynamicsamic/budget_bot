@@ -11,31 +11,31 @@ from .conftest import (
     INCOME_SAMPLE,
     NEGATIVE_ENTRIES_SAMPLE,
     POSITIVE_ENTRIES_SAMPLE,
-    USER_SAMPLE,
+    TARGET_CATEGORY_ID,
+    TARGET_USER_ID,
     MockModel,
 )
 
 UNEXISTING_ID = -999
-CATEGORIES_PER_USER = (EXPENSES_SAMPLE + INCOME_SAMPLE) // USER_SAMPLE
-ENTRIES_PER_USER = (
-    POSITIVE_ENTRIES_SAMPLE + NEGATIVE_ENTRIES_SAMPLE
-) // USER_SAMPLE
+TOTAL_USER_CATEGORIES = INCOME_SAMPLE + EXPENSES_SAMPLE
+TARGET_USER_ENTRIES = POSITIVE_ENTRIES_SAMPLE + NEGATIVE_ENTRIES_SAMPLE
+TARGET_CATEGORY_ENTRIES = TARGET_USER_ENTRIES
 
 valid_user = MockModel(tg_id=100, budget_currency="EUR")
 invalid_tgid_type_user = MockModel(tg_id="100", budget_currency="RUB")
 
 valid_category = MockModel(
-    user_id=1,
+    user_id=TARGET_USER_ID,
     name="test_category",
     type=CategoryType.EXPENSES,
 )
 invalid_arg_name_category = MockModel(
-    user_id=1,
+    user_id=TARGET_USER_ID,
     invalid="test_category",
     type=CategoryType.EXPENSES,
 )
 invalid_arg_type_category = MockModel(
-    user_id=1,
+    user_id=TARGET_USER_ID,
     name=CategoryType.INCOME,
     type=CategoryType.EXPENSES,
 )
@@ -45,27 +45,36 @@ unexisting_user_id_category = MockModel(
     type=CategoryType.EXPENSES,
 )
 
-minimal_valid_entry = MockModel(user_id=1, category_id=1, sum=1000)
+minimal_valid_entry = MockModel(
+    user_id=TARGET_USER_ID, category_id=TARGET_CATEGORY_ID, sum=1000
+)
 full_valid_entry = MockModel(
-    user_id=1,
-    category_id=1,
+    user_id=TARGET_USER_ID,
+    category_id=TARGET_CATEGORY_ID,
     sum=-1000,
     description="test description",
     transaction_date=now(),
 )
 unexisting_user_id_entry = MockModel(
-    user_id=UNEXISTING_ID, category_id=1, sum=1000
+    user_id=UNEXISTING_ID, category_id=TARGET_CATEGORY_ID, sum=1000
 )
 unexisting_category_id_entry = MockModel(
-    user_id=1, category_id=UNEXISTING_ID, sum=1000
+    user_id=TARGET_USER_ID, category_id=UNEXISTING_ID, sum=1000
 )
-invalid_sum_type_entry = MockModel(user_id=1, category_id=1, sum="1000")
-invalid_user_id_type_entry = MockModel(user_id="1", category_id=1, sum=1000)
+invalid_sum_type_entry = MockModel(
+    user_id=TARGET_USER_ID, category_id=TARGET_CATEGORY_ID, sum="1000"
+)
+invalid_user_id_type_entry = MockModel(
+    user_id="1", category_id=TARGET_CATEGORY_ID, sum=1000
+)
 invalid_category_id_type_entry = MockModel(
-    user_id=1, category_id="1", sum=1000
+    user_id=TARGET_USER_ID, category_id="1", sum=1000
 )
 invalid_description_type_entry = MockModel(
-    user_id=1, category_id=1, sum=1000, description=22
+    user_id=TARGET_USER_ID,
+    category_id=TARGET_CATEGORY_ID,
+    sum=1000,
+    description=22,
 )
 
 
@@ -154,11 +163,10 @@ def test_update_user_with_invalid_is_active(usrrep, create_users):
 
 
 def test_delete_user_with_valid_id(usrrep, create_users):
-    valid_id = 1
-    deleted, error = usrrep.delete_user(valid_id).astuple()
+    deleted, error = usrrep.delete_user(TARGET_USER_ID).astuple()
     assert deleted is True
     assert error is None
-    assert usrrep.get_user(user_id=valid_id) is None
+    assert usrrep.get_user(user_id=TARGET_USER_ID) is None
 
 
 def test_delete_user_with_invalid_id(usrrep, create_users):
@@ -228,12 +236,11 @@ def test_get_category_with_unexisting_id(catrep, create_categories):
 def test_count_user_categories_with_existing_user_id(
     catrep, create_categories
 ):
-    user_id = 1
-    initial_count = catrep.count_user_categories(user_id)
-    assert initial_count == CATEGORIES_PER_USER
+    initial_count = catrep.count_user_categories(TARGET_USER_ID)
+    assert initial_count == TOTAL_USER_CATEGORIES
 
-    catrep.create_category(user_id, "test_name", CategoryType.EXPENSES)
-    current_count = catrep.count_user_categories(user_id)
+    catrep.create_category(TARGET_USER_ID, "test_name", CategoryType.EXPENSES)
+    current_count = catrep.count_user_categories(TARGET_USER_ID)
     assert current_count == initial_count + 1
 
 
@@ -300,10 +307,12 @@ def test_get_user_categories_with_positional_arg_raises_error(
 
 
 def test_category_exists_with_valid_category_id(catrep, create_categories):
-    valid_id, invalid_user_id = 1, 9999
-    assert catrep.category_exists(category_id=valid_id) is True
+    assert catrep.category_exists(category_id=TARGET_CATEGORY_ID) is True
     assert (
-        catrep.category_exists(category_id=1, user_id=invalid_user_id) is True
+        catrep.category_exists(
+            category_id=TARGET_CATEGORY_ID, user_id=UNEXISTING_ID
+        )
+        is True
     )
 
 
@@ -314,10 +323,11 @@ def test_category_exists_with_unexisting_category_id(
 
 
 def test_category_exists_with_valid_user_id(catrep, create_categories):
-    invalid_id, valid_user_id = UNEXISTING_ID, 1
-    assert catrep.category_exists(user_id=valid_user_id) is True
+    assert catrep.category_exists(user_id=TARGET_USER_ID) is True
     assert (
-        catrep.category_exists(category_id=invalid_id, user_id=valid_user_id)
+        catrep.category_exists(
+            category_id=UNEXISTING_ID, user_id=TARGET_USER_ID
+        )
         is True
     )
 
@@ -439,7 +449,56 @@ def test_get_entry_with_unexisting_id(entrep, create_entries):
     assert entrep.get_entry(UNEXISTING_ID) is None
 
 
-def test_count_entries_with_valid_ids(entrep, create_entries):
-    valid_user_id = 2
+def test_count_entries_with_valid_user_id(entrep, create_entries):
+    initial_count = entrep.count_entries(user_id=TARGET_USER_ID)
+    assert initial_count == TARGET_USER_ENTRIES
 
-    assert entrep.count_entries(user_id=valid_user_id) == ENTRIES_PER_USER
+    entrep.create_entry(**minimal_valid_entry)
+    assert entrep.count_entries(user_id=TARGET_USER_ID) == initial_count + 1
+
+    assert entrep.count_entries(user_id=TARGET_USER_ID + 1) == 0
+
+
+def test_count_entries_with_valid_category_id(entrep, create_entries):
+    initial_count = entrep.count_entries(category_id=TARGET_CATEGORY_ID)
+    assert initial_count == TARGET_CATEGORY_ENTRIES
+
+    entrep.create_entry(**minimal_valid_entry)
+    assert (
+        entrep.count_entries(category_id=TARGET_CATEGORY_ID)
+        == initial_count + 1
+    )
+
+    assert entrep.count_entries(category_id=TARGET_CATEGORY_ID + 1) == 0
+
+
+def test_count_entries_with_combined_valid_and_invalid_ids(
+    entrep, create_entries
+):
+    assert (
+        entrep.count_entries(user_id=TARGET_USER_ID, category_id=UNEXISTING_ID)
+        == TARGET_USER_ENTRIES
+    )
+
+    assert (
+        entrep.count_entries(
+            user_id=UNEXISTING_ID, category_id=TARGET_CATEGORY_ID
+        )
+        == TARGET_CATEGORY_ENTRIES
+    )
+
+
+def test_count_entries_with_unexisting_ids(entrep, create_entries):
+    assert (
+        entrep.count_entries(user_id=UNEXISTING_ID, category_id=UNEXISTING_ID)
+        == 0
+    )
+
+
+def test_count_entries_without_args(entrep, create_entries):
+    assert entrep.count_entries() == 0
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_count_entries_with_positional_args(entrep, create_entries):
+    entrep.count_entries(TARGET_USER_ID, TARGET_CATEGORY_ID)

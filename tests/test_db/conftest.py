@@ -13,13 +13,14 @@ from app.db.repository import (
     UserRepository,
 )
 
-TG_ID_PREFIX = 100
-START_INDEX = 1
 USER_SAMPLE = 5
-EXPENSES_SAMPLE = 30
-INCOME_SAMPLE = 15
-POSITIVE_ENTRIES_SAMPLE = 50
-NEGATIVE_ENTRIES_SAMPLE = 80
+TG_ID_PREFIX = 100
+TARGET_USER_ID = 1
+TARGET_CATEGORY_ID = 1
+EXPENSES_SAMPLE = 10
+INCOME_SAMPLE = 5
+POSITIVE_ENTRIES_SAMPLE = 25
+NEGATIVE_ENTRIES_SAMPLE = 35
 
 
 class MockModel:
@@ -68,10 +69,7 @@ def db_session(inmemory_engine, create_tables) -> Session:
 @pytest.fixture
 def create_users(db_session):
     db_session.add_all(
-        [
-            User(id=i, tg_id=100 + i)
-            for i in range(START_INDEX, USER_SAMPLE + START_INDEX)
-        ]
+        [User(id=i, tg_id=TG_ID_PREFIX + i) for i in range(1, USER_SAMPLE + 1)]
     )
     db_session.commit()
 
@@ -83,20 +81,20 @@ def create_categories(db_session, create_users):
             id=i,
             name=f"category{i}",
             type=CategoryType.EXPENSES,
-            user_id=i % USER_SAMPLE + 1 or START_INDEX,
+            user_id=TARGET_USER_ID,
         )
-        for i in range(START_INDEX, EXPENSES_SAMPLE + START_INDEX)
+        for i in range(1, EXPENSES_SAMPLE + 1)
     ]
     income = [
         Category(
             id=i,
             name=f"category{i}",
             type=CategoryType.INCOME,
-            user_id=i % USER_SAMPLE + 1 or START_INDEX,
+            user_id=TARGET_USER_ID,
         )
         for i in range(
-            EXPENSES_SAMPLE + START_INDEX,
-            INCOME_SAMPLE + EXPENSES_SAMPLE + START_INDEX,
+            EXPENSES_SAMPLE + 1,
+            INCOME_SAMPLE + EXPENSES_SAMPLE + 1,
         )
     ]
     db_session.add_all(expenses + income)
@@ -110,22 +108,22 @@ def create_entries(db_session, create_categories):
             id=i,
             sum=random.randint(1, 1000000),
             description=f"test{i}",
-            user_id=i % USER_SAMPLE + 1 or START_INDEX,
-            category_id=i % INCOME_SAMPLE + 1 or 1,
+            user_id=TARGET_USER_ID,
+            category_id=TARGET_CATEGORY_ID,
         )
-        for i in range(START_INDEX, POSITIVE_ENTRIES_SAMPLE + START_INDEX)
+        for i in range(1, POSITIVE_ENTRIES_SAMPLE + 1)
     ]
     negatives = [
         Entry(
             id=i,
             sum=random.randint(-1000000, -1),
             description=f"test{i}",
-            user_id=i % USER_SAMPLE + 1 or START_INDEX,
-            category_id=i % EXPENSES_SAMPLE + 1 or 1,
+            user_id=TARGET_USER_ID,
+            category_id=TARGET_CATEGORY_ID,
         )
         for i in range(
-            POSITIVE_ENTRIES_SAMPLE + START_INDEX,
-            NEGATIVE_ENTRIES_SAMPLE + POSITIVE_ENTRIES_SAMPLE + START_INDEX,
+            POSITIVE_ENTRIES_SAMPLE + 1,
+            NEGATIVE_ENTRIES_SAMPLE + POSITIVE_ENTRIES_SAMPLE + 1,
         )
     ]
     db_session.add_all(positives + negatives)
