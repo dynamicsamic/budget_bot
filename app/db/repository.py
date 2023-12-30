@@ -276,7 +276,7 @@ class CommonRepository:
         return self.session.execute(q).scalar_one_or_none()
 
     @query_logger
-    def _get_all(
+    def _get_many(
         self,
         *,
         order_by: Optional[List[_OrderByValue]] = None,
@@ -372,7 +372,7 @@ class CategoryRepository(CommonRepository):
     def get_user_categories(
         self, user_id: int, *, offset: int = 0, limit: int = 5
     ) -> GeneratorResult:
-        return self._get_all(
+        return self._get_many(
             order_by=[
                 self.model.last_used.desc(),
                 self.model.created_at.desc(),
@@ -397,8 +397,15 @@ class CategoryRepository(CommonRepository):
     def update_category(
         self,
         category_id: int,
-        update_kwargs: dict[_DMLColumnArgument, Any],
+        *,
+        name: str = None,
+        type: CategoryType = None,
+        last_used: datetime = None,
+        num_entries: int = None,
     ) -> ModelUpdateDeleteResult:
+        update_kwargs = {k: v for k, v in locals().items() if v is not None}
+        update_kwargs.pop("self")
+        update_kwargs.pop("category_id")
         return self._update(category_id, update_kwargs)
 
     def delete_category(
