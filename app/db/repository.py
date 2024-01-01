@@ -316,7 +316,7 @@ class CommonRepository:
     def _exists(
         self,
         filters: Optional[List[BinaryExpression]] = None,
-        join_filters: Optional[bool] = True,
+        join_filters: bool = True,
     ) -> bool:
         q = self._fetch(
             self.model.id,
@@ -480,6 +480,25 @@ class EntryRepository(CommonRepository):
 
         return self._create(**create_kwargs)
 
+    def update_entry(
+        self,
+        entry_id,
+        *,
+        sum: int = None,
+        transaction_date: datetime = None,
+        description: str = None,
+        category_id: int = None,
+    ) -> ModelUpdateDeleteResult:
+        return self._update(
+            entry_id, get_locals(locals(), ("self", "entry_id"))
+        )
+
+    def delete_entry(
+        self,
+        entry_id: int,
+    ) -> ModelUpdateDeleteResult:
+        return self._delete(entry_id)
+
     def count_entries(self, *, user_id: int = 0, category_id: int = 0) -> bool:
         return self._count(
             filters=[
@@ -489,8 +508,17 @@ class EntryRepository(CommonRepository):
             join_filters=False,
         )
 
-    def entry_exists(self, entry_id: int) -> bool:
-        return self._exists(filters=[self.model.id == entry_id])
+    def entry_exists(
+        self, *, entry_id: int = 0, user_id: int = 0, category_id: int = 0
+    ) -> bool:
+        return self._exists(
+            filters=[
+                self.model.id == entry_id,
+                self.model.user_id == user_id,
+                self.model.category_id == category_id,
+            ],
+            join_filters=False,
+        )
 
 
 def get_user(
