@@ -24,6 +24,7 @@ UNEXISTING_ID = -999
 TOTAL_USER_CATEGORIES = INCOME_SAMPLE + EXPENSES_SAMPLE
 TARGET_USER_ENTRIES = POSITIVE_ENTRIES_SAMPLE + NEGATIVE_ENTRIES_SAMPLE
 TARGET_CATEGORY_ENTRIES = TARGET_USER_ENTRIES
+TARGET_ENTRY_ID = TARGET_CATEGORY_ID
 
 valid_user = MockModel(tg_id=100, budget_currency="EUR")
 invalid_tgid_type_user = MockModel(tg_id="100", budget_currency="RUB")
@@ -280,6 +281,7 @@ def test_update_category_with_valid_kwargs(catrep, create_categories):
     original_id = original_category.id
     original_created_at = original_category.created_at
     original_last_updated = original_category.last_updated
+    original_user_id = original_category.user_id
 
     valid_kwargs = {
         "name": "valid",
@@ -305,6 +307,7 @@ def test_update_category_with_valid_kwargs(catrep, create_categories):
     assert updated_category.id == original_id
     assert updated_category.created_at == original_created_at
     assert updated_category.last_updated != original_last_updated
+    assert updated_category.user_id == original_user_id
 
 
 def test_update_category_with_invalid_type_kwargs(catrep, create_categories):
@@ -616,3 +619,164 @@ def test_count_entries_without_args(entrep, create_entries):
 @pytest.mark.xfail(raises=TypeError, strict=True)
 def test_count_entries_with_positional_args(entrep, create_entries):
     entrep.count_entries(TARGET_USER_ID, TARGET_CATEGORY_ID)
+
+
+def test_update_entry_with_valid_args(entrep, create_entries):
+    original_entry = entrep.get_entry(TARGET_ENTRY_ID)
+    original_description = original_entry.description
+    original_id = original_entry.id
+    original_created_at = original_entry.created_at
+    original_last_updated = original_entry.last_updated
+    original_user_id = original_entry.user_id
+    original_category_id = original_entry.category_id
+
+    valid_kwargs = {
+        "sum": 1000,
+        "transaction_date": now(),
+    }
+
+    result = entrep.update_entry(TARGET_ENTRY_ID, **valid_kwargs)
+    assert isinstance(result, ModelUpdateDeleteResult)
+
+    updated, error = result.astuple()
+    assert error is None
+    assert updated is True
+
+    updated_entry = entrep.get_entry(TARGET_ENTRY_ID)
+    assert updated_entry.sum == valid_kwargs["sum"]
+    assert pretty_datetime(updated_entry.transaction_date) == pretty_datetime(
+        valid_kwargs["transaction_date"]
+    )
+
+    assert updated_entry.description == original_description
+    assert updated_entry.id == original_id
+    assert updated_entry.created_at == original_created_at
+    assert updated_entry.last_updated != original_last_updated
+    assert updated_entry.user_id == original_user_id
+    assert updated_entry.category_id == original_category_id
+
+
+def test_update_entry_assign_to_another_category(entrep, create_entries):
+    initial_entry_count = entrep.count_entries(category_id=TARGET_CATEGORY_ID)
+    original_category_id = entrep.get_entry(TARGET_ENTRY_ID).category_id
+
+    updated, error = entrep.update_entry(
+        TARGET_ENTRY_ID, category_id=2
+    ).astuple()
+    assert error is None
+    assert updated is True
+
+    updated_entry = entrep.get_entry(TARGET_ENTRY_ID)
+    assert updated_entry.category_id != original_category_id
+    assert (
+        entrep.count_entries(category_id=TARGET_CATEGORY_ID)
+        == initial_entry_count - 1
+    )
+
+
+def test_update_entry_with_invalid_type_kwargs(entrep, create_entries):
+    invalid_kwargs = {
+        "sum": "26055",
+        "description": 26,
+    }
+
+    result, error = entrep.update_entry(
+        TARGET_ENTRY_ID, **invalid_kwargs
+    ).astuple()
+
+    assert result is None
+    assert isinstance(error, InvalidModelArgType)
+    assert error.model == Entry
+    assert error.arg_name == "sum"
+    assert error.expected_type == int
+    assert error.invalid_type == str
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_update_entry_with_invalid_arg_name(entrep, create_entries):
+    entrep.update_entry(TARGET_ENTRY_ID, invalid="name")
+
+
+def test_update_entry_without_kwargs(entrep, create_entries):
+    updated, error = entrep.update_entry(TARGET_ENTRY_ID).astuple()
+    assert updated is None
+    assert isinstance(error, EmptyModelKwargs)
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_update_entry_with_positional_args(entrep, create_entries):
+    entrep.update_entry(TARGET_ENTRY_ID, 22000, "description")
+
+
+def test_delete_entry_with_valid_id(entrep, create_entries):
+    result = entrep.delete_entry(TARGET_ENTRY_ID)
+    assert isinstance(result, ModelUpdateDeleteResult)
+
+    deleted, error = result.astuple()
+    assert deleted is True
+    assert error is None
+
+
+def test_delete_entry_with_unexisting_id(entrep, create_entries):
+    deleted, error = entrep.delete_entry(UNEXISTING_ID).astuple()
+    assert deleted is False
+    assert isinstance(error, ModelInstanceNotFound)
+
+
+def test_delete_entry_with_invalid_id_type(entrep, create_entries):
+    deleted, error = entrep.delete_entry([TARGET_ENTRY_ID]).astuple()
+    assert deleted is None
+    assert isinstance(error, SQLAlchemyError)
+
+
+def test_entry_exists_with_valid_entry_id(entrep, create_entries):
+    assert entrep.entry_exists(entry_id=TARGET_ENTRY_ID) is True
+    assert (
+        entrep.entry_exists(
+            entry_id=TARGET_ENTRY_ID,
+            category_id=UNEXISTING_ID,
+            user_id=UNEXISTING_ID,
+        )
+        is True
+    )
+
+
+def test_entry_exists_with_unexisting_entry_id(entrep, create_entries):
+    assert entrep.entry_exists(entry_id=UNEXISTING_ID) is False
+
+
+def test_entry_exists_with_valid_category_id(entrep, create_entries):
+    assert entrep.entry_exists(category_id=TARGET_CATEGORY_ID) is True
+    assert (
+        entrep.entry_exists(
+            category_id=TARGET_CATEGORY_ID,
+            entry_id=UNEXISTING_ID,
+            user_id=UNEXISTING_ID,
+        )
+        is True
+    )
+
+
+def test_entry_exists_with_unexisting_category_id(entrep, create_entries):
+    assert entrep.entry_exists(category_id=UNEXISTING_ID) is False
+
+
+def test_entry_exists_with_valid_user_id(entrep, create_entries):
+    assert entrep.entry_exists(user_id=TARGET_USER_ID) is True
+    assert (
+        entrep.entry_exists(
+            user_id=TARGET_USER_ID,
+            entry_id=UNEXISTING_ID,
+            category_id=UNEXISTING_ID,
+        )
+        is True
+    )
+
+
+def test_entry_exists_with_unexisting_user_id(entrep, create_entries):
+    assert entrep.entry_exists(user_id=UNEXISTING_ID) is False
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_entry_exists_with_positional_arg_raises_error(entrep, create_entries):
+    entrep.entry_exists(TARGET_ENTRY_ID, TARGET_USER_ID, TARGET_CATEGORY_ID)
