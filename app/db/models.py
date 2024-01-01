@@ -20,7 +20,7 @@ from sqlalchemy.orm import (
 from sqlalchemy.orm.attributes import QueryableAttribute
 
 from app import settings
-from app.utils import epoch_start
+from app.utils import epoch_start, pretty_datetime
 
 # any data type from sqlalchemy.sql.sqltypes
 _SQLAlchemyDataType = TypeVar("_SQLAlchemyDataType")
@@ -64,6 +64,10 @@ class ModelFieldsDetails:
             for fieldname, field_obj in cls.fields.items()
             if getattr(field_obj, "primary_key")
         }
+
+    @classmethod
+    def get_tablename(cls) -> str:
+        return cls.__tablename__.upper()
 
 
 class Base(DeclarativeBase):
@@ -211,7 +215,7 @@ class Entry(AbstractBaseModel):
 
     @property
     def _transaction_date(self) -> str:
-        return f"{self.transaction_date:%Y-%m-%d %H:%M:%S}"
+        return pretty_datetime(self.transaction_date)
 
     def __repr__(self) -> str:
         return (
