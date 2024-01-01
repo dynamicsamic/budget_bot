@@ -43,6 +43,10 @@ class ModelInstanceNotFound(BudgetBotDataBaseException):
     pass
 
 
+class EmptyModelKwargs(BudgetBotDataBaseException):
+    pass
+
+
 class InvalidModelArgValue(BudgetBotDataBaseException):
     def __init__(self, *args, model: _BaseModel, invalid_arg: Any) -> None:
         super().__init__(*args)
@@ -52,7 +56,7 @@ class InvalidModelArgValue(BudgetBotDataBaseException):
     def __repr__(self) -> str:
         return (
             "Недопустимый аргумент для модели: "
-            f"{self.model.__tablename__.capitalize()}: `{self.invalid_arg}`."
+            f"{self.model.get_tablename()}: `{self.invalid_arg}`."
         )
 
 
@@ -74,6 +78,6 @@ class InvalidModelArgType(BudgetBotDataBaseException):
     def __repr__(self) -> str:
         return (
             f"Недопустимый тип для аргумента `{self.arg_name}` модели "
-            f"{self.model.__tablename__.capitalize()}: "
+            f"{self.model.get_tablename()}: "
             f"получен {self.invalid_type} вместо {self.expected_type}."
         )
