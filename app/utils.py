@@ -1,22 +1,12 @@
 import calendar
 import datetime as dt
 import re
-from typing import TypeVar
+from typing import Any, Iterable
 
 from app import settings
 
-# strings like: "id>1", "created_at == 12.01.2020", "sum<10000" etc.
-_ComparingExpression = TypeVar("_ComparingExpression", bound=str)
-
-# string like: "-id", "created_at", "sum-" etc.
-_OrderByValue = TypeVar("_OrderByValue", bound=str)
-
-# any data type from sqlalchemy.sql.sqltypes
-_SQLAlchemyDataType = TypeVar("_SQLAlchemyDataType")
-
 
 class DateRange:
-    # TODO: add middleware var `date_info`
     days_in_month = {
         1: 31,
         2: lambda year: 29 if calendar.isleap(year) else 28,
@@ -200,19 +190,21 @@ def tomorrow() -> dt.date:
     return today() + dt.timedelta(days=1)
 
 
-def validate_category_name(category_name: str) -> tuple[bool | str, str]:
-    if not 4 < len(category_name) < 128:
-        error_message = (
-            "Недопустимая длина названия категории. "
-            "(название не должно быть короче 5 и длинее 128 символов)."
-        )
-        return False, error_message
+def epoch_start():
+    return dt.datetime(year=1970, month=1, day=1)
 
-    if {"\\", "/"} & set(category_name):
-        error_message = "Недопустимые символы в названии"
-        return False, error_message
 
-    return category_name, ""
+def pretty_datetime(datetime: dt.datetime) -> str:
+    return f"{datetime:%Y-%m-%d %H:%M:%S}"
+
+
+def get_locals(
+    locls: dict[str, Any], exclude: Iterable[str]
+) -> dict[str, Any]:
+    return_kwargs = {k: v for k, v in locls.items() if v is not None}
+    for item in exclude:
+        return_kwargs.pop(item)
+    return return_kwargs
 
 
 def validate_entry_sum(raw_sum: str) -> tuple[int, str]:
