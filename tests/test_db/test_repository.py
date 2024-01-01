@@ -1,10 +1,14 @@
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.db.custom_types import ModelCreateResult
-from app.db.exceptions import InvalidModelArgType, ModelInstanceNotFound
+from app.db.custom_types import ModelCreateResult, ModelUpdateDeleteResult
+from app.db.exceptions import (
+    EmptyModelKwargs,
+    InvalidModelArgType,
+    ModelInstanceNotFound,
+)
 from app.db.models import Category, CategoryType, Entry, User
-from app.utils import epoch_start, now
+from app.utils import epoch_start, now, pretty_datetime
 
 from .conftest import (
     EXPENSES_SAMPLE,
@@ -124,10 +128,8 @@ def test_get_user_with_unexisting_ids(usrrep, create_users):
 
 
 def test_update_user_with_valid_kwargs(usrrep, create_users):
-    from app.db.custom_types import ModelUpdateDeleteResult
-
     valid_kwargs = {"budget_currency": "USD", "is_active": True}
-    result = usrrep.update_user(1, **valid_kwargs)
+    result = usrrep.update_user(TARGET_USER_ID, **valid_kwargs)
     assert isinstance(result, ModelUpdateDeleteResult)
 
     updated, error = result.astuple()
@@ -137,14 +139,18 @@ def test_update_user_with_valid_kwargs(usrrep, create_users):
 
 def test_update_user_without_is_active_kwarg(usrrep, create_users):
     valid_kwargs = {"budget_currency": "USD"}
-    updated, error = usrrep.update_user(1, **valid_kwargs).astuple()
+    updated, error = usrrep.update_user(
+        TARGET_USER_ID, **valid_kwargs
+    ).astuple()
     assert updated is True
     assert error is None
 
 
 def test_update_user_with_invalid_budget_currency(usrrep, create_users):
     invalid_kwargs = {"budget_currency": 24, "is_active": True}
-    updated, error = usrrep.update_user(1, **invalid_kwargs).astuple()
+    updated, error = usrrep.update_user(
+        TARGET_USER_ID, **invalid_kwargs
+    ).astuple()
     assert updated is None
     assert isinstance(error, InvalidModelArgType)
     assert error.arg_name == "budget_currency"
@@ -154,12 +160,30 @@ def test_update_user_with_invalid_budget_currency(usrrep, create_users):
 
 def test_update_user_with_invalid_is_active(usrrep, create_users):
     invalid_kwargs = {"budget_currency": "EUR", "is_active": "invalid"}
-    updated, error = usrrep.update_user(1, **invalid_kwargs).astuple()
+    updated, error = usrrep.update_user(
+        TARGET_USER_ID, **invalid_kwargs
+    ).astuple()
     assert updated is None
     assert isinstance(error, InvalidModelArgType)
     assert error.arg_name == "is_active"
     assert error.expected_type == bool
     assert error.invalid_type == str
+
+
+def test_update_user_with_empty_kwargs(usrrep, create_users):
+    result, error = usrrep.update_user(TARGET_USER_ID).astuple()
+    assert result is None
+    assert isinstance(error, EmptyModelKwargs)
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_update_user_with_positional_args(usrrep, create_users):
+    usrrep.update_user(TARGET_USER_ID, "currency", False)
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_update_user_with_invalid_arg_name(usrrep, create_users):
+    usrrep.update_user(TARGET_USER_ID, invalid=True)
 
 
 def test_delete_user_with_valid_id(usrrep, create_users):
@@ -248,6 +272,97 @@ def test_count_user_categories_with_unexisting_user_id(
     catrep, create_categories
 ):
     assert catrep.count_user_categories(UNEXISTING_ID) == 0
+
+
+def test_update_category_with_valid_kwargs(catrep, create_categories):
+    original_category = catrep.get_category(TARGET_CATEGORY_ID)
+    original_type = original_category.type
+    original_id = original_category.id
+    original_created_at = original_category.created_at
+    original_last_updated = original_category.last_updated
+
+    valid_kwargs = {
+        "name": "valid",
+        "last_used": now(),
+        "num_entries": 10,
+    }
+
+    result = catrep.update_category(TARGET_CATEGORY_ID, **valid_kwargs)
+    assert isinstance(result, ModelUpdateDeleteResult)
+
+    updated, error = result.astuple()
+    assert error is None
+    assert updated is True
+
+    updated_category = catrep.get_category(TARGET_CATEGORY_ID)
+    assert updated_category.name == valid_kwargs["name"]
+    assert updated_category.num_entries == valid_kwargs["num_entries"]
+    assert pretty_datetime(updated_category.last_used) == pretty_datetime(
+        valid_kwargs["last_used"]
+    )
+
+    assert updated_category.type == original_type
+    assert updated_category.id == original_id
+    assert updated_category.created_at == original_created_at
+    assert updated_category.last_updated != original_last_updated
+
+
+def test_update_category_with_invalid_type_kwargs(catrep, create_categories):
+    invalid_kwargs = {
+        "name": ["invalid"],
+        "last_used": now(),
+        "num_entries": "10",
+    }
+
+    result, error = catrep.update_category(
+        TARGET_CATEGORY_ID, **invalid_kwargs
+    ).astuple()
+
+    assert result is None
+    assert isinstance(error, InvalidModelArgType)
+    assert error.model == Category
+    assert error.arg_name == "name"
+    assert error.expected_type == str
+    assert error.invalid_type == list
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_update_category_with_invalid_arg_name(catrep, create_categories):
+    catrep.update_category(TARGET_CATEGORY_ID, invalid="name")
+
+
+def test_update_category_without_kwargs(catrep, create_categories):
+    updated, error = catrep.update_category(TARGET_CATEGORY_ID).astuple()
+    assert updated is None
+    assert isinstance(error, EmptyModelKwargs)
+
+
+@pytest.mark.xfail(raises=TypeError, strict=True)
+def test_update_category_with_positional_args(catrep, create_categories):
+    catrep.update_category(
+        TARGET_CATEGORY_ID, "new_name", CategoryType.EXPENSES
+    )
+
+
+def test_delete_category_with_valid_id(catrep, create_categories):
+    result = catrep.delete_category(TARGET_CATEGORY_ID)
+    assert isinstance(result, ModelUpdateDeleteResult)
+
+    deleted, error = result.astuple()
+    assert deleted is True
+    assert error is None
+
+
+def test_delete_category_with_unexisting_id(catrep, create_categories):
+    deleted, error = catrep.delete_category(UNEXISTING_ID).astuple()
+    assert deleted is False
+    assert isinstance(error, ModelInstanceNotFound)
+
+
+def test_delete_category_with_invalid_id_type(catrep, create_categories):
+    deleted, error = catrep.delete_category([TARGET_CATEGORY_ID]).astuple()
+    assert deleted is None
+    assert isinstance(error, SQLAlchemyError)
 
 
 def test_get_user_categories_with_existing_user_id(
@@ -381,9 +496,8 @@ def test_create_entry_with_full_valid_args(entrep, create_categories):
     assert entry.id > 0
     assert entry.description == full_valid_entry.description
 
-    assert (
-        f"{entry.transaction_date:%Y-%m-%d %H:%M:%S}"
-        == f"{full_valid_entry.transaction_date:%Y-%m-%d %H:%M:%S}"
+    assert pretty_datetime(entry.transaction_date) == pretty_datetime(
+        full_valid_entry.transaction_date
     )
 
 
