@@ -17,6 +17,8 @@ from sqlalchemy.sql._typing import (
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.selectable import Select
 
+from app.utils import get_locals
+
 from .custom_types import (
     GeneratorResult,
     ModelCreateResult,
@@ -26,6 +28,7 @@ from .custom_types import (
     _OrderByValue,
 )
 from .exceptions import (
+    EmptyModelKwargs,
     InvalidModelArgType,
     InvalidModelArgValue,
     ModelInstanceNotFound,
@@ -38,6 +41,12 @@ logger = logging.getLogger(__name__)
 def validate_model_kwargs(
     model: _BaseModel, kwargs: dict[str, Any]
 ) -> ModelValidationResult:
+    if not kwargs:
+        logger.error(f"Empty kwargs for model: {model.get_tablename()}")
+        return ModelValidationResult(
+            result=False, error=EmptyModelKwargs(f"{model.get_tablename()}")
+        )
+
     model_fields = model.fields
 
     for arg, value in kwargs.items():
@@ -45,7 +54,7 @@ def validate_model_kwargs(
         if field is None:
             logger.error(
                 "Invalid attribute for model "
-                f"{model.__tablename__.capitalize()}: `{arg}`."
+                f"{model.get_tablename()}: `{arg}`."
             )
             return ModelValidationResult(
                 result=False,
@@ -177,20 +186,20 @@ class CommonRepository:
             updated = bool(self.session.execute(update_query).rowcount)
         except Exception as e:
             logger.error(
-                f"{self.model.__tablename__.upper()} "
+                f"{self.model.get_tablename()} "
                 f"instance update [FAILURE]: {e}"
             )
             return ModelUpdateDeleteResult(result=None, error=e)
         if updated:
             self.session.commit()
             logger.info(
-                f"{self.model.__tablename__.upper()} instance "
+                f"{self.model.get_tablename()} instance "
                 f"with id `{id}` update [SUCCESS]"
             )
             return ModelUpdateDeleteResult(result=True, error=None)
         else:
             logger.info(
-                f"No instance of {self.model.__tablename__.upper()} "
+                f"No instance of {self.model.get_tablename()} "
                 f"with id `{id}` found."
             )
             return ModelUpdateDeleteResult(
@@ -219,20 +228,20 @@ class CommonRepository:
             deleted = bool(self.session.execute(delete_query).rowcount)
         except SQLAlchemyError as e:
             logger.error(
-                f"{self.model.__tablename__.upper()} "
+                f"{self.model.get_tablename()} "
                 f"instance delete [FAILURE]: {e}"
             )
             return ModelUpdateDeleteResult(result=None, error=e)
         if deleted:
             logger.info(
-                f"{self.model.__tablename__.upper()} instance "
+                f"{self.model.get_tablename()} instance "
                 f"with id `{id}` delete [SUCCESS]"
             )
             return ModelUpdateDeleteResult(result=True, error=None)
         else:
             logger.warning(
                 f"Attempt to delete instance of "
-                f"{self.model.__tablename__.upper()} with id `{id}`. "
+                f"{self.model.get_tablename()} with id `{id}`. "
                 "No delete performed."
             )
             return ModelUpdateDeleteResult(
@@ -335,12 +344,13 @@ class UserRepository(CommonRepository):
         return self._create(tg_id=tg_id, budget_currency=budget_currency)
 
     def update_user(
-        self, user_id: int, budget_currency: str, is_active: bool = None
+        self,
+        user_id: int,
+        *,
+        budget_currency: str = None,
+        is_active: bool = None,
     ) -> ModelUpdateDeleteResult:
-        update_kwargs = {"budget_currency": budget_currency}
-        if is_active is not None:
-            update_kwargs["is_active"] = is_active
-        return self._update(user_id, update_kwargs)
+        return self._update(user_id, get_locals(locals(), ("self", "user_id")))
 
     def delete_user(
         self,
@@ -403,10 +413,9 @@ class CategoryRepository(CommonRepository):
         last_used: datetime = None,
         num_entries: int = None,
     ) -> ModelUpdateDeleteResult:
-        update_kwargs = {k: v for k, v in locals().items() if v is not None}
-        update_kwargs.pop("self")
-        update_kwargs.pop("category_id")
-        return self._update(category_id, update_kwargs)
+        return self._update(
+            category_id, get_locals(locals(), ("self", "category_id"))
+        )
 
     def delete_category(
         self,
