@@ -6,11 +6,15 @@ from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 
 from app import settings
-from app.utils import (
-    validate_category_name,
-    validate_entry_date,
-    validate_entry_sum,
-)
+from app.db.models import CategoryType
+from app.utils import validate_entry_date, validate_entry_sum
+
+from . import prompts
+
+
+def get_suffix(string: str) -> str:
+    *_, suffix = string.rsplit("_", maxsplit=1)
+    return suffix
 
 
 class BudgetNameFilter(BaseFilter):
@@ -64,18 +68,57 @@ class ExtractBudgetIdFilter(BaseFilter):
 
 
 class CategoryNameFilter(BaseFilter):
-    async def __call__(self, message: Message):
-        category_name, error_message = validate_category_name(message.text)
-        return {"category_name": category_name, "error_message": error_message}
+    async def __call__(self, message: Message) -> dict[str, str | None]:
+        valid_name_pattern = r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$"
+        user_input = message.text
+
+        context = {
+            "filtered_category_name": None,
+            "error_message": (
+                "Недопустимое название категории."
+                f"{prompts.category_name_description}"
+            ),
+        }
+
+        if re.match(valid_name_pattern, user_input):
+            context["filtered_category_name"] = user_input.lower()
+            context["error_message"] = None
+
+        return context
 
 
 class CategoryTypeFilter(BaseFilter):
     async def __call__(
         self, callback: CallbackQuery
-    ) -> Union[dict[str, str], bool]:
-        if callback.data.startswith("choose_entry_category"):
-            *_, category_type = callback.data.rsplit("_", maxsplit=1)
-            return {"category_type": category_type}
+    ) -> Union[dict[str, CategoryType], bool]:
+        if callback.data.startswith("select_category_type"):
+            category_type = get_suffix(callback.data)
+            if category_type == "income":
+                return {"category_type": CategoryType.INCOME}
+
+            return {"category_type": CategoryType.EXPENSES}
+
+        return False
+
+
+class SelectPaginatorPageFilter(BaseFilter):
+    async def __call__(
+        self, callback: CallbackQuery
+    ) -> Union[dict[str, CategoryType], bool]:
+        if callback.data.startswith("category_page_num"):
+            if switch_to := get_suffix(callback.data):
+                return {"switch_to_page": switch_to}
+
+        return False
+
+
+class CategoryIdFIlter(BaseFilter):
+    async def __call__(
+        self, callback: CallbackQuery
+    ) -> Union[dict[str, int], bool]:
+        if callback.data.startswith("category_id"):
+            category_id = get_suffix(callback.data)
+            return {"category_id": int(category_id)}
         return False
 
 
@@ -84,8 +127,8 @@ class GetEntryId(BaseFilter):
         self, callback: CallbackQuery
     ) -> Union[dict[str, int], bool]:
         if callback.data.startswith("entry_id"):
-            *_, entry_id = callback.data.rsplit("_", maxsplit=1)
-            return {"entry_id": entry_id}
+            entry_id = get_suffix(callback.data)
+            return {"entry_id": int(entry_id)}
         return False
 
 
@@ -94,8 +137,8 @@ class EntryBudgetIdFilter(BaseFilter):
         self, callback: CallbackQuery
     ) -> Union[dict[str, int], bool]:
         if callback.data.startswith("entry_budget_item"):
-            *_, budget_id = callback.data.rsplit("_", maxsplit=1)
-            return {"budget_id": budget_id}
+            budget_id = get_suffix(callback.data)
+            return {"budget_id": int(budget_id)}
         return False
 
 
@@ -105,7 +148,7 @@ class EntryCategoryIdFilter(BaseFilter):
     ) -> Union[dict[str, int], bool]:
         if callback.data.startswith("entry_category_item"):
             *_, category_id = callback.data.rsplit("_", maxsplit=1)
-            return {"category_id": category_id}
+            return {"category_id": int(category_id)}
         return False
 
 
