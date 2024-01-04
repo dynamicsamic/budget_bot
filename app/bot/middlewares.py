@@ -8,9 +8,13 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app import settings
 from app.bot import keyboards
-from app.db import get_session
-from app.db.repository import CategoryRepository, UserRepository
-from app.services.user import get_user
+from app.db import db_session
+from app.db.repository import (
+    CategoryRepository,
+    EntryRepository,
+    UserRepository,
+    get_user,
+)
 from app.utils import DateRange
 
 # TODO: restrict to only private chats in middleware
@@ -67,8 +71,8 @@ class DbSessionMiddleWare(BaseMiddleware):
         event: CallbackQuery | Message,
         data: Dict[str, Any],
     ) -> Any:
-        with get_session() as db_session:
-            data["db_session"] = db_session
+        with db_session() as session:
+            data["db_session"] = session
         return await handler(event, data)
 
 
@@ -79,18 +83,20 @@ class IdentifyUserMiddleWare(BaseMiddleware):
         event: CallbackQuery | Message,
         data: Dict[str, Any],
     ) -> Any:
-        db_session = data.get("db_session")
-        if db_session is not None and db_session.is_active:
-            user = get_user(db_session, tg_id=event.from_user.id)
+        session = data.get("db_session")
+        if session is not None and session.is_active:
+            user = get_user(session, tg_id=event.from_user.id)
             if user is None:
                 user = AnonymousUser()
             data["user"] = user
+
         else:
-            with get_session() as db_session:
-                user = get_user(db_session, tg_id=event.from_user.id)
+            with db_session() as session:
+                user = get_user(session, tg_id=event.from_user.id)
                 if user is None:
                     user = AnonymousUser()
                 data["user"] = user
+
         return await handler(event, data)
 
 
@@ -117,12 +123,12 @@ class UserRepositoryMiddleWare(BaseMiddleware):
         event: CallbackQuery | Message,
         data: Dict[str, Any],
     ) -> Any:
-        db_session = data.get("db_session")
-        if db_session is not None and db_session.is_active:
-            data["repository"] = UserRepository(db_session)
+        session = data.get("db_session")
+        if session is not None and session.is_active:
+            data["repository"] = UserRepository(session)
         else:
-            with get_session() as db_session:
-                data["repository"] = UserRepository(db_session)
+            with db_session() as session:
+                data["repository"] = UserRepository(session)
         return await handler(event, data)
 
 
@@ -133,10 +139,28 @@ class CategoryRepositoryMiddleWare(BaseMiddleware):
         event: CallbackQuery | Message,
         data: Dict[str, Any],
     ) -> Any:
-        db_session = data.get("db_session")
-        if db_session is not None and db_session.is_active:
-            data["repository"] = CategoryRepository(db_session)
+        session = data.get("db_session")
+        if session is not None and session.is_active:
+            data["repository"] = CategoryRepository(session)
         else:
-            with get_session() as db_session:
-                data["repository"] = CategoryRepository(db_session)
+            with db_session() as session:
+                data["repository"] = CategoryRepository(session)
+        return await handler(event, data)
+
+
+class EntryRepositoryMiddleWare(BaseMiddleware):
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: CallbackQuery | Message,
+        data: Dict[str, Any],
+    ) -> Any:
+        session = data.get("db_session")
+        if session is not None and session.is_active:
+            data["ca_repository"] = CategoryRepository(session)
+            data["en_repository"] = EntryRepository(session)
+        else:
+            with db_session() as session:
+                data["ca_repository"] = CategoryRepository(session)
+                data["en_repository"] = EntryRepository(session)
         return await handler(event, data)
