@@ -11,7 +11,7 @@ from app.db.models import (
 )
 from app.utils import now
 
-from .conftest import MockModel
+from ..test_utils import MockModel
 
 #########################
 ##      TESTS FOR      ##
@@ -133,8 +133,10 @@ def test_user_class_has_expected_fields():
     assert User.fieldnames == expected_fieldnames
 
 
-def test_user_has_expected_str_representation(db_session, create_users):
-    user = db_session.get(User, 1)
+def test_user_has_expected_str_representation(
+    inmemory_db_session, create_inmemory_users
+):
+    user = inmemory_db_session.get(User, 1)
     expected_str = (
         f"User(Id={user.id}, TelegramId={user.tg_id}, "
         f"Currency={user.budget_currency}, IsActive={user.is_active})"
@@ -143,13 +145,15 @@ def test_user_has_expected_str_representation(db_session, create_users):
     assert repr(user) == expected_str
 
 
-def test_user_create_with_valid_data_success(db_session, create_users):
-    inital_user_count = db_session.query(User).count()
+def test_user_create_with_valid_data_success(
+    inmemory_db_session, create_inmemory_users
+):
+    inital_user_count = inmemory_db_session.query(User).count()
 
-    db_session.add(User(**valid_user()))
-    db_session.commit()
+    inmemory_db_session.add(User(**valid_user()))
+    inmemory_db_session.commit()
 
-    from_db = db_session.get(User, valid_user.id)
+    from_db = inmemory_db_session.get(User, valid_user.id)
     assert from_db.tg_id == valid_user.tg_id
     assert from_db.is_active is True
     assert from_db.is_anonymous is False
@@ -157,52 +161,62 @@ def test_user_create_with_valid_data_success(db_session, create_users):
     assert from_db.entries == []
     assert from_db._datefield is User.created_at
 
-    current_user_count = db_session.query(User).count()
+    current_user_count = inmemory_db_session.query(User).count()
     assert current_user_count == inital_user_count + 1
 
 
 def test_create_user_without_currency_arg_sets_default(
-    db_session, create_users
+    inmemory_db_session, create_inmemory_users
 ):
     default_currency = User.budget_currency.default.arg
-    user = db_session.get(User, 1)
+    user = inmemory_db_session.get(User, 1)
     assert user.budget_currency == default_currency
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_user_unique_tg_id_constarint_raises_error(db_session, create_users):
-    user = db_session.get(User, 1)
-    db_session.add(User(tg_id=user.tg_id))
-    db_session.commit()
+def test_user_unique_tg_id_constarint_raises_error(
+    inmemory_db_session, create_inmemory_users
+):
+    user = inmemory_db_session.get(User, 1)
+    inmemory_db_session.add(User(tg_id=user.tg_id))
+    inmemory_db_session.commit()
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_user_create_duplicate_raises_error(db_session, create_users):
-    db_session.add_all(
+def test_user_create_duplicate_raises_error(
+    inmemory_db_session, create_inmemory_users
+):
+    inmemory_db_session.add_all(
         [
             User(**valid_user()),
             User(**valid_user()),
         ]
     )
-    db_session.commit()
+    inmemory_db_session.commit()
 
 
-def test_user_add_category_appear_in_categories_attr(db_session, create_users):
-    db_session.add(
+def test_user_add_category_appear_in_categories_attr(
+    inmemory_db_session, create_inmemory_users
+):
+    inmemory_db_session.add(
         Category(id=999, name="test01", type=CategoryType.EXPENSES, user_id=1)
     )
-    db_session.commit()
+    inmemory_db_session.commit()
 
-    assert db_session.get(User, 1).categories == [
-        db_session.get(Category, 999)
+    assert inmemory_db_session.get(User, 1).categories == [
+        inmemory_db_session.get(Category, 999)
     ]
 
 
-def test_user_add_entry_appear_in_entries_attr(db_session, create_categories):
-    db_session.add(Entry(id=999, sum=10000, user_id=1, category_id=1))
-    db_session.commit()
+def test_user_add_entry_appear_in_entries_attr(
+    inmemory_db_session, create_inmemory_categories
+):
+    inmemory_db_session.add(Entry(id=999, sum=10000, user_id=1, category_id=1))
+    inmemory_db_session.commit()
 
-    assert db_session.get(User, 1).entries == [db_session.get(Entry, 999)]
+    assert inmemory_db_session.get(User, 1).entries == [
+        inmemory_db_session.get(Entry, 999)
+    ]
 
 
 def test_category_model_has_expected_fields():
@@ -222,27 +236,29 @@ def test_category_model_has_expected_fields():
 
 
 def test_category_has_expected_str_representation(
-    db_session, create_categories
+    inmemory_db_session, create_inmemory_categories
 ):
-    category = db_session.get(Category, 1)
+    category = inmemory_db_session.get(Category, 1)
     expected_str = (
         f"Category(Id={category.id}, Name={category.name}, "
         f"Type={category.type.value}, UserId={category.user_id}, "
         f"NumEntries={category.num_entries})"
     )
 
-    from_db = db_session.get(Category, 1)
+    from_db = inmemory_db_session.get(Category, 1)
     assert str(from_db) == expected_str
     assert repr(from_db) == expected_str
 
 
-def test_user_category_with_valid_data_success(db_session, create_users):
-    inital_category_count = db_session.query(Category).count()
+def test_user_category_with_valid_data_success(
+    inmemory_db_session, create_inmemory_users
+):
+    inital_category_count = inmemory_db_session.query(Category).count()
 
-    db_session.add(Category(**valid_category()))
-    db_session.commit()
+    inmemory_db_session.add(Category(**valid_category()))
+    inmemory_db_session.commit()
 
-    from_db = db_session.get(Category, valid_category.id)
+    from_db = inmemory_db_session.get(Category, valid_category.id)
     assert from_db.name == valid_category.name
     assert from_db.type == valid_category.type
     assert from_db.user_id == valid_category.user_id
@@ -250,59 +266,59 @@ def test_user_category_with_valid_data_success(db_session, create_users):
     assert from_db.entries == []
     assert from_db._datefield is Category.last_used
 
-    current_category_count = db_session.query(Category).count()
+    current_category_count = inmemory_db_session.query(Category).count()
     assert current_category_count == inital_category_count + 1
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_category_with_invalid_type_raises_error(db_session):
-    db_session.add(Category(**invalid_type_category()))
-    db_session.commit()
+def test_category_with_invalid_type_raises_error(inmemory_db_session):
+    inmemory_db_session.add(Category(**invalid_type_category()))
+    inmemory_db_session.commit()
 
 
 def test_category_sets_last_used_attr_to_default(
-    db_session, create_categories
+    inmemory_db_session, create_inmemory_categories
 ):
     import datetime as dt
 
-    category = db_session.get(Category, 1)
+    category = inmemory_db_session.get(Category, 1)
     assert category.last_used == dt.datetime(year=1970, month=1, day=1)
 
 
 def test_category_gets_deleted_when_user_deleted(
-    db_session, create_categories
+    inmemory_db_session, create_inmemory_categories
 ):
     user_id = 1
     intial_category_count = (
-        db_session.query(Category).filter_by(user_id=user_id).count()
+        inmemory_db_session.query(Category).filter_by(user_id=user_id).count()
     )
     assert intial_category_count > 0
 
-    db_session.query(User).filter_by(id=user_id).delete()
-    db_session.commit()
+    inmemory_db_session.query(User).filter_by(id=user_id).delete()
+    inmemory_db_session.commit()
     current_category_count = (
-        db_session.query(Category).filter_by(user_id=user_id).count()
+        inmemory_db_session.query(Category).filter_by(user_id=user_id).count()
     )
     assert current_category_count == 0
 
 
 def test_category_delete_success_if_no_entries_exist(
-    db_session, create_categories
+    inmemory_db_session, create_inmemory_categories
 ):
-    db_session.query(Category).filter_by(id=1).delete()
-    db_session.commit()
+    inmemory_db_session.query(Category).filter_by(id=1).delete()
+    inmemory_db_session.commit()
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
 def test_category_delete_raise_error_if_entries_exist(
-    db_session, create_entries
+    inmemory_db_session, create_inmemory_entries
 ):
-    db_session.query(Category).filter_by(id=1).delete()
-    db_session.commit()
+    inmemory_db_session.query(Category).filter_by(id=1).delete()
+    inmemory_db_session.commit()
 
 
-def test_category_render(db_session, create_categories):
-    category = db_session.get(Category, 1)
+def test_category_render(inmemory_db_session, create_inmemory_categories):
+    category = inmemory_db_session.get(Category, 1)
     expected_str = (
         f"{category.name.capitalize()} ({category.type.description}), "
         f"{category.num_entries} операций"
@@ -326,8 +342,10 @@ def test_entry_model_has_expected_fields():
     assert Entry.fieldnames == expected_fieldnames
 
 
-def test_entry_has_expected_str_representation(db_session, create_entries):
-    entry = db_session.get(Entry, 1)
+def test_entry_has_expected_str_representation(
+    inmemory_db_session, create_inmemory_entries
+):
+    entry = inmemory_db_session.get(Entry, 1)
     expected_str = (
         f"Entry(Id={entry.id}, Sum={entry._sum}, "
         f"Date={entry._transaction_date}, CategoryId={entry.category_id}, "
@@ -338,13 +356,15 @@ def test_entry_has_expected_str_representation(db_session, create_entries):
     assert repr(entry) == expected_str
 
 
-def test_entry_create_with_valid_data_success(db_session, create_categories):
-    inital_entry_count = db_session.query(Entry).count()
+def test_entry_create_with_valid_data_success(
+    inmemory_db_session, create_inmemory_categories
+):
+    inital_entry_count = inmemory_db_session.query(Entry).count()
 
-    db_session.add(Entry(**valid_entry()))
-    db_session.commit()
+    inmemory_db_session.add(Entry(**valid_entry()))
+    inmemory_db_session.commit()
 
-    from_db = db_session.get(Entry, valid_entry.id)
+    from_db = inmemory_db_session.get(Entry, valid_entry.id)
     assert from_db.sum == valid_entry.sum
     assert from_db.description == valid_entry.description
     assert (
@@ -356,61 +376,69 @@ def test_entry_create_with_valid_data_success(db_session, create_categories):
     assert from_db._datefield is Entry.transaction_date
     assert from_db._cashflowfield is Entry.sum
 
-    current_entry_count = db_session.query(Entry).count()
+    current_entry_count = inmemory_db_session.query(Entry).count()
     assert current_entry_count == inital_entry_count + 1
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_entry_with_zero_sum_raises_error(db_session, create_entries):
-    db_session.add(Entry(**entry_zero_sum()))
-    db_session.commit()
+def test_entry_with_zero_sum_raises_error(
+    inmemory_db_session, create_inmemory_entries
+):
+    inmemory_db_session.add(Entry(**entry_zero_sum()))
+    inmemory_db_session.commit()
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_entry_without_budget_id_raises_error(db_session, create_entries):
-    db_session.add(Entry(**entry_without_user_id()))
-    db_session.commit()
+def test_entry_without_budget_id_raises_error(
+    inmemory_db_session, create_inmemory_entries
+):
+    inmemory_db_session.add(Entry(**entry_without_user_id()))
+    inmemory_db_session.commit()
 
 
 @pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_entry_without_category_id_raises_error(db_session, create_entries):
-    db_session.add(Entry(**entry_without_category_id()))
-    db_session.commit()
+def test_entry_without_category_id_raises_error(
+    inmemory_db_session, create_inmemory_entries
+):
+    inmemory_db_session.add(Entry(**entry_without_category_id()))
+    inmemory_db_session.commit()
 
 
 def test_entry_without_description_sets_it_to_none(
-    db_session, create_categories
+    inmemory_db_session, create_inmemory_categories
 ):
-    db_session.add(Entry(**entry_without_description()))
-    db_session.commit()
+    inmemory_db_session.add(Entry(**entry_without_description()))
+    inmemory_db_session.commit()
 
-    entry = db_session.get(Entry, entry_without_description.id)
+    entry = inmemory_db_session.get(Entry, entry_without_description.id)
     assert entry.description is None
 
 
-def test_entry_gets_deleted_when_user_deleted(db_session, create_entries):
+def test_entry_gets_deleted_when_user_deleted(
+    inmemory_db_session, create_inmemory_entries
+):
     user_id = 1
     intial_entry_count = (
-        db_session.query(Entry).filter_by(user_id=user_id).count()
+        inmemory_db_session.query(Entry).filter_by(user_id=user_id).count()
     )
     assert intial_entry_count > 0
 
-    db_session.query(User).filter_by(id=user_id).delete()
-    db_session.commit()
+    inmemory_db_session.query(User).filter_by(id=user_id).delete()
+    inmemory_db_session.commit()
 
     current_category_count = (
-        db_session.query(Entry).filter_by(user_id=user_id).count()
+        inmemory_db_session.query(Entry).filter_by(user_id=user_id).count()
     )
     assert current_category_count == 0
 
 
-def test_entry_render(db_session, create_entries):
+def test_entry_render(inmemory_db_session, create_inmemory_entries):
     entry = Entry(**valid_entry())
-    db_session.add(entry)
-    db_session.commit()
+    inmemory_db_session.add(entry)
+    inmemory_db_session.commit()
 
-    user = db_session.get(User, entry.user_id)
-    category = db_session.get(Category, entry.category_id)
+    user = inmemory_db_session.get(User, entry.user_id)
+    category = inmemory_db_session.get(Category, entry.category_id)
 
     expected_str = (
         f"+{entry._sum} {user.budget_currency}, "

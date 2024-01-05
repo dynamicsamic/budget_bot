@@ -10,7 +10,7 @@ from app.db.exceptions import (
 from app.db.models import Category, CategoryType, Entry, User
 from app.utils import epoch_start, now, pretty_datetime
 
-from .conftest import (
+from ..test_utils import (
     EXPENSES_SAMPLE,
     INCOME_SAMPLE,
     NEGATIVE_ENTRIES_SAMPLE,
@@ -105,11 +105,13 @@ def test_create_user_with_invalid_tg_id_type(usrrep):
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_get_user_with_positional_arg_raises_error(usrrep, create_users):
+def test_get_user_with_positional_arg_raises_error(
+    usrrep, create_inmemory_users
+):
     usrrep.get_user(1)
 
 
-def test_get_user_with_valid_kwargs(usrrep, create_users):
+def test_get_user_with_valid_kwargs(usrrep, create_inmemory_users):
     valid_id, valid_tg_id = 1, 101
     user = usrrep.get_user(user_id=valid_id)
     assert isinstance(user, User)
@@ -122,13 +124,13 @@ def test_get_user_with_valid_kwargs(usrrep, create_users):
     assert user.tg_id == valid_tg_id
 
 
-def test_get_user_with_unexisting_ids(usrrep, create_users):
+def test_get_user_with_unexisting_ids(usrrep, create_inmemory_users):
     invalid_id, invalid_tg_id = UNEXISTING_ID, UNEXISTING_ID
     assert usrrep.get_user(user_id=invalid_id) is None
     assert usrrep.get_user(tg_id=invalid_tg_id) is None
 
 
-def test_update_user_with_valid_kwargs(usrrep, create_users):
+def test_update_user_with_valid_kwargs(usrrep, create_inmemory_users):
     valid_kwargs = {"budget_currency": "USD", "is_active": True}
     result = usrrep.update_user(TARGET_USER_ID, **valid_kwargs)
     assert isinstance(result, ModelUpdateDeleteResult)
@@ -138,7 +140,7 @@ def test_update_user_with_valid_kwargs(usrrep, create_users):
     assert error is None
 
 
-def test_update_user_without_is_active_kwarg(usrrep, create_users):
+def test_update_user_without_is_active_kwarg(usrrep, create_inmemory_users):
     valid_kwargs = {"budget_currency": "USD"}
     updated, error = usrrep.update_user(
         TARGET_USER_ID, **valid_kwargs
@@ -147,7 +149,9 @@ def test_update_user_without_is_active_kwarg(usrrep, create_users):
     assert error is None
 
 
-def test_update_user_with_invalid_budget_currency(usrrep, create_users):
+def test_update_user_with_invalid_budget_currency(
+    usrrep, create_inmemory_users
+):
     invalid_kwargs = {"budget_currency": 24, "is_active": True}
     updated, error = usrrep.update_user(
         TARGET_USER_ID, **invalid_kwargs
@@ -159,7 +163,7 @@ def test_update_user_with_invalid_budget_currency(usrrep, create_users):
     assert error.invalid_type == int
 
 
-def test_update_user_with_invalid_is_active(usrrep, create_users):
+def test_update_user_with_invalid_is_active(usrrep, create_inmemory_users):
     invalid_kwargs = {"budget_currency": "EUR", "is_active": "invalid"}
     updated, error = usrrep.update_user(
         TARGET_USER_ID, **invalid_kwargs
@@ -171,43 +175,43 @@ def test_update_user_with_invalid_is_active(usrrep, create_users):
     assert error.invalid_type == str
 
 
-def test_update_user_with_empty_kwargs(usrrep, create_users):
+def test_update_user_with_empty_kwargs(usrrep, create_inmemory_users):
     result, error = usrrep.update_user(TARGET_USER_ID).astuple()
     assert result is None
     assert isinstance(error, EmptyModelKwargs)
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_update_user_with_positional_args(usrrep, create_users):
+def test_update_user_with_positional_args(usrrep, create_inmemory_users):
     usrrep.update_user(TARGET_USER_ID, "currency", False)
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_update_user_with_invalid_arg_name(usrrep, create_users):
+def test_update_user_with_invalid_arg_name(usrrep, create_inmemory_users):
     usrrep.update_user(TARGET_USER_ID, invalid=True)
 
 
-def test_delete_user_with_valid_id(usrrep, create_users):
+def test_delete_user_with_valid_id(usrrep, create_inmemory_users):
     deleted, error = usrrep.delete_user(TARGET_USER_ID).astuple()
     assert deleted is True
     assert error is None
     assert usrrep.get_user(user_id=TARGET_USER_ID) is None
 
 
-def test_delete_user_with_invalid_id(usrrep, create_users):
+def test_delete_user_with_invalid_id(usrrep, create_inmemory_users):
     deleted, error = usrrep.delete_user(UNEXISTING_ID).astuple()
     assert deleted is False
     assert isinstance(error, ModelInstanceNotFound)
 
 
-def test_delete_user_with_invalid_id_type(usrrep, create_users):
+def test_delete_user_with_invalid_id_type(usrrep, create_inmemory_users):
     invalid_id = [1, 2, 3]
     deleted, error = usrrep.delete_user(invalid_id).astuple()
     assert deleted is None
     assert isinstance(error, SQLAlchemyError)
 
 
-def test_create_category_with_valid_args(catrep, create_users):
+def test_create_category_with_valid_args(catrep, create_inmemory_users):
     result = catrep.create_category(**valid_category)
     assert isinstance(result, ModelCreateResult)
 
@@ -221,11 +225,11 @@ def test_create_category_with_valid_args(catrep, create_users):
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_create_category_with_invalid_arg_name(catrep, create_users):
+def test_create_category_with_invalid_arg_name(catrep, create_inmemory_users):
     catrep.create_category(**invalid_arg_name_category)
 
 
-def test_create_category_with_invalid_arg_type(catrep, create_users):
+def test_create_category_with_invalid_arg_type(catrep, create_inmemory_users):
     category, error = catrep.create_category(
         **invalid_arg_type_category
     ).astuple()
@@ -236,7 +240,9 @@ def test_create_category_with_invalid_arg_type(catrep, create_users):
     assert error.invalid_type == CategoryType
 
 
-def test_create_category_with_unexisting_user_id(catrep, create_users):
+def test_create_category_with_unexisting_user_id(
+    catrep, create_inmemory_users
+):
     category, error = catrep.create_category(
         **unexisting_user_id_category
     ).astuple()
@@ -244,7 +250,7 @@ def test_create_category_with_unexisting_user_id(catrep, create_users):
     assert isinstance(error, SQLAlchemyError)
 
 
-def test_get_category_with_valid_id(catrep, create_categories):
+def test_get_category_with_valid_id(catrep, create_inmemory_categories):
     category = catrep.create_category(**valid_category).result
 
     from_db = catrep.get_category(category.id)
@@ -254,12 +260,12 @@ def test_get_category_with_valid_id(catrep, create_categories):
     assert from_db.type == category.type
 
 
-def test_get_category_with_unexisting_id(catrep, create_categories):
+def test_get_category_with_unexisting_id(catrep, create_inmemory_categories):
     assert catrep.get_category(UNEXISTING_ID) is None
 
 
 def test_count_user_categories_with_existing_user_id(
-    catrep, create_categories
+    catrep, create_inmemory_categories
 ):
     initial_count = catrep.count_user_categories(TARGET_USER_ID)
     assert initial_count == TOTAL_USER_CATEGORIES
@@ -270,12 +276,12 @@ def test_count_user_categories_with_existing_user_id(
 
 
 def test_count_user_categories_with_unexisting_user_id(
-    catrep, create_categories
+    catrep, create_inmemory_categories
 ):
     assert catrep.count_user_categories(UNEXISTING_ID) == 0
 
 
-def test_update_category_with_valid_kwargs(catrep, create_categories):
+def test_update_category_with_valid_kwargs(catrep, create_inmemory_categories):
     original_category = catrep.get_category(TARGET_CATEGORY_ID)
     original_type = original_category.type
     original_id = original_category.id
@@ -310,7 +316,9 @@ def test_update_category_with_valid_kwargs(catrep, create_categories):
     assert updated_category.user_id == original_user_id
 
 
-def test_update_category_with_invalid_type_kwargs(catrep, create_categories):
+def test_update_category_with_invalid_type_kwargs(
+    catrep, create_inmemory_categories
+):
     invalid_kwargs = {
         "name": ["invalid"],
         "last_used": now(),
@@ -330,24 +338,28 @@ def test_update_category_with_invalid_type_kwargs(catrep, create_categories):
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_update_category_with_invalid_arg_name(catrep, create_categories):
+def test_update_category_with_invalid_arg_name(
+    catrep, create_inmemory_categories
+):
     catrep.update_category(TARGET_CATEGORY_ID, invalid="name")
 
 
-def test_update_category_without_kwargs(catrep, create_categories):
+def test_update_category_without_kwargs(catrep, create_inmemory_categories):
     updated, error = catrep.update_category(TARGET_CATEGORY_ID).astuple()
     assert updated is None
     assert isinstance(error, EmptyModelKwargs)
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_update_category_with_positional_args(catrep, create_categories):
+def test_update_category_with_positional_args(
+    catrep, create_inmemory_categories
+):
     catrep.update_category(
         TARGET_CATEGORY_ID, "new_name", CategoryType.EXPENSES
     )
 
 
-def test_delete_category_with_valid_id(catrep, create_categories):
+def test_delete_category_with_valid_id(catrep, create_inmemory_categories):
     result = catrep.delete_category(TARGET_CATEGORY_ID)
     assert isinstance(result, ModelUpdateDeleteResult)
 
@@ -356,20 +368,24 @@ def test_delete_category_with_valid_id(catrep, create_categories):
     assert error is None
 
 
-def test_delete_category_with_unexisting_id(catrep, create_categories):
+def test_delete_category_with_unexisting_id(
+    catrep, create_inmemory_categories
+):
     deleted, error = catrep.delete_category(UNEXISTING_ID).astuple()
     assert deleted is False
     assert isinstance(error, ModelInstanceNotFound)
 
 
-def test_delete_category_with_invalid_id_type(catrep, create_categories):
+def test_delete_category_with_invalid_id_type(
+    catrep, create_inmemory_categories
+):
     deleted, error = catrep.delete_category([TARGET_CATEGORY_ID]).astuple()
     assert deleted is None
     assert isinstance(error, SQLAlchemyError)
 
 
 def test_get_user_categories_with_existing_user_id(
-    db_session, catrep, create_users
+    inmemory_db_session, catrep, create_inmemory_users
 ):
     from typing import Generator
 
@@ -377,7 +393,7 @@ def test_get_user_categories_with_existing_user_id(
 
     user_id = 1
     sample_size = 20
-    db_session.add_all(
+    inmemory_db_session.add_all(
         [
             Category(
                 id=i,
@@ -388,7 +404,7 @@ def test_get_user_categories_with_existing_user_id(
             for i in range(1, sample_size + 1)
         ]
     )
-    db_session.commit()
+    inmemory_db_session.commit()
 
     categories = catrep.get_user_categories(user_id)
     assert isinstance(categories, GeneratorResult)
@@ -410,7 +426,7 @@ def test_get_user_categories_with_existing_user_id(
 
 
 def test_get_user_categories_with_unexisting_user_id(
-    catrep, create_categories
+    catrep, create_inmemory_categories
 ):
     categories = catrep.get_user_categories(UNEXISTING_ID)
     assert categories.is_empty is True
@@ -419,12 +435,14 @@ def test_get_user_categories_with_unexisting_user_id(
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
 def test_get_user_categories_with_positional_arg_raises_error(
-    catrep, create_categories
+    catrep, create_inmemory_categories
 ):
     catrep.get_user_categories(1, 1, 1)
 
 
-def test_category_exists_with_valid_category_id(catrep, create_categories):
+def test_category_exists_with_valid_category_id(
+    catrep, create_inmemory_categories
+):
     assert catrep.category_exists(category_id=TARGET_CATEGORY_ID) is True
     assert (
         catrep.category_exists(
@@ -435,12 +453,14 @@ def test_category_exists_with_valid_category_id(catrep, create_categories):
 
 
 def test_category_exists_with_unexisting_category_id(
-    catrep, create_categories
+    catrep, create_inmemory_categories
 ):
     assert catrep.category_exists(category_id=UNEXISTING_ID) is False
 
 
-def test_category_exists_with_valid_user_id(catrep, create_categories):
+def test_category_exists_with_valid_user_id(
+    catrep, create_inmemory_categories
+):
     assert catrep.category_exists(user_id=TARGET_USER_ID) is True
     assert (
         catrep.category_exists(
@@ -450,12 +470,14 @@ def test_category_exists_with_valid_user_id(catrep, create_categories):
     )
 
 
-def test_category_exists_with_unexisting_user_id(catrep, create_categories):
+def test_category_exists_with_unexisting_user_id(
+    catrep, create_inmemory_categories
+):
     assert catrep.category_exists(user_id=UNEXISTING_ID) is False
 
 
 def test_category_exists_with_valid_category_name_arg(
-    catrep, create_categories
+    catrep, create_inmemory_categories
 ):
     catrep.create_category(**valid_category)
 
@@ -469,12 +491,14 @@ def test_category_exists_with_valid_category_name_arg(
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
 def test_category_exists_with_positional_arg_raises_error(
-    catrep, create_categories
+    catrep, create_inmemory_categories
 ):
     catrep.category_exists(1, 1)
 
 
-def test_create_entry_with_minimal_valid_args(entrep, create_categories):
+def test_create_entry_with_minimal_valid_args(
+    entrep, create_inmemory_categories
+):
     result = entrep.create_entry(**minimal_valid_entry)
     assert isinstance(result, ModelCreateResult)
 
@@ -490,7 +514,7 @@ def test_create_entry_with_minimal_valid_args(entrep, create_categories):
     assert entry.transaction_date is not None
 
 
-def test_create_entry_with_full_valid_args(entrep, create_categories):
+def test_create_entry_with_full_valid_args(entrep, create_inmemory_categories):
     entry, error = entrep.create_entry(**full_valid_entry).astuple()
     assert error is None
     assert entry.user_id == full_valid_entry.user_id
@@ -504,7 +528,9 @@ def test_create_entry_with_full_valid_args(entrep, create_categories):
     )
 
 
-def test_create_entry_with_unexisting_user_id(entrep, create_categories):
+def test_create_entry_with_unexisting_user_id(
+    entrep, create_inmemory_categories
+):
     result = entrep.create_entry(**unexisting_user_id_entry)
     assert isinstance(result, ModelCreateResult)
 
@@ -513,7 +539,9 @@ def test_create_entry_with_unexisting_user_id(entrep, create_categories):
     assert isinstance(error, SQLAlchemyError)
 
 
-def test_create_entry_with_unexisting_category_id(entrep, create_categories):
+def test_create_entry_with_unexisting_category_id(
+    entrep, create_inmemory_categories
+):
     result = entrep.create_entry(**unexisting_category_id_entry)
     assert isinstance(result, ModelCreateResult)
 
@@ -522,7 +550,9 @@ def test_create_entry_with_unexisting_category_id(entrep, create_categories):
     assert isinstance(error, SQLAlchemyError)
 
 
-def test_create_entry_with_invalid_arg_types(entrep, create_categories):
+def test_create_entry_with_invalid_arg_types(
+    entrep, create_inmemory_categories
+):
     category, error = entrep.create_entry(
         **invalid_user_id_type_entry
     ).astuple()
@@ -551,7 +581,7 @@ def test_create_entry_with_invalid_arg_types(entrep, create_categories):
     assert error.invalid_type == int
 
 
-def test_get_entry_with_valid_id(entrep, create_entries):
+def test_get_entry_with_valid_id(entrep, create_inmemory_entries):
     entry = entrep.create_entry(**minimal_valid_entry).result
 
     from_db = entrep.get_entry(entry.id)
@@ -562,11 +592,11 @@ def test_get_entry_with_valid_id(entrep, create_entries):
     assert from_db.sum == entry.sum
 
 
-def test_get_entry_with_unexisting_id(entrep, create_entries):
+def test_get_entry_with_unexisting_id(entrep, create_inmemory_entries):
     assert entrep.get_entry(UNEXISTING_ID) is None
 
 
-def test_count_entries_with_valid_user_id(entrep, create_entries):
+def test_count_entries_with_valid_user_id(entrep, create_inmemory_entries):
     initial_count = entrep.count_entries(user_id=TARGET_USER_ID)
     assert initial_count == TARGET_USER_ENTRIES
 
@@ -576,7 +606,7 @@ def test_count_entries_with_valid_user_id(entrep, create_entries):
     assert entrep.count_entries(user_id=TARGET_USER_ID + 1) == 0
 
 
-def test_count_entries_with_valid_category_id(entrep, create_entries):
+def test_count_entries_with_valid_category_id(entrep, create_inmemory_entries):
     initial_count = entrep.count_entries(category_id=TARGET_CATEGORY_ID)
     assert initial_count == TARGET_CATEGORY_ENTRIES
 
@@ -590,7 +620,7 @@ def test_count_entries_with_valid_category_id(entrep, create_entries):
 
 
 def test_count_entries_with_combined_valid_and_invalid_ids(
-    entrep, create_entries
+    entrep, create_inmemory_entries
 ):
     assert (
         entrep.count_entries(user_id=TARGET_USER_ID, category_id=UNEXISTING_ID)
@@ -605,23 +635,23 @@ def test_count_entries_with_combined_valid_and_invalid_ids(
     )
 
 
-def test_count_entries_with_unexisting_ids(entrep, create_entries):
+def test_count_entries_with_unexisting_ids(entrep, create_inmemory_entries):
     assert (
         entrep.count_entries(user_id=UNEXISTING_ID, category_id=UNEXISTING_ID)
         == 0
     )
 
 
-def test_count_entries_without_args(entrep, create_entries):
+def test_count_entries_without_args(entrep, create_inmemory_entries):
     assert entrep.count_entries() == 0
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_count_entries_with_positional_args(entrep, create_entries):
+def test_count_entries_with_positional_args(entrep, create_inmemory_entries):
     entrep.count_entries(TARGET_USER_ID, TARGET_CATEGORY_ID)
 
 
-def test_update_entry_with_valid_args(entrep, create_entries):
+def test_update_entry_with_valid_args(entrep, create_inmemory_entries):
     original_entry = entrep.get_entry(TARGET_ENTRY_ID)
     original_description = original_entry.description
     original_id = original_entry.id
@@ -656,7 +686,9 @@ def test_update_entry_with_valid_args(entrep, create_entries):
     assert updated_entry.category_id == original_category_id
 
 
-def test_update_entry_assign_to_another_category(entrep, create_entries):
+def test_update_entry_assign_to_another_category(
+    entrep, create_inmemory_entries
+):
     initial_entry_count = entrep.count_entries(category_id=TARGET_CATEGORY_ID)
     original_category_id = entrep.get_entry(TARGET_ENTRY_ID).category_id
 
@@ -674,7 +706,9 @@ def test_update_entry_assign_to_another_category(entrep, create_entries):
     )
 
 
-def test_update_entry_with_invalid_type_kwargs(entrep, create_entries):
+def test_update_entry_with_invalid_type_kwargs(
+    entrep, create_inmemory_entries
+):
     invalid_kwargs = {
         "sum": "26055",
         "description": 26,
@@ -693,22 +727,22 @@ def test_update_entry_with_invalid_type_kwargs(entrep, create_entries):
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_update_entry_with_invalid_arg_name(entrep, create_entries):
+def test_update_entry_with_invalid_arg_name(entrep, create_inmemory_entries):
     entrep.update_entry(TARGET_ENTRY_ID, invalid="name")
 
 
-def test_update_entry_without_kwargs(entrep, create_entries):
+def test_update_entry_without_kwargs(entrep, create_inmemory_entries):
     updated, error = entrep.update_entry(TARGET_ENTRY_ID).astuple()
     assert updated is None
     assert isinstance(error, EmptyModelKwargs)
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_update_entry_with_positional_args(entrep, create_entries):
+def test_update_entry_with_positional_args(entrep, create_inmemory_entries):
     entrep.update_entry(TARGET_ENTRY_ID, 22000, "description")
 
 
-def test_delete_entry_with_valid_id(entrep, create_entries):
+def test_delete_entry_with_valid_id(entrep, create_inmemory_entries):
     result = entrep.delete_entry(TARGET_ENTRY_ID)
     assert isinstance(result, ModelUpdateDeleteResult)
 
@@ -717,19 +751,19 @@ def test_delete_entry_with_valid_id(entrep, create_entries):
     assert error is None
 
 
-def test_delete_entry_with_unexisting_id(entrep, create_entries):
+def test_delete_entry_with_unexisting_id(entrep, create_inmemory_entries):
     deleted, error = entrep.delete_entry(UNEXISTING_ID).astuple()
     assert deleted is False
     assert isinstance(error, ModelInstanceNotFound)
 
 
-def test_delete_entry_with_invalid_id_type(entrep, create_entries):
+def test_delete_entry_with_invalid_id_type(entrep, create_inmemory_entries):
     deleted, error = entrep.delete_entry([TARGET_ENTRY_ID]).astuple()
     assert deleted is None
     assert isinstance(error, SQLAlchemyError)
 
 
-def test_entry_exists_with_valid_entry_id(entrep, create_entries):
+def test_entry_exists_with_valid_entry_id(entrep, create_inmemory_entries):
     assert entrep.entry_exists(entry_id=TARGET_ENTRY_ID) is True
     assert (
         entrep.entry_exists(
@@ -741,11 +775,13 @@ def test_entry_exists_with_valid_entry_id(entrep, create_entries):
     )
 
 
-def test_entry_exists_with_unexisting_entry_id(entrep, create_entries):
+def test_entry_exists_with_unexisting_entry_id(
+    entrep, create_inmemory_entries
+):
     assert entrep.entry_exists(entry_id=UNEXISTING_ID) is False
 
 
-def test_entry_exists_with_valid_category_id(entrep, create_entries):
+def test_entry_exists_with_valid_category_id(entrep, create_inmemory_entries):
     assert entrep.entry_exists(category_id=TARGET_CATEGORY_ID) is True
     assert (
         entrep.entry_exists(
@@ -757,11 +793,13 @@ def test_entry_exists_with_valid_category_id(entrep, create_entries):
     )
 
 
-def test_entry_exists_with_unexisting_category_id(entrep, create_entries):
+def test_entry_exists_with_unexisting_category_id(
+    entrep, create_inmemory_entries
+):
     assert entrep.entry_exists(category_id=UNEXISTING_ID) is False
 
 
-def test_entry_exists_with_valid_user_id(entrep, create_entries):
+def test_entry_exists_with_valid_user_id(entrep, create_inmemory_entries):
     assert entrep.entry_exists(user_id=TARGET_USER_ID) is True
     assert (
         entrep.entry_exists(
@@ -773,10 +811,12 @@ def test_entry_exists_with_valid_user_id(entrep, create_entries):
     )
 
 
-def test_entry_exists_with_unexisting_user_id(entrep, create_entries):
+def test_entry_exists_with_unexisting_user_id(entrep, create_inmemory_entries):
     assert entrep.entry_exists(user_id=UNEXISTING_ID) is False
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
-def test_entry_exists_with_positional_arg_raises_error(entrep, create_entries):
+def test_entry_exists_with_positional_arg_raises_error(
+    entrep, create_inmemory_entries
+):
     entrep.entry_exists(TARGET_ENTRY_ID, TARGET_USER_ID, TARGET_CATEGORY_ID)
