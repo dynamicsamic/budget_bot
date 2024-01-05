@@ -11,13 +11,13 @@ prod_engine = create_engine(
 test_engine = create_engine(
     settings.DATABASE["test_real_db_url"], echo=settings.DEBUG
 )
-inmemory_engine = create_engine(
+inmemory_test_engine = create_engine(
     settings.DATABASE["test_mem_db_url"], echo=settings.DEBUG
 )
 
 
 @contextmanager
-def db_session(engine: Engine = inmemory_engine):
+def db_session(engine: Engine = test_engine):
     Session = scoped_session(sessionmaker(bind=engine))
     try:
         yield Session
