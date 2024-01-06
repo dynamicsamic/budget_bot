@@ -6,12 +6,12 @@ from app.bot.handlers import router
 from ..test_utils import MockedBot
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture
 def mocked_bot():
     return MockedBot()
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def dispatcher():
     dp.include_router(router)
     return dp
