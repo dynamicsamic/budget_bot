@@ -120,6 +120,35 @@ def create_test_entries(db_session):
     db_session.commit()
 
 
+def get_dispatcher_context(
+    dispatcher,
+    bot,
+    chat,
+    user,
+):
+    return dispatcher.fsm.get_context(bot, chat.id, user.id)
+
+
+async def get_dispatcher_state(
+    dispatcher,
+    bot,
+    chat,
+    user,
+):
+    return await get_dispatcher_context(
+        dispatcher, bot, chat, user
+    ).get_state()
+
+
+async def clear_dispatcher_state(
+    dispatcher,
+    bot,
+    chat,
+    user,
+):
+    return await get_dispatcher_context(dispatcher, bot, chat, user).clear()
+
+
 # The following code copied directly from
 # https://github.com/aiogram/aiogram/tests/mocked_bot.py
 # and serves for testing purpose only.
