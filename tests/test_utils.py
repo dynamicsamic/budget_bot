@@ -4,6 +4,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncGenerator,
+    Coroutine,
     Deque,
     Dict,
     Optional,
@@ -11,11 +12,12 @@ from typing import (
     Type,
 )
 
-from aiogram import Bot
+from aiogram import Bot, Dispatcher
 from aiogram.client.session.base import BaseSession
+from aiogram.fsm.context import FSMContext
 from aiogram.methods import TelegramMethod
 from aiogram.methods.base import Response, TelegramType
-from aiogram.types import UNSET_PARSE_MODE, ResponseParameters
+from aiogram.types import UNSET_PARSE_MODE, Chat, ResponseParameters
 from aiogram.types import User as AiogramUser
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -121,35 +123,35 @@ def create_test_entries(db_session):
 
 
 def get_dispatcher_context(
-    dispatcher,
-    bot,
-    chat,
-    user,
-):
+    dispatcher: Dispatcher,
+    bot: Bot,
+    chat: Chat,
+    user: AiogramUser,
+) -> FSMContext:
     return dispatcher.fsm.get_context(bot, chat.id, user.id)
 
 
 async def get_dispatcher_state(
-    dispatcher,
-    bot,
-    chat,
-    user,
-):
+    dispatcher: Dispatcher,
+    bot: Bot,
+    chat: Chat,
+    user: AiogramUser,
+) -> Coroutine[Any, Any, str | None]:
     return await get_dispatcher_context(
         dispatcher, bot, chat, user
     ).get_state()
 
 
 async def clear_dispatcher_state(
-    dispatcher,
-    bot,
-    chat,
-    user,
-):
+    dispatcher: Dispatcher,
+    bot: Bot,
+    chat: Chat,
+    user: AiogramUser,
+) -> Coroutine[Any, Any, None]:
     return await get_dispatcher_context(dispatcher, bot, chat, user).clear()
 
 
-# The following code copied directly from
+# The following code mostly copied directly from
 # https://github.com/aiogram/aiogram/tests/mocked_bot.py
 # and serves for testing purpose only.
 # All rights for the following code belong to Aiogram.
@@ -216,7 +218,7 @@ class MockedBot(Bot):
             first_name="FirstName",
             last_name="LastName",
             username="tbot",
-            language_code="uk-UA",
+            language_code="ru-RU",
         )
 
     def add_result_for(
@@ -244,3 +246,9 @@ class MockedBot(Bot):
 
     def get_request(self) -> TelegramMethod[TelegramType]:
         return self.session.get_request()
+
+    def read_last_request(self) -> TelegramMethod[TelegramType] | None:
+        requests = self.session.requests
+        if len(requests) == 0:
+            return None
+        return requests[-1]
