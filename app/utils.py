@@ -1,9 +1,17 @@
 import calendar
 import datetime as dt
+import logging
 import re
 from typing import Any, Iterable
 
 from app import settings
+
+aiogram_log_handler = logging.StreamHandler()
+aiogram_log_handler.setFormatter(
+    logging.Formatter(
+        "%(asctime)s - [%(levelname)s] - <%(funcName)s> : %(message)s"
+    )
+)
 
 
 class DateRange:
