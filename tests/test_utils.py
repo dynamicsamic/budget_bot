@@ -15,7 +15,7 @@ from typing import (
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.base import BaseSession
 from aiogram.fsm.context import FSMContext
-from aiogram.methods import TelegramMethod
+from aiogram.methods import SendMessage, TelegramMethod
 from aiogram.methods.base import Response, TelegramType
 from aiogram.types import UNSET_PARSE_MODE, Chat, ResponseParameters
 from aiogram.types import User as AiogramUser
@@ -25,6 +25,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from app.db.models import Category, CategoryType, Entry, User
 
 USER_SAMPLE = 5
+CATEGORY_SAMPLE = 15
 TG_ID_PREFIX = 100
 TARGET_USER_ID = 1
 TARGET_CATEGORY_ID = 1
@@ -142,6 +143,15 @@ async def get_dispatcher_state(
     ).get_state()
 
 
+async def get_dispatcher_state_data(
+    dispatcher: Dispatcher,
+    bot: Bot,
+    chat: Chat,
+    user: AiogramUser,
+) -> Coroutine[Any, Any, Dict[str, Any]]:
+    return await get_dispatcher_context(dispatcher, bot, chat, user).get_data()
+
+
 async def clear_dispatcher_state(
     dispatcher: Dispatcher,
     bot: Bot,
@@ -252,3 +262,7 @@ class MockedBot(Bot):
         if len(requests) == 0:
             return None
         return requests[-1]
+
+    def prepare_stub_messages(self, n: int) -> None:
+        for _ in range(n):
+            self.add_result_for(method=SendMessage, ok=True)
