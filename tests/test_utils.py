@@ -1,5 +1,6 @@
 import random
 from collections import deque
+from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -15,9 +16,9 @@ from typing import (
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.base import BaseSession
 from aiogram.fsm.context import FSMContext
-from aiogram.methods import SendMessage, TelegramMethod
+from aiogram.methods import AnswerCallbackQuery, SendMessage, TelegramMethod
 from aiogram.methods.base import Response, TelegramType
-from aiogram.types import UNSET_PARSE_MODE, Chat, ResponseParameters
+from aiogram.types import UNSET_PARSE_MODE, Chat, ResponseParameters, Update
 from aiogram.types import User as AiogramUser
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -161,6 +162,57 @@ async def clear_dispatcher_state(
     return await get_dispatcher_context(dispatcher, bot, chat, user).clear()
 
 
+@dataclass
+class Requester:
+    dispather: Dispatcher
+    mocked_bot: "MockedBot"
+    target_chat: Chat
+    target_user: AiogramUser
+
+    @property
+    def requests(self):
+        return self.mocked_bot.session.requests
+
+    async def make_request(
+        self, aiogram_method: Type[TelegramMethod], update: Update
+    ):
+        if aiogram_method is AnswerCallbackQuery:
+            # also need to add result for sending inline keyboard
+            self.mocked_bot.add_result_for(method=SendMessage, ok=True)
+
+        self.mocked_bot.add_result_for(method=aiogram_method, ok=True)
+        await self.dispather.feed_update(self.mocked_bot, update)
+
+    def _get_fsm_context(self) -> FSMContext:
+        return self.dispather.fsm.get_context(
+            self.mocked_bot, self.target_chat.id, self.target_user.id
+        )
+
+    async def get_fsm_state(self):
+        return await self._get_fsm_context().get_state()
+
+    async def get_fsm_state_data(self):
+        return await self._get_fsm_context().get_data()
+
+    async def clear_fsm_state(self):
+        return await self._get_fsm_context().clear()
+
+    def read_last_sent_message(self):
+        requests = self.requests
+        if len(requests) == 0:
+            return None
+
+        for i in range(-1, -len(requests) - 1, -1):
+            if isinstance(message := requests[i], SendMessage):
+                return message
+
+    def read_last_request(self) -> TelegramMethod[TelegramType] | None:
+        requests = self.requests
+        if len(requests) == 0:
+            return None
+        return requests[-1]
+
+
 # The following code mostly copied directly from
 # https://github.com/aiogram/aiogram/tests/mocked_bot.py
 # and serves for testing purpose only.
@@ -256,13 +308,3 @@ class MockedBot(Bot):
 
     def get_request(self) -> TelegramMethod[TelegramType]:
         return self.session.get_request()
-
-    def read_last_request(self) -> TelegramMethod[TelegramType] | None:
-        requests = self.session.requests
-        if len(requests) == 0:
-            return None
-        return requests[-1]
-
-    def prepare_stub_messages(self, n: int) -> None:
-        for _ in range(n):
-            self.add_result_for(method=SendMessage, ok=True)
