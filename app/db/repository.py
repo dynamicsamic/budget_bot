@@ -151,7 +151,7 @@ class CommonRepository:
             logger.error(f"Instance creation [FAILURE]: {e}")
             return ModelCreateResult(result=None, error=e)
 
-        logger.info(f"New instance of {self.model} created")
+        logger.info(f"New instance of {self.model.get_tablename()} created")
         self.session.refresh(obj)
         return ModelCreateResult(result=obj, error=None)
 
