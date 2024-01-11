@@ -4,7 +4,7 @@ from typing import Any, Generator, Tuple, TypeVar
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import UnaryExpression
 
-from .models.base import AbstractBaseModel
+from .models import AbstractBaseModel
 
 _OrderByValue = TypeVar(
     "_OrderByValue", InstrumentedAttribute, UnaryExpression
