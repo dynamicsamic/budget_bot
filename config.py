@@ -1,8 +1,10 @@
-from pydantic import BaseSettings, SecretStr
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     bot_token: SecretStr
+    support_manager_id: SecretStr
 
     class Config:
         env_file = ".env"
