@@ -2,6 +2,7 @@ import calendar
 import datetime as dt
 import logging
 import re
+from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from app import settings
@@ -262,27 +263,24 @@ def validate_entry_date(raw_date: str) -> tuple[dt.datetime | None, str]:
     return valid_datetime.astimezone(settings.TIME_ZONE), ""
 
 
+@dataclass
 class OffsetPaginator:
-    def __init__(
-        self,
-        callbakc_prefix: str,
-        size: int,
-        page_limit: int = 10,
-    ):
-        self.callback_prefix = callbakc_prefix
-        self.size = size
-        self.page_limit = page_limit
-        self.current_offset = 0
+    callback_prefix: str
+    size: int
+    page_limit: int = 10
+    current_offset: int = field(default=0, init=False)
 
     def switch_next(self):
         if self.current_offset + self.page_limit >= self.size:
             pass
-        self.current_offset += self.page_limit
+        else:
+            self.current_offset += self.page_limit
 
     def switch_back(self):
         if self.current_offset - self.page_limit <= 0:
             self.current_offset = 0
-        self.current_offset -= self.page_limit
+        else:
+            self.current_offset -= self.page_limit
 
     @property
     def next_page_offset(self):
