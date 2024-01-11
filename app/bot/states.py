@@ -1,6 +1,11 @@
 from aiogram.fsm.state import State, StatesGroup
 
 
+class UserCreateState(StatesGroup):
+    wait_for_action = State()
+    set_budget_currency = State()
+
+
 class BudgetCreateState(StatesGroup):
     set_name = State()
     set_currency = State()
@@ -19,12 +24,17 @@ class BudgetShowState(StatesGroup):
     show_budgets = State()
 
 
-class CategoryCreateState(StatesGroup):
-    name = State()
-    type = State()
+class CreateCategory(StatesGroup):
+    set_name = State()
+    set_type = State()
 
 
-class CategoryUpdateState(StatesGroup):
+class ShowCategories(StatesGroup):
+    show_many = State()
+    show_one = State()
+
+
+class UpdateCategory(StatesGroup):
     name = State()
 
 
