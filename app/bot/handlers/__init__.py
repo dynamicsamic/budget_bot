@@ -9,11 +9,13 @@ from app.bot.middlewares import (
 from .category import router as category_router
 from .common import router as common_router
 from .entry import router as entry_router
+from .errors import router as error_router
 from .user import router as user_router
 
 router = Router()
 router.include_routers(
     common_router,
+    error_router,
     category_router,
     entry_router,
     user_router,
