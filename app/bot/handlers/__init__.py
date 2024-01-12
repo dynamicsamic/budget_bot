@@ -6,19 +6,15 @@ from app.bot.middlewares import (
     RedirectAnonymousUserMiddleWare,
 )
 
-from .budget import router as budget_router
-from .callbacks import router as callback_router
 from .category import router as category_router
-from .commands import router as command_router
+from .common import router as common_router
 from .entry import router as entry_router
 from .user import router as user_router
 
 router = Router()
 router.include_routers(
-    budget_router,
-    command_router,
+    common_router,
     category_router,
-    callback_router,
     entry_router,
     user_router,
 )
