@@ -17,9 +17,7 @@ from sqlalchemy.sql._typing import (
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.selectable import Select
 
-from app.utils import get_locals
-
-from .custom_types import (
+from app.custom_types import (
     GeneratorResult,
     ModelCreateResult,
     ModelUpdateDeleteResult,
@@ -27,13 +25,16 @@ from .custom_types import (
     _BaseModel,
     _OrderByValue,
 )
-from .exceptions import (
+from app.exceptions import (
     EmptyModelKwargs,
     InvalidModelArgType,
     InvalidModelArgValue,
     ModelInstanceNotFound,
+    RepositoryValidationError,
 )
-from .models import Category, CategoryType, Entry, User
+from app.utils import get_locals
+
+from .models import AbstractBaseModel, Category, CategoryType, Entry, User
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,9 @@ def query_logger(f: Callable[..., ScalarResult]):
 class CommonRepository:
     session: Session | scoped_session
     model: Type[_BaseModel]
+
+    def __post_init__(self) -> None:
+        self._validate()
 
     def _create(
         self,
@@ -324,6 +328,26 @@ class CommonRepository:
             join_filters=join_filters,
         ).limit(1)
         return bool(self.session.scalar(q))
+
+    def _validate(self) -> None:
+        if not isinstance(self.session, (Session, scoped_session)):
+            raise RepositoryValidationError(
+                "Expected `self.session` to be an instance "
+                "of Session or scoped_session, recieved "
+                f"`{type(self.session)}`."
+            )
+        if not self.session.is_active:
+            raise RepositoryValidationError("`self.session` is not active!")
+        if not isinstance(self.model, type):
+            raise RepositoryValidationError(
+                "Expected `self.model` to be a class not instance. "
+                f"Recieved: {self.model}"
+            )
+        if not issubclass(self.model, AbstractBaseModel):
+            raise RepositoryValidationError(
+                "Expected `self.model` to be a subclass f AbstractBaseModel, "
+                f"recieved `{self.model}`."
+            )
 
 
 @dataclass
