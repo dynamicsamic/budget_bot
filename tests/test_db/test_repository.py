@@ -1,13 +1,15 @@
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.db.custom_types import ModelCreateResult, ModelUpdateDeleteResult
-from app.db.exceptions import (
+from app.custom_types import ModelCreateResult, ModelUpdateDeleteResult
+from app.db.models import Category, CategoryType, Entry, User
+from app.db.repository import CommonRepository
+from app.exceptions import (
     EmptyModelKwargs,
     InvalidModelArgType,
     ModelInstanceNotFound,
+    RepositoryValidationError,
 )
-from app.db.models import Category, CategoryType, Entry, User
 from app.utils import epoch_start, now, pretty_datetime
 
 from ..test_utils import (
@@ -81,6 +83,35 @@ invalid_description_type_entry = MockModel(
     sum=1000,
     description=22,
 )
+
+
+def test_create_repository_with_valid_args(inmemory_db_session):
+    assert CommonRepository(inmemory_db_session, User)
+
+
+@pytest.mark.xfail(raises=RepositoryValidationError, strict=True)
+def test_create_repository_with_invalid_session():
+    CommonRepository("invalid", User)
+
+
+@pytest.mark.xfail(raises=RepositoryValidationError, strict=True)
+def test_create_repository_with_inactive_session():
+    from unittest.mock import MagicMock, patch
+
+    with patch("app.db.repository.isinstance", return_value=True):
+        session = MagicMock()
+        session.is_active = False
+        CommonRepository(session, User)
+
+
+@pytest.mark.xfail(raises=RepositoryValidationError, strict=True)
+def test_create_repository_with_invalid_model_type(inmemory_db_session):
+    CommonRepository(inmemory_db_session, str)
+
+
+@pytest.mark.xfail(raises=RepositoryValidationError, strict=True)
+def test_create_repository_with_invalid_model_instance(inmemory_db_session):
+    CommonRepository(inmemory_db_session, "invalid")
 
 
 def test_create_user_with_valid_args(usrrep):
@@ -389,7 +420,7 @@ def test_get_user_categories_with_existing_user_id(
 ):
     from typing import Generator
 
-    from app.db.custom_types import GeneratorResult
+    from app.custom_types import GeneratorResult
 
     user_id = 1
     sample_size = 20
