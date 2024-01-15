@@ -78,8 +78,9 @@ class AbstractBaseModel(Base, ModelFieldsDetails):
     """Parent class for all active models."""
 
     __abstract__ = True
+    _public_name = ""
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, doc="id пользователя")
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
     )
@@ -111,13 +112,15 @@ class CategoryType(enum.Enum):
 
 class User(AbstractBaseModel):
     __tablename__ = "user"
+    _public_name = "Пользователь"
 
-    tg_id: Mapped[int] = mapped_column(unique=True)
+    tg_id: Mapped[int] = mapped_column(doc="Telegram id", unique=True)
     budget_currency: Mapped[str] = mapped_column(
         String(length=10),
+        doc="Валюта",
         default="RUB",
     )
-    is_active: Mapped[bool] = mapped_column(default=True)
+    is_active: Mapped[bool] = mapped_column(doc="Статус активен", default=True)
     categories: Mapped[List["Category"]] = relationship(
         back_populates="user",
         cascade="delete, merge, save-update",
@@ -147,20 +150,25 @@ class User(AbstractBaseModel):
 
 class Category(AbstractBaseModel):
     __tablename__ = "entry_category"
+    _public_name = "Категория"
 
-    name: Mapped[str] = mapped_column(String(length=128))
+    name: Mapped[str] = mapped_column(String(length=128), doc="Название")
     type: Mapped[Enum] = mapped_column(
-        Enum(CategoryType, create_constraint=True)
+        Enum(CategoryType, create_constraint=True), doc="Тип"
     )
     last_used: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), default=epoch_start()
+        DateTime(timezone=True),
+        doc="Дата последнего применения",
+        default=epoch_start(),
     )
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("user.id", ondelete="CASCADE")
+        ForeignKey("user.id", ondelete="CASCADE"), doc="id пользователя"
+    )
+    num_entries: Mapped[int] = mapped_column(
+        doc="Количество транзакций", default=0
     )
     user: Mapped[User] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
-    num_entries: Mapped[int] = mapped_column(default=0)
 
     @classmethod
     @property
@@ -183,19 +191,26 @@ class Category(AbstractBaseModel):
 
 class Entry(AbstractBaseModel):
     __tablename__ = "entry"
+    _public_name = "Транзакция"
 
     # sum is an integer thus:
     # multiply float number by 100 before insert opeartions
     # and divide by 100 after select operations
-    sum: Mapped[int] = mapped_column(Integer, CheckConstraint("sum != 0"))
-    description: Mapped[Optional[str]]
+    sum: Mapped[int] = mapped_column(
+        Integer, CheckConstraint("sum != 0"), doc="Сумма"
+    )
+    description: Mapped[Optional[str]] = mapped_column(String, doc="Пояснение")
     transaction_date: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), default=dt.datetime.now(settings.TIME_ZONE)
+        DateTime(timezone=True),
+        doc="Дата транзакции",
+        default=dt.datetime.now(settings.TIME_ZONE),
     )
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("user.id", ondelete="CASCADE")
+        ForeignKey("user.id", ondelete="CASCADE"), doc="id пользователя"
     )
-    category_id: Mapped[int] = mapped_column(ForeignKey("entry_category.id"))
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("entry_category.id"), doc="id категории"
+    )
     user: Mapped[User] = relationship(back_populates="entries")
     category: Mapped["Category"] = relationship(back_populates="entries")
 
