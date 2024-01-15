@@ -17,68 +17,19 @@ from sqlalchemy.sql._typing import (
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.selectable import Select
 
-from app.custom_types import (
-    GeneratorResult,
-    ModelCreateResult,
-    ModelUpdateDeleteResult,
-    ModelValidationResult,
-    _BaseModel,
-    _OrderByValue,
-)
+from app.custom_types import GeneratorResult, _BaseModel, _OrderByValue
 from app.exceptions import (
     EmptyModelKwargs,
     InvalidModelArgType,
-    InvalidModelArgValue,
-    ModelInstanceNotFound,
+    InvalidModelAttribute,
     RepositoryValidationError,
+    UnknownDataBaseException,
 )
 from app.utils import get_locals
 
 from .models import AbstractBaseModel, Category, CategoryType, Entry, User
 
 logger = logging.getLogger(__name__)
-
-
-def validate_model_kwargs(
-    model: _BaseModel, kwargs: dict[str, Any]
-) -> ModelValidationResult:
-    if not kwargs:
-        logger.error(f"Empty kwargs for model: {model.get_tablename()}")
-        return ModelValidationResult(
-            result=False, error=EmptyModelKwargs(f"{model.get_tablename()}")
-        )
-
-    model_fields = model.fields
-
-    for arg, value in kwargs.items():
-        field = model_fields.get(arg)
-        if field is None:
-            logger.error(
-                "Invalid attribute for model "
-                f"{model.get_tablename()}: `{arg}`."
-            )
-            return ModelValidationResult(
-                result=False,
-                error=InvalidModelArgValue(model=model, invalid_arg=arg),
-            )
-
-        value_type, field_type = type(value), field.type.python_type
-        if not issubclass(value_type, field_type):
-            logger.error(
-                f"Invalid type for `{arg}` argument: recieved "
-                f"{value_type}, instead of {field_type}"
-            )
-            return ModelValidationResult(
-                result=False,
-                error=InvalidModelArgType(
-                    model=model,
-                    arg_name=arg,
-                    expected_type=field_type,
-                    invalid_type=value_type,
-                ),
-            )
-
-    return ModelValidationResult(result=True, error=None)
 
 
 def linked_generator(
@@ -119,69 +70,83 @@ def query_logger(f: Callable[..., ScalarResult]):
 
 @dataclass
 class CommonRepository:
+    """
+    Generic repository for database communication.
+
+    Attributes:
+        - `session`: An instance of `sqlalchemy.orm.Session` or `scoped_session`;
+        session's `is_active` property must return True.
+        - `model`: A subclass of `app.models.base.AbstractBaseModel`.
+    """
+
     session: Session | scoped_session
     model: Type[_BaseModel]
 
     def __post_init__(self) -> None:
         self._validate()
 
-    def _create(
-        self,
-        **create_kwargs: Any,
-    ) -> ModelCreateResult:
-        """Create an instance of model.
+    def _create(self, **create_kwargs: Any) -> _BaseModel:
+        """Create new model instance.
 
         Args:
-            model: A subclass of app.models.base.AbstractBaseModel.
-            session: An instance of sqlalchemy.orm.Session or scoped_session.
-            create_kwargs: A mapping of model's attribute (field) names
+            `create_kwargs`: A mapping of model's attribute (field) names
             to their values.
 
         Returns:
-            The newly created instance or None if error occured.
-        """
-        validated, error = validate_model_kwargs(
-            self.model, create_kwargs
-        ).astuple()
+            The newly created instance.
 
-        if not validated:
-            return ModelCreateResult(result=None, error=error)
+        Raises:
+            - Validation errors if `create_kwargs` are invalid
+            (see `validate_model_kwargs`).
+            - `SQLAlchemyError` exceptions if a db error occured.
+            - `UnknownDataBaseException` if an error could not be determined.
+        """
+        self._validate_model_kwargs(create_kwargs)
 
         obj = self.model(**create_kwargs)
         try:
             self.session.add(obj)
             self.session.commit()
         except Exception as e:
-            logger.error(f"Instance creation [FAILURE]: {e}")
-            return ModelCreateResult(result=None, error=e)
+            if isinstance(e, SQLAlchemyError):
+                logger.error(
+                    f"SQLAlchemyError during {self.model} "
+                    f"instance creation: {e}"
+                )
+                raise e
+            else:
+                logger.error(
+                    f"Unknown exception during {self.model} "
+                    f"instance creation: {e}"
+                )
+                raise UnknownDataBaseException from e
 
         logger.info(f"New instance of {self.model.get_tablename()} created")
         self.session.refresh(obj)
-        return ModelCreateResult(result=obj, error=None)
+        return obj
 
     def _update(
         self,
         id: int,
         update_kwargs: dict[_DMLColumnArgument, Any],
-    ) -> ModelUpdateDeleteResult:
+    ) -> bool:
         """Update model instance with given kwargs.
 
         Args:
-            model: A subclass of app.models.base.AbstractBaseModel.
-            session: An instance of sqlalchemy.orm.Session or scoped_session.
-            id: id of the model instance to be updated.
-            update_kwargs: A mapping of model's attribute names (fields) that
-                should be updated to new values.
+            - `id`: model instance id to be updated.
+            - `update_kwargs`: A mapping of model's attribute names (fields)
+            to new values.
 
         Returns:
-            True if update performed successfully, False otherwise.
-        """
-        validated, error = validate_model_kwargs(
-            self.model, update_kwargs
-        ).astuple()
+            True if model instance was updated, False otherwise.
 
-        if not validated:
-            return ModelUpdateDeleteResult(result=None, error=error)
+        Raises:
+            - Validation errors if `update_kwargs` are invalid
+            (see `validate_model_kwargs`).
+            - `SQLAlchemyError` exceptions if a db error occured.
+            - `UnknownDataBaseException` if an error could not be determined.
+        """
+        self._validate_model_kwargs(update_kwargs)
 
         update_query = (
             update(self.model).where(self.model.id == id).values(update_kwargs)
@@ -189,71 +154,79 @@ class CommonRepository:
         try:
             updated = bool(self.session.execute(update_query).rowcount)
         except Exception as e:
-            logger.error(
-                f"{self.model.get_tablename()} "
-                f"instance update [FAILURE]: {e}"
-            )
-            return ModelUpdateDeleteResult(result=None, error=e)
+            if isinstance(e, SQLAlchemyError):
+                logger.error(
+                    f"SQLAlchemyError during {self.model} "
+                    f"instance update: {e}"
+                )
+                raise e
+            else:
+                logger.error(
+                    f"Unknown exception during {self.model} "
+                    f"instance update: {e}"
+                )
+                raise UnknownDataBaseException from e
+
         if updated:
             self.session.commit()
             logger.info(
                 f"{self.model.get_tablename()} instance "
-                f"with id `{id}` update [SUCCESS]"
+                f"with id `{id}` updated"
             )
-            return ModelUpdateDeleteResult(result=True, error=None)
         else:
             logger.info(
-                f"No instance of {self.model.get_tablename()} "
-                f"with id `{id}` found."
+                f"{self.model.get_tablename()} instance"
+                f"with id `{id}` was not updated."
             )
-            return ModelUpdateDeleteResult(
-                result=False,
-                error=ModelInstanceNotFound(
-                    "Записи с такими данными не существует"
-                ),
-            )
+        return updated
 
     def _delete(
         self,
         id: int,
-    ) -> ModelUpdateDeleteResult:
-        """Delete `self.model` instance with given id.
+    ) -> bool:
+        """Delete model instance.
 
         Args:
-            model: A subclass of app.models.base.AbstractBaseModel.
-            session: An instance of sqlalchemy.orm.Session or scoped_session.
-            id: id of the model instance to be updated.
+            -`id`: model instance id to be deleted.
 
         Returns:
-            True if delete performed successfully, False otherwise.
+            True if model instance was deleted, False otherwise.
+
+        Raises:
+            - Validation errors if `update_kwargs` are invalid
+            (see `validate_model_kwargs`).
+            - `SQLAlchemyError` exceptions if a db error occured.
+            - `UnknownDataBaseException` if an error could not be determined.
         """
         delete_query = delete(self.model).where(self.model.id == id)
         try:
             deleted = bool(self.session.execute(delete_query).rowcount)
-        except SQLAlchemyError as e:
-            logger.error(
-                f"{self.model.get_tablename()} "
-                f"instance delete [FAILURE]: {e}"
-            )
-            return ModelUpdateDeleteResult(result=None, error=e)
+        except Exception as e:
+            if isinstance(e, SQLAlchemyError):
+                logger.error(
+                    f"SQLAlchemyError during {self.model} "
+                    f"instance delete: {e}"
+                )
+                raise e
+            else:
+                logger.error(
+                    f"Unknown exception during {self.model} "
+                    f"instance delete: {e}"
+                )
+                raise UnknownDataBaseException from e
+
         if deleted:
             logger.info(
                 f"{self.model.get_tablename()} instance "
-                f"with id `{id}` delete [SUCCESS]"
+                f"with id `{id}` deleted"
             )
-            return ModelUpdateDeleteResult(result=True, error=None)
         else:
-            logger.warning(
-                f"Attempt to delete instance of "
-                f"{self.model.get_tablename()} with id `{id}`. "
-                "No delete performed."
+            logger.info(
+                f"{self.model.get_tablename()} instance "
+                f"with id `{id}` was not deleted."
             )
-            return ModelUpdateDeleteResult(
-                result=False,
-                error=ModelInstanceNotFound(
-                    "Записи с такими данными не существует"
-                ),
-            )
+
+        return deleted
 
     def _fetch(
         self,
@@ -349,6 +322,54 @@ class CommonRepository:
                 f"recieved `{self.model}`."
             )
 
+    def _validate_model_kwargs(self, kwargs: dict[str, Any]) -> None:
+        """
+        Validate kwargs against model fields.
+
+        Args:
+            -`kwargs`: A mapping of model's attribute names (fields)
+            to values.
+
+        Returns:
+            None.
+
+        Raises:
+            - `EmptyModelKwargs` if kwargs is empty.
+            - `InvalidModelAttribute` if any of kwargs keys is not
+            a model's field.
+            - `InvalidModelArgType` if type of any of kwargs values
+            does not match model's field type.
+        """
+        if not kwargs:
+            logger.error(
+                f"Empty kwargs for model: {self.model.get_tablename()}"
+            )
+            raise EmptyModelKwargs(f"{self.model.get_tablename()}")
+
+        model_fields = self.model.fields
+
+        for arg, value in kwargs.items():
+            field = model_fields.get(arg)
+            if field is None:
+                logger.error(
+                    "Invalid attribute for model "
+                    f"{self.model.get_tablename()}: `{arg}`."
+                )
+                raise InvalidModelAttribute(model=self.model, invalid_arg=arg)
+
+            value_type, field_type = type(value), field.type.python_type
+            if not issubclass(value_type, field_type):
+                logger.error(
+                    f"Invalid type for `{arg}` argument: recieved "
+                    f"{value_type}, instead of {field_type}"
+                )
+                raise InvalidModelArgType(
+                    model=self.model,
+                    field=arg,
+                    expected_type=field_type,
+                    invalid_type=value_type,
+                )
+
 
 @dataclass
 class UserRepository(CommonRepository):
@@ -364,7 +385,7 @@ class UserRepository(CommonRepository):
         self,
         tg_id: int,
         budget_currency: str,
-    ) -> ModelCreateResult:
+    ) -> User:
         return self._create(tg_id=tg_id, budget_currency=budget_currency)
 
     def update_user(
@@ -373,13 +394,13 @@ class UserRepository(CommonRepository):
         *,
         budget_currency: str = None,
         is_active: bool = None,
-    ) -> ModelUpdateDeleteResult:
+    ) -> bool:
         return self._update(user_id, get_locals(locals(), ("self", "user_id")))
 
     def delete_user(
         self,
         user_id: int,
-    ) -> ModelUpdateDeleteResult:
+    ) -> bool:
         return self._delete(user_id)
 
     def user_exists(self, *, user_id: int = 0, tg_id: int = 0) -> bool:
@@ -421,7 +442,7 @@ class CategoryRepository(CommonRepository):
         user_id: int,
         name: str,
         type: CategoryType,
-    ) -> ModelCreateResult:
+    ) -> Category:
         return self._create(
             user_id=user_id,
             name=name,
@@ -436,7 +457,7 @@ class CategoryRepository(CommonRepository):
         type: CategoryType = None,
         last_used: datetime = None,
         num_entries: int = None,
-    ) -> ModelUpdateDeleteResult:
+    ) -> bool:
         return self._update(
             category_id, get_locals(locals(), ("self", "category_id"))
         )
@@ -444,7 +465,7 @@ class CategoryRepository(CommonRepository):
     def delete_category(
         self,
         category_id: int,
-    ) -> ModelUpdateDeleteResult:
+    ) -> bool:
         return self._delete(category_id)
 
     def count_user_categories(self, user_id: int) -> int:
@@ -490,7 +511,7 @@ class EntryRepository(CommonRepository):
         sum: int,
         transaction_date: Optional[datetime] = None,
         description: Optional[str] = None,
-    ) -> ModelCreateResult:
+    ) -> Entry:
         create_kwargs = {
             "user_id": user_id,
             "category_id": category_id,
@@ -512,7 +533,7 @@ class EntryRepository(CommonRepository):
         transaction_date: datetime = None,
         description: str = None,
         category_id: int = None,
-    ) -> ModelUpdateDeleteResult:
+    ) -> bool:
         return self._update(
             entry_id, get_locals(locals(), ("self", "entry_id"))
         )
@@ -520,7 +541,7 @@ class EntryRepository(CommonRepository):
     def delete_entry(
         self,
         entry_id: int,
-    ) -> ModelUpdateDeleteResult:
+    ) -> bool:
         return self._delete(entry_id)
 
     def count_entries(self, *, user_id: int = 0, category_id: int = 0) -> bool:
