@@ -67,6 +67,14 @@ def test_abstract_base_model_primary_keys():
     assert abstract_object.primary_keys == expected_primary_keys
 
 
+def test_abstract_base_model_public_name_attribute():
+    assert abstract_object._public_name == ""
+
+
+def test_abstract_base_model_id_has_doc_attribute():
+    assert AbstractSubclass.id.doc == "id пользователя"
+
+
 #########################
 ##      TESTS FOR      ##
 ##     REAL MODELS     ##
@@ -131,6 +139,12 @@ def test_user_class_has_expected_fields():
         "last_updated",
     }
     assert User.fieldnames == expected_fieldnames
+
+
+def test_user_fields_has_doc_attributes():
+    assert User.tg_id.doc == "Telegram id"
+    assert User.budget_currency.doc == "Валюта"
+    assert User.is_active.doc == "Статус активен"
 
 
 def test_user_has_expected_str_representation(
@@ -233,6 +247,13 @@ def test_category_model_has_expected_fields():
         "last_updated",
     }
     assert Category.fieldnames == expected_fieldnames
+
+
+def test_category_fields_has_doc_attributes():
+    assert Category.name.doc == "Название"
+    assert Category.type.doc == "Тип"
+    assert Category.user_id.doc == "id пользователя"
+    assert Category.num_entries.doc == "Количество транзакций"
 
 
 def test_category_has_expected_str_representation(
@@ -340,6 +361,14 @@ def test_entry_model_has_expected_fields():
         "last_updated",
     }
     assert Entry.fieldnames == expected_fieldnames
+
+
+def test_entry_fields_has_doc_attributes():
+    assert Entry.sum.doc == "Сумма"
+    assert Entry.description.doc == "Пояснение"
+    assert Entry.user_id.doc == "id пользователя"
+    assert Entry.category_id.doc == "id категории"
+    assert Entry.transaction_date.doc == "Дата транзакции"
 
 
 def test_entry_has_expected_str_representation(
