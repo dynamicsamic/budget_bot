@@ -1,15 +1,14 @@
 import re
 from datetime import datetime
-from typing import Union
+from typing import Any, Callable, Type, Union
 
-from aiogram.filters import BaseFilter
+from aiogram.filters import BaseFilter, Filter
 from aiogram.types import CallbackQuery, Message
 
 from app import settings
 from app.db.models import CategoryType
+from app.exceptions import InvalidCallbackData, InvalidCategoryName
 from app.utils import validate_entry_date, validate_entry_sum
-
-from . import prompts
 
 
 def get_suffix(string: str) -> str:
@@ -36,90 +35,80 @@ class BudgetNameFilter(BaseFilter):
         return context
 
 
-class BudgetCurrencyFilter(BaseFilter):
-    async def __call__(
-        self, msg: Message | CallbackQuery
-    ) -> dict[str, str | None]:
-        user_input = (
-            msg.text
-            if isinstance(msg, Message)
-            else CallbackQuery.message.text
+class CallbackQueryFilter(Filter):
+    def __init__(
+        self,
+        callback_prefix: str,
+        get_context: Callable[[str], dict[str, Any] | None],
+    ) -> None:
+        self.callback_prefix = callback_prefix
+        self.get_context = get_context
+
+    async def __call__(self, callback: CallbackQuery) -> dict[str, Any] | bool:
+        if suffix := self._get_callback_suffix(callback):
+            callback_context = self.get_context(suffix)
+            if callback_context is None:
+                raise InvalidCallbackData(
+                    f"callback_prefix={self.callback_prefix}, suffix={suffix}"
+                )
+            return callback_context
+
+        return False
+
+    def _get_callback_suffix(self, callback: CallbackQuery) -> str | None:
+        *body, suffix = callback.data.split(f"{self.callback_prefix}_")
+        if body == []:
+            return
+
+        return suffix
+
+
+class PatternMatchMessageFilter(Filter):
+    def __init__(
+        self, pattern, return_argname: str, exception_type: Type[Exception]
+    ):
+        self.pattern = pattern
+        self.return_argname = return_argname
+        self.exception_type = exception_type
+
+    async def __call__(self, message: Message) -> dict[str, str]:
+        if re.match(self.pattern, message.text):
+            return {self.return_argname: message.text.casefold()}
+        raise self.exception_type(
+            f"{self.return_argname} does not match pattern {self.pattern}"
         )
 
-        context = {"filtered_budget_currency": None}
 
-        valid_currency_pattern = r"^[A-Za-zА-Яа-я]{3,10}$"
-
-        if re.match(valid_currency_pattern, user_input):
-            context["filtered_budget_currency"] = user_input
-
-        return context
-
-
-class ExtractBudgetIdFilter(BaseFilter):
-    async def __call__(self, callback: CallbackQuery) -> dict[str, int | None]:
-        if callback.data.startswith("budget_item"):
-            extracted_budget_id = callback.data.rsplit("_", maxsplit=1)[-1]
-
-            if extracted_budget_id.isdigit():
-                return {"extracted_budget_id": int(extracted_budget_id)}
-
-            return {"extracted_budget_id": None}
+def get_category_type(category_type: str) -> dict[str, CategoryType] | None:
+    if category_type == "income":
+        return {"category_type": CategoryType.INCOME}
+    elif category_type == "expenses":
+        return {"category_type": CategoryType.EXPENSES}
+    return
 
 
-class CategoryNameFilter(BaseFilter):
-    async def __call__(self, message: Message) -> dict[str, str | None]:
-        valid_name_pattern = r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$"
-        user_input = message.text
-
-        context = {
-            "filtered_category_name": None,
-            "error_message": (
-                "Недопустимое название категории."
-                f"{prompts.category_name_description}"
-            ),
-        }
-
-        if re.match(valid_name_pattern, user_input):
-            context["filtered_category_name"] = user_input.lower()
-            context["error_message"] = None
-
-        return context
+def get_next_category_page(switch_to_page: str) -> dict[str, str] | None:
+    if switch_to_page in ("next", "previous"):
+        return {"switch_to_page": switch_to_page}
+    return
 
 
-class CategoryTypeFilter(BaseFilter):
-    async def __call__(
-        self, callback: CallbackQuery
-    ) -> Union[dict[str, CategoryType], bool]:
-        if callback.data.startswith("select_category_type"):
-            category_type = get_suffix(callback.data)
-            if category_type == "income":
-                return {"category_type": CategoryType.INCOME}
-
-            return {"category_type": CategoryType.EXPENSES}
-
-        return False
+def get_category_id(category_id: str) -> dict[str, int] | None:
+    if category_id.isdecimal():
+        return {"category_id": int(category_id)}
+    return
 
 
-class SelectPaginatorPageFilter(BaseFilter):
-    async def __call__(
-        self, callback: CallbackQuery
-    ) -> Union[dict[str, CategoryType], bool]:
-        if callback.data.startswith("category_page_num"):
-            if switch_to := get_suffix(callback.data):
-                return {"switch_to_page": switch_to}
-
-        return False
-
-
-class CategoryIdFIlter(BaseFilter):
-    async def __call__(
-        self, callback: CallbackQuery
-    ) -> Union[dict[str, int], bool]:
-        if callback.data.startswith("category_id"):
-            category_id = get_suffix(callback.data)
-            return {"category_id": int(category_id)}
-        return False
+CategoryNameFilter = PatternMatchMessageFilter(
+    pattern=r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$",
+    return_argname="category_name",
+    exception_type=InvalidCategoryName,
+)
+CategoryTypeFilter = CallbackQueryFilter("category_type", get_category_type)
+CategoryIdFIlter = CallbackQueryFilter("category_id", get_category_id)
+SelectCategoryPageFilter = CallbackQueryFilter(
+    "show_categories_page", get_next_category_page
+)
 
 
 class GetEntryId(BaseFilter):
@@ -177,3 +166,23 @@ class EntryDateFilter(BaseFilter):
             "transaction_date": transaction_date,
             "error_message": error_message,
         }
+
+
+class BudgetCurrencyFilter(BaseFilter):
+    async def __call__(
+        self, msg: Message | CallbackQuery
+    ) -> dict[str, str | None]:
+        user_input = (
+            msg.text
+            if isinstance(msg, Message)
+            else CallbackQuery.message.text
+        )
+
+        context = {"filtered_budget_currency": None}
+
+        valid_currency_pattern = r"^[A-Za-zА-Яа-я]{3,10}$"
+
+        if re.match(valid_currency_pattern, user_input):
+            context["filtered_budget_currency"] = user_input
+
+        return context
