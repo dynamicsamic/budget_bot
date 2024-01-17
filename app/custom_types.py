@@ -4,7 +4,7 @@ from typing import Any, Generator, Tuple, TypeVar
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import UnaryExpression
 
-from .models import AbstractBaseModel
+from app.db.models import AbstractBaseModel
 
 _OrderByValue = TypeVar(
     "_OrderByValue", InstrumentedAttribute, UnaryExpression
@@ -25,26 +25,6 @@ class GenericResult:
 
     def asdict(self) -> dict[str, Any]:
         return self.__dict__
-
-
-@dataclass
-class ErrorAttachedResult(GenericResult):
-    error: Exception | None
-
-
-@dataclass
-class ModelCreateResult(ErrorAttachedResult):
-    result: _BaseModel | None
-
-
-@dataclass
-class ModelUpdateDeleteResult(ErrorAttachedResult):
-    result: bool | None
-
-
-@dataclass
-class ModelValidationResult(ErrorAttachedResult):
-    result: bool
 
 
 @dataclass
