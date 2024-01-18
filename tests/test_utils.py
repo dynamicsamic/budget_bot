@@ -191,8 +191,14 @@ class Requester:
     async def get_fsm_state(self):
         return await self._get_fsm_context().get_state()
 
+    async def set_fsm_state(self, state):
+        return await self._get_fsm_context().set_state(state)
+
     async def get_fsm_state_data(self):
         return await self._get_fsm_context().get_data()
+
+    async def update_fsm_state_data(self, **kwargs):
+        return await self._get_fsm_context().update_data(**kwargs)
 
     async def clear_fsm_state(self):
         return await self._get_fsm_context().clear()
