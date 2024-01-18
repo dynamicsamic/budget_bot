@@ -1,21 +1,28 @@
 import logging
 
 from aiogram import F, Router, types
-from aiogram.filters.command import Command
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from app.bot import keyboards, prompts
 from app.bot.callback_data import CategoryItemActionData
 from app.bot.filters import (
+    CategoryDeleteConfirmFilter,
     CategoryIdFIlter,
     CategoryNameFilter,
     CategoryTypeFilter,
-    SelectPaginatorPageFilter,
+    SelectCategoryPageFilter,
 )
 from app.bot.middlewares import CategoryRepositoryMiddleWare
-from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
+from app.bot.states import (
+    CreateCategory,
+    DeleteCategory,
+    ShowCategories,
+    UpdateCategory,
+)
 from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository
+from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator, aiogram_log_handler
 
 logger = logging.getLogger(__name__)
@@ -44,33 +51,24 @@ async def cmd_create_category(
     logger.info("SUCCESS")
 
 
-@router.message(CreateCategory.set_name, CategoryNameFilter())
+@router.message(CreateCategory.set_name, CategoryNameFilter)
 async def create_category_set_name(
     message: types.Message,
     state: FSMContext,
     user: User,
     repository: CategoryRepository,
-    filtered_category_name: str | None,
-    error_message: str | None,
+    category_name: str,
 ):
-    if filtered_category_name is None:
-        await message.answer(error_message)
-        return
-
-    elif repository.category_exists(
-        user_id=user.id, category_name=filtered_category_name
+    if repository.category_exists(
+        user_id=user.id, category_name=category_name
     ):
-        await message.answer(
-            "У Вас уже есть категория с названием "
-            f"{filtered_category_name.capitalize()}.\n"
-            "Пожалуйста, придумайте другое название для новой категории.",
-            reply_markup=keyboards.button_menu(
-                keyboards.buttons.cancel_operation
-            ),
+        raise ModelInstanceDuplicateAttempt(
+            user_tg_id=user.tg_id,
+            model_name="Категория",
+            duplicate_arg_name="Название",
+            duplicate_arg_value=category_name,
         )
-        return
 
-    await state.update_data(category_name=filtered_category_name)
     await message.answer(
         "Выберите один из двух типов категорий",
         reply_markup=keyboards.create_callback_buttons(
@@ -78,10 +76,16 @@ async def create_category_set_name(
             callback_prefix="select_category_type",
         ),
     )
+
+    await state.update_data(category_name=category_name)
     await state.set_state(CreateCategory.set_type)
+    logger.info("SUCCESS")
 
 
-@router.callback_query(CreateCategory.set_type, CategoryTypeFilter())
+@router.callback_query(
+    CreateCategory.set_type,
+    CategoryTypeFilter,
+)
 async def create_category_set_type_and_finish(
     callback: types.CallbackQuery,
     state: FSMContext,
@@ -92,29 +96,21 @@ async def create_category_set_type_and_finish(
     user_data = await state.get_data()
     category_name = user_data["category_name"]
 
-    created, error = repository.create_category(
+    created = repository.create_category(
         user_id=user.id,
         name=category_name,
         type=category_type,
-    ).astuple()
+    )
 
-    if error is None:
-        await callback.message.answer(
-            f"Вы успешно создали новую категорию: {created.render()}",
-            reply_markup=keyboards.button_menu(
-                keyboards.buttons.show_categories, keyboards.buttons.main_menu
-            ),
-        )
-    else:
-        await callback.message.answer(
-            # add error handler
-            prompts.create_failure_contact_support.format(
-                instance_name="категории"
-            )
-        )
-
+    await callback.message.answer(
+        f"Вы успешно создали новую категорию: {created.render()}",
+        reply_markup=keyboards.button_menu(
+            keyboards.buttons.show_categories, keyboards.buttons.main_menu
+        ),
+    )
     await state.clear()
     await callback.answer()
+    logger.info(f"SUCCESS, created new category: {created.render()}")
 
 
 @router.callback_query(F.data == "create_category")
@@ -140,9 +136,13 @@ async def cmd_show_categories(
                 keyboards.buttons.main_menu,
             ),
         )
+        logger.info(
+            "FAILURE, no categories to show, redirect to create_category"
+        )
+
     else:
         category_count = repository.count_user_categories(user.id)
-        paginator = OffsetPaginator("category_page_num", category_count, 5)
+        paginator = OffsetPaginator("show_categories_page", category_count, 5)
         await message.answer(
             prompts.category_choose_action,
             reply_markup=keyboards.paginated_category_item_list(
@@ -151,9 +151,10 @@ async def cmd_show_categories(
         )
         await state.update_data(paginator=paginator)
         await state.set_state(ShowCategories.show_many)
+        logger.info(f"SUCCESS, show first {paginator.page_limit} categories")
 
 
-@router.callback_query(ShowCategories.show_many, SelectPaginatorPageFilter())
+@router.callback_query(ShowCategories.show_many, SelectCategoryPageFilter)
 async def show_categories_page(
     callback: types.CallbackQuery,
     state: FSMContext,
@@ -164,7 +165,11 @@ async def show_categories_page(
     state_data = await state.get_data()
     paginator = state_data.get("paginator")
 
-    paginator.switch_next() if switch_to_page == "next" else paginator.switch_back()
+    (
+        paginator.switch_next()
+        if switch_to_page == "next"
+        else paginator.switch_back()
+    )
 
     categories = repository.get_user_categories(
         user.id, offset=paginator.current_offset
@@ -177,6 +182,10 @@ async def show_categories_page(
     )
     await state.update_data(paginator=paginator)
     await state.set_state(ShowCategories.show_many)
+    logger.info(
+        f"SUCCESS, show {paginator.page_limit} categories "
+        f"starting from {paginator.current_offset + 1}"
+    )
 
 
 @router.callback_query(F.data == "show_categories")
@@ -190,8 +199,8 @@ async def show_categories(
     await callback.answer()
 
 
-@router.callback_query(ShowCategories.show_many, CategoryIdFIlter())
-async def show_category_options(
+@router.callback_query(ShowCategories.show_many, CategoryIdFIlter)
+async def show_category_control_options(
     callback: types.CallbackQuery, state: FSMContext, category_id: int
 ):
     await callback.message.answer(
@@ -206,28 +215,54 @@ async def show_category_options(
     ShowCategories.show_one,
     CategoryItemActionData.filter(F.action == "delete"),
 )
-async def delete_category(
+async def delete_category_lazy(
     callback: types.CallbackQuery,
     state: FSMContext,
     callback_data: CategoryItemActionData,
-    repository: CategoryRepository,
 ):
-    deleted, error = repository.delete_category(
-        callback_data.category_id
-    ).astuple()
-    if deleted:
+    await callback.message.answer(
+        prompts.deleted_object.format(obj_name="Категория"),
+        reply_markup=keyboards.confirm_delete("category"),
+    )
+    await state.set_state(DeleteCategory.confirm_delete)
+    await state.update_data(category_id=callback_data.category_id)
+    await callback.answer()
+    logger.info("SUCCESS")
+
+
+@router.callback_query(
+    DeleteCategory.confirm_delete,
+    CategoryDeleteConfirmFilter,
+)
+async def delete_category_confirm_or_cancel(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    repository: CategoryRepository,
+    confirm_or_cancel: str,
+):
+    category_data = await state.get_data()
+    category_id = category_data["category_id"]
+
+    if confirm_or_cancel == "confirm":
+        repository.delete_category(category_id)
         await callback.message.answer(
-            "Категория была успешно удалена",
-            reply_markup=keyboards.show_categories_and_main_menu(),
+            "Продолжаем работу с ботом",
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.show_categories, keyboards.buttons.main_menu
+            ),
         )
+        logger.info(f"SUCCESS, category id {category_id} deleted")
     else:
-        # add error handler
         await callback.message.answer(
-            "Ошибка удаления категории. Категория отсутствует или была удалена ранее."
+            "Удаление категории отменено. Продолжите работу с ботом.",
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.show_categories, keyboards.buttons.main_menu
+            ),
         )
 
     await state.clear()
     await callback.answer()
+    logger.info(f"SUCCESS, category id {category_id} deletion canceled")
 
 
 @router.callback_query(
@@ -251,7 +286,7 @@ async def update_category_get_name(
 
 @router.message(
     UpdateCategory.name,
-    CategoryNameFilter(),
+    CategoryNameFilter,
 )
 async def update_category_get_type(
     message: types.Message,
@@ -280,5 +315,4 @@ async def update_category_get_type(
         await message.answer(
             "Ошибка обновления категории. Категория отсутствует или была удалена ранее."
         )
-    await state.clear()
     await state.clear()
