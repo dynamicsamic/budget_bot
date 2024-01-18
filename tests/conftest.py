@@ -76,13 +76,21 @@ def create_inmemory_entries(inmemory_db_session, create_inmemory_categories):
 ##################
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture
+def persistent_db_session():
+    with db_session() as session:
+        yield session
+
+
+@pytest.fixture
 def create_test_data():
     Base.metadata.create_all(bind=test_engine)
     with db_session() as session:
         create_test_users(session)
         create_test_categories(session)
         create_test_entries(session)
+    yield
+    Base.metadata.drop_all(bind=test_engine)
 
 
 @pytest.fixture(scope="session")
@@ -95,34 +103,3 @@ def create_persistent_tables(persistent_test_engine):
     Base.metadata.create_all(bind=persistent_test_engine)
     yield
     Base.metadata.drop_all(bind=persistent_test_engine)
-
-
-@pytest.fixture
-def persistent_db_session(
-    persistent_test_engine, create_persistent_tables
-) -> scoped_session:
-    connection, session = create_test_db_session(persistent_test_engine)
-
-    yield session
-
-    session.close()
-    connection.close()
-
-
-@pytest.fixture
-def create_persistent_users(persistent_db_session):
-    create_test_users(persistent_db_session)
-
-
-@pytest.fixture
-def create_persistent_categories(
-    persistent_db_session, create_persistent_users
-):
-    create_test_categories(persistent_db_session)
-
-
-@pytest.fixture
-def create_persistent_entries(
-    persistent_db_session, create_persistent_categories
-):
-    create_test_entries(persistent_db_session)
