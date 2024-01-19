@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 from collections import namedtuple
 from typing import Any, Awaitable, Callable, Dict
 
@@ -15,9 +16,12 @@ from app.db.repository import (
     UserRepository,
     get_user,
 )
-from app.utils import DateRange
+from app.utils import DateRange, aiogram_log_handler
 
 # TODO: restrict to only private chats in middleware
+
+logger = logging.getLogger(__name__)
+logger.addHandler(aiogram_log_handler)
 
 
 def AnonymousUser():
@@ -45,6 +49,7 @@ async def redirect_handler(event: TelegramObject, *_, **__):
             keyboards.buttons.signup_user, keyboards.buttons.activate_user
         ),
     )
+    logger.info("SUCCESS: anonymous user redirected")
 
 
 class DateInfoMiddleware(BaseMiddleware):
