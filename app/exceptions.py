@@ -1,10 +1,7 @@
-from typing import Any, Tuple
+from typing import Any
 
-from aiogram.types import ReplyKeyboardMarkup
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import MappedColumn
 
-from app.bot.keyboards import handler_error_markup
 from app.custom_types import _BaseModel
 
 
@@ -119,35 +116,3 @@ class InvalidCallbackData(BotException):
 
 class InvalidCategoryName(BotException):
     pass
-
-
-def build_error_message(
-    user_tg_id: int,
-    error: Exception,
-    intro: str,
-    afterword: str,
-) -> Tuple[str, ReplyKeyboardMarkup | None]:
-    reply_markup = None
-
-    if isinstance(error, InvalidModelArgType):
-        err_description = "Передан неверный тип данных"
-    elif isinstance(error, InvalidModelAttribute):
-        err_description = "Название атрибута содержит ошибку"
-    elif isinstance(error, SQLAlchemyError):
-        err_description = (
-            "Ошибка работы с базой данных. Возможно, вы пытаетесь"
-            "внести данные, которые уже есть в базе, или вводимые "
-            "данные имеют несовместимый формат"
-        )
-    else:
-        err_description = (
-            "Непревиденная ошибка. Нажмите на кнопку `Сообщить о проблеме`, "
-            "чтобы направить отчет в поддержку."
-        )
-        afterword = "Попробуйте воспользоваться ботом позже."
-        reply_markup = handler_error_markup(user_tg_id, repr(error))
-
-    return (
-        f"{intro}: {err_description}. {afterword}",
-        reply_markup,
-    )

@@ -1,15 +1,13 @@
 import logging
 
 from aiogram import F, Router, types
-from aiogram.filters.command import Command
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from app.bot.callback_data import ErrorData
 from app.bot.keyboards import button_menu, buttons, cmd_report_kb, main_menu
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.db.models import User
 from app.utils import aiogram_log_handler
-from config import config
 
 logger = logging.getLogger(__name__)
 logger.addHandler(aiogram_log_handler)
@@ -91,16 +89,3 @@ async def return_to_main_menu(
     await state.clear()
     await cmd_show_menu(callback.message)
     await callback.answer()
-
-
-@router.callback_query(ErrorData.filter())
-async def handle_error(
-    callback: types.CallbackQuery, callback_data: ErrorData
-):
-    support_id = int(config.support_manager_id.get_secret_value())
-    user_tg_id, error = callback_data.model_dump().values()
-    await callback.bot.send_message(
-        support_id, f"Error `{error}` for user {user_tg_id}"
-    )
-    await callback.answer()
-    logger.info(f"SUCCESS, error `{error}` for user {user_tg_id} handled.")
