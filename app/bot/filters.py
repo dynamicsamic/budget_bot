@@ -99,6 +99,12 @@ def get_category_id(category_id: str) -> dict[str, int] | None:
     return
 
 
+def get_confirm_or_cancel(confirm_or_cancel: str) -> dict[str, int] | None:
+    if confirm_or_cancel in ("confirm", "cancel"):
+        return {"confirm_or_cancel": confirm_or_cancel}
+    return
+
+
 CategoryNameFilter = PatternMatchMessageFilter(
     pattern=r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$",
     return_argname="category_name",
@@ -108,6 +114,9 @@ CategoryTypeFilter = CallbackQueryFilter("category_type", get_category_type)
 CategoryIdFIlter = CallbackQueryFilter("category_id", get_category_id)
 SelectCategoryPageFilter = CallbackQueryFilter(
     "show_categories_page", get_next_category_page
+)
+CategoryDeleteConfirmFilter = CallbackQueryFilter(
+    "category_delete_cancel", get_confirm_or_cancel
 )
 
 
