@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, Literal
+from typing import Iterable, Literal
 
 from aiogram import types
 from aiogram.fsm.state import StatesGroup
@@ -6,18 +6,12 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.callback_data import (
-    BudgetItemActionData,
     CategoryItemActionData,
     EntryItemActionData,
     ReportTypeCallback,
 )
-from app.bot.render import (
-    render_budget_item,
-    render_category_item,
-    render_entry_item,
-)
+from app.custom_types import _BaseModel
 from app.db import models
-from app.db.custom_types import _BaseModel
 
 from . import buttons
 
@@ -42,8 +36,7 @@ main_menu = InlineKeyboardBuilder(
     [
         [
             buttons.user_profile,
-            buttons.budget_menu,
-            buttons.category_menu,
+            buttons.show_categories,
             buttons.entry_menu,
             buttons.report_menu,
         ]
@@ -54,7 +47,6 @@ main_menu.adjust(1)
 
 def interactive_item_list(
     items: Iterable[_BaseModel],
-    render_func: Callable[..., str],
     callback_prefix: str,
     extra_buttons: list[InlineKeyboardButton] = None,
 ) -> InlineKeyboardMarkup:
@@ -144,47 +136,34 @@ def states_group_callback_buttons(
     return builder.as_markup()
 
 
-def budget_item_list_interactive(budgets: Iterable[models.Budget]):
-    return interactive_item_list(
-        budgets,
-        render_budget_item,
-        "budget_item",
-        [buttons.create_new_budget, buttons.main_menu],
-    )
-
-
-def paginated_budget_item_list(budgets: Iterable[models.Budget], paginator):
+def paginated_category_item_list(
+    categories: Iterable[models.Category], paginator
+):
     return paginated_item_list(
-        budgets,
-        "budget_item",
+        categories,
+        "category_id",
         paginator,
-        [buttons.create_new_budget, buttons.main_menu],
+        [buttons.create_new_category, buttons.main_menu],
     )
 
 
-def category_item_list_interactive(categories: Iterable[models.EntryCategory]):
+def category_item_list_interactive(categories: Iterable[models.Category]):
     return interactive_item_list(
         categories,
-        render_category_item,
         "category_item",
         [buttons.create_new_category, buttons.main_menu],
     )
 
 
-def budget_item_choose_action(budget_id: int):
+def confirm_delete(model_name: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="Изменить",
-        callback_data=BudgetItemActionData(
-            budget_id=budget_id,
-            action="update",
-        ),
+        text="Отменить удаление",
+        callback_data=f"{model_name}_delete_cancel",
     )
     builder.button(
-        text="Удалить",
-        callback_data=BudgetItemActionData(
-            budget_id=budget_id, action="delete"
-        ),
+        text="Продолжить",
+        callback_data=f"{model_name}_delete_confirm",
     )
     builder.adjust(1)
     return builder.as_markup()
@@ -200,19 +179,19 @@ def choose_category_type():
     return builder.as_markup()
 
 
-def category_item_choose_action(category_id: str):
+def category_item_choose_action(category_id: int):
     builder = InlineKeyboardBuilder()
     builder.button(
         text="Изменить",
         callback_data=CategoryItemActionData(
-            category_id=category_id,
             action="update",
+            category_id=category_id,
         ),
     )
     builder.button(
         text="Удалить",
         callback_data=CategoryItemActionData(
-            category_id=category_id, action="delete"
+            action="delete", category_id=category_id
         ),
     )
     builder.adjust(1)
@@ -252,26 +231,25 @@ def entry_item_choose_action2():
 
 def show_categories_and_main_menu():
     builder = InlineKeyboardBuilder(
-        [[buttons.category_menu, buttons.main_menu]]
+        [[buttons.show_categories, buttons.main_menu]]
     )
     builder.adjust(1)
     return builder.as_markup()
 
 
 def create_entry_show_budgets(
-    budgets: list[models.Budget],
+    budgets: list,
 ) -> InlineKeyboardBuilder:
     return interactive_item_list(
-        budgets, render_budget_item, "entry_budget_item", [buttons.main_menu]
+        budgets, "entry_budget_item", [buttons.main_menu]
     )
 
 
 def create_entry_show_categories(
-    categories: list[models.EntryCategory],
+    categories: list[models.Category],
 ) -> InlineKeyboardBuilder:
     return interactive_item_list(
         categories,
-        render_category_item,
         "entry_category_item",
         [buttons.main_menu],
     )
@@ -280,13 +258,12 @@ def create_entry_show_categories(
 def entry_item_list_interactive(entries: list[models.Entry]):
     return interactive_item_list(
         entries,
-        render_entry_item,
         "entry_id",
         [buttons.create_new_entry, buttons.main_menu],
     )
 
 
-def confirm_delete(id_: str):
+def entry_confirm_delete(id_: str):
     builder = InlineKeyboardBuilder()
     builder.button(
         text="Да (подтвердить удаление)",

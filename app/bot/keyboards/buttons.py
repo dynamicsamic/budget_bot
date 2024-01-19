@@ -23,12 +23,7 @@ main_menu = InlineKeyboardButton(
 
 create_new_category = InlineKeyboardButton(
     text="🟢 Создать новую категорию",
-    callback_data="category_create",
-)
-
-create_new_budget = InlineKeyboardButton(
-    text="🟢 Создать новый бюджет",
-    callback_data="budget_create",
+    callback_data="create_category",
 )
 
 create_new_entry = InlineKeyboardButton(
@@ -40,12 +35,8 @@ user_profile = InlineKeyboardButton(
     text="Мой аккаунт", callback_data="show_user_profile"
 )
 
-budget_menu = InlineKeyboardButton(
-    text="💰 Мои бюджеты", callback_data="show_budgets"
-)
-
-category_menu = InlineKeyboardButton(
-    text="🗂️ Мои категории", callback_data="category_menu"
+show_categories = InlineKeyboardButton(
+    text="🗂️ Мои категории", callback_data="show_categories"
 )
 
 entry_menu = InlineKeyboardButton(
