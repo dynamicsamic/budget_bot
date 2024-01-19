@@ -1,20 +1,25 @@
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
 from app.bot import keyboards
-from app.bot.middlewares import AddUserControllerMiddleWare
+from app.bot.filters import BudgetCurrencyFilter
+from app.bot.middlewares import UserRepositoryMiddleWare
+from app.bot.states import UserCreateState
 from app.db.models import User
-from app.db.queries.core import user_controller
+from app.db.repository import UserRepository
 
 router = Router()
-router.callback_query.middleware(AddUserControllerMiddleWare())
+router.callback_query.middleware(UserRepositoryMiddleWare())
 
 
 @router.callback_query(
     F.data == "signup_user", flags={"allow_anonymous": True}
 )
 async def signup_user(
-    callback: CallbackQuery, user: User, user_controller: user_controller
+    callback: CallbackQuery,
+    state: FSMContext,
+    user: User,
 ):
     if user.is_active:
         await callback.message.answer(
@@ -25,20 +30,21 @@ async def signup_user(
         return
 
     elif user.is_anonymous:
-        created = user_controller.create_user(tg_id=callback.from_user.id)
-        if created is not None:
-            await callback.message.answer(
-                "Поздравляем! Вы успешно зарегистрированы в системе.\n"
-                "Вы можете продложить работу с ботом в главном меню.",
-                reply_markup=keyboards.button_menu(
-                    keyboards.buttons.main_menu
-                ),
-            )
+        await state.update_data(tg_id=callback.from_user.id)
+        await callback.message.answer(
+            "Пожалуйста, выберите валюту бюджета."
+            "Для всех пользователей установлена валюта по умолчанию - RUB\n"
+            "Нажмите кнопку `Принять` для завершения регистрации."
+            "Нажмите кнопку `Изменить`, если желаете выбрать другую валюту.",
+            reply_markup=keyboards.create_callback_buttons(
+                button_names={
+                    "изменить": "set_currency",
+                    "принять": "finish",
+                },
+                callback_prefix="create_user",
+            ),
+        )
 
-        else:
-            await callback.message.answer(
-                "Что-то пошло не так при регистрации.\nОбратитесь в поддержку."
-            )
     else:
         await callback.message.answer(
             "Ранее Вы уже пользовались Бюджетным ботом, "
@@ -52,6 +58,89 @@ async def signup_user(
         )
         return
 
+    await state.set_state(UserCreateState.wait_for_action)
+    await callback.answer()
+
+
+@router.callback_query(
+    UserCreateState.wait_for_action,
+    F.data == "create_user_set_currency",
+    flags={"allow_anonymous": True},
+)
+async def signup_user_get_currency(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer(
+        "Наименование валюты должно содержать от 3-х до 10-ти букв "
+        "(в любом регистре). Цифры и иные символы не допускаются.\n"
+        "Отдавайте предпочтение общепринятым сокращениям, например RUB или USD."
+    )
+    await state.set_state(UserCreateState.set_budget_currency)
+    await callback.answer()
+
+
+@router.message(
+    UserCreateState.set_budget_currency,
+    BudgetCurrencyFilter(),
+    flags={"allow_anonymous": True},
+)
+async def signup_user_set_currency(
+    message: Message, state: FSMContext, filtered_budget_currency: str | None
+):
+    if filtered_budget_currency is None:
+        await message.answer(
+            "Неверный формат обозначения валюты!\n"
+            "Наименование должно содержать от 3-х до 10-ти букв "
+            "(в любом регистре). Цифры и иные символы не допускаются.\n"
+            "Отдавайте предпочтение общепринятым сокращениям, например "
+            "RUB или USD.",
+            reply_markup=keyboards.button_menu(
+                keyboards.buttons.cancel_operation
+            ),
+        )
+        return
+
+    await state.update_data(budget_currency=filtered_budget_currency)
+    await message.answer(
+        f"Валюта Вашего бюджета - `{filtered_budget_currency}`."
+        "Завершите регистрацию, нажав на кнопку Завершить.",
+        reply_markup=keyboards.create_callback_buttons(
+            button_names={
+                "Завершить": "finish",
+            },
+            callback_prefix="create_user",
+        ),
+    )
+    await state.set_state(UserCreateState.wait_for_action)
+
+
+@router.callback_query(
+    UserCreateState.wait_for_action,
+    F.data == "create_user_finish",
+    flags={"allow_anonymous": True},
+)
+async def signup_user_finish(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repository: UserRepository,
+):
+    user_data = await state.get_data()
+    tg_id = user_data.get("tg_id")
+    budget_currency = user_data.get("budget_currency", "RUB")
+    created = repository.create_user(
+        tg_id=tg_id, budget_currency=budget_currency
+    )
+
+    if created is not None:
+        await callback.message.answer(
+            "Поздравляем! Вы успешно зарегистрированы в системе.\n"
+            "Вы можете продложить работу с ботом в главном меню.",
+            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+        )
+
+    else:
+        await callback.message.answer(
+            "Что-то пошло не так при регистрации.\nОбратитесь в поддержку."
+        )
+    await state.clear()
     await callback.answer()
 
 
@@ -59,7 +148,7 @@ async def signup_user(
     F.data == "activate_user", flags={"allow_anonymous": True}
 )
 async def activate_user(
-    callback: CallbackQuery, user: User, user_controller: user_controller
+    callback: CallbackQuery, user: User, repository: UserRepository
 ):
     if user.is_active:
         await callback.message.answer(
@@ -70,7 +159,7 @@ async def activate_user(
         return
 
     elif not user.is_anonymous and not user.is_active:
-        activated = user_controller.update_user(user.id, is_active=True)
+        activated = repository.update_user(user.id, is_active=True)
 
         if activated:
             await callback.message.answer(
@@ -101,10 +190,10 @@ async def activate_user(
     F.data == "delete_user", flags={"allow_anonymous": True}
 )
 async def delete_user(
-    callback: CallbackQuery, user: User, user_controller: user_controller
+    callback: CallbackQuery, user: User, repository: UserRepository
 ):
     if user.is_active:
-        deactivated = user_controller.update_user(user.id, is_active=False)
+        deactivated = repository.update_user(user.id, is_active=False)
         if deactivated:
             await callback.message.answer(
                 "Ваш аккаунт успешно удален. Ваши данные будут доступны "
