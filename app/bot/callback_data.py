@@ -6,13 +6,12 @@ class ReportTypeCallback(CallbackData, prefix="report"):
     period: str
 
 
-class BudgetItemActionData(CallbackData, prefix="action_budget_item"):
-    budget_id: str
+class CategoryItemActionData(CallbackData, prefix="category_action"):
     action: str
+    category_id: int
 
 
-class CategoryItemActionData(CallbackData, prefix="action_category_item"):
-    category_id: str
+class DeleteCategoryConfirmOrCancel(CallbackData, prefix="category_delete"):
     action: str
 
 
