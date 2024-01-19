@@ -34,6 +34,10 @@ class ShowCategories(StatesGroup):
     show_one = State()
 
 
+class DeleteCategory(StatesGroup):
+    confirm_delete = State()
+
+
 class UpdateCategory(StatesGroup):
     name = State()
 
