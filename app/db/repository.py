@@ -22,6 +22,7 @@ from app.exceptions import (
     EmptyModelKwargs,
     InvalidModelArgType,
     InvalidModelAttribute,
+    ModelInstanceNotFound,
     RepositoryValidationError,
     UnknownDataBaseException,
 )
@@ -143,6 +144,8 @@ class CommonRepository:
         Raises:
             - Validation errors if `update_kwargs` are invalid
             (see `validate_model_kwargs`).
+            - `ModelInstanceNotFound` if model instance with provided id
+            does not exist and update operation was not performed.
             - `SQLAlchemyError` exceptions if a db error occured.
             - `UnknownDataBaseException` if an error could not be determined.
         """
@@ -176,7 +179,10 @@ class CommonRepository:
         else:
             logger.info(
                 f"{self.model.get_tablename()} instance"
-                f"with id `{id}` was not updated."
+                f"with id `{id}` not found."
+            )
+            raise ModelInstanceNotFound(
+                f"Model {self.model.get_tablename()}, id {id}"
             )
         return updated
 
@@ -195,6 +201,8 @@ class CommonRepository:
         Raises:
             - Validation errors if `update_kwargs` are invalid
             (see `validate_model_kwargs`).
+            - `ModelInstanceNotFound` if model instance with provided id
+            does not exist and delete operation was not performed.
             - `SQLAlchemyError` exceptions if a db error occured.
             - `UnknownDataBaseException` if an error could not be determined.
         """
@@ -223,9 +231,11 @@ class CommonRepository:
         else:
             logger.info(
                 f"{self.model.get_tablename()} instance "
-                f"with id `{id}` was not deleted."
+                f"with id `{id}` not found."
             )
-
+            raise ModelInstanceNotFound(
+                f"Model {self.model.get_tablename()}, id {id}"
+            )
         return deleted
 
     def _fetch(
@@ -236,6 +246,26 @@ class CommonRepository:
         filters: Optional[List[BinaryExpression]] = None,
         join_filters: Optional[bool] = True,
     ) -> Select[Row]:
+        """Construct basic SELECT query.
+
+        This method powers other select methods in this class.
+
+        Args:
+            - `query_arg`: Object that must be queried.
+                It may be a model, a column or an aggregate function.
+                Defaults to None.
+            - `order_by`: Sequence of objects that form the ordering of result,
+                such as model.name or model.id.desc(). Defaults to None.
+            - `filters`: Sequence of sqlalchemy expressions,
+                such as `model.id > 1` or `model.name == 'name'`.
+                Defaults to None.
+            - `join_filters`: Flag that indicates whether to gather
+                filter expressions by `and` or `or` clauses.
+                Defaults to True.
+
+        Returns:
+            sqlalchemy.Select object that must be executed to produce result.
+        """
         if query_arg is None:
             query_arg = self.model
 
@@ -258,6 +288,19 @@ class CommonRepository:
         filters: List[BinaryExpression],
         join_filters: Optional[bool] = True,
     ) -> _BaseModel | None:
+        """Get model instance.
+
+        Args:
+            - `filters`: Sequence of sqlalchemy expressions,
+                such as `model.id > 1` or `model.name == 'name'`.
+                Defaults to None.
+            - `join_filters`: Flag that indicates whether to gather
+                filter expressions by `and` or `or` clauses.
+                Defaults to True..
+
+        Returns:
+            The model instance itself, if it exsists. None otherwise.
+        """
         q = self._fetch(filters=filters, join_filters=join_filters)
         return self.session.execute(q).scalar_one_or_none()
 
@@ -270,6 +313,20 @@ class CommonRepository:
         offset: int = 0,
         limit: int = 10,
     ) -> ScalarResult[_BaseModel]:
+        """Get several model instances.
+
+        Args:
+            - `order_by`: Sequence of objects that form the ordering of result,
+                such as model.name or model.id.desc(). Defaults to None.
+            - `filters`: Sequence of sqlalchemy expressions,
+                such as `model.id > 1` or `model.name == 'name'`.
+                Defaults to None.
+            - `offset`: How many rows to skip. Defaults to 0.
+            - `limit`: The max size of the query result. Defaults to 10.
+
+        Returns:
+            sqlalchemy ScalarResult iterator containing model instances.
+        """
         q = self._fetch(order_by=order_by, filters=filters).limit(limit)
         if offset:
             q = q.offset(offset)
@@ -282,6 +339,19 @@ class CommonRepository:
         filters: Optional[List[BinaryExpression]] = None,
         join_filters: bool = True,
     ) -> int:
+        """Count model items that satisfy provided filters.
+
+        Args:
+            - `filters`: Sequence of sqlalchemy expressions,
+                such as `model.id > 1` or `model.name == 'name'`.
+                Defaults to None.
+            - `join_filters`: Flag that indicates whether to gather
+                filter expressions by `and` or `or` clauses.
+                Defaults to True.
+
+        Returns:
+            Number of model items.
+        """
         q = self._fetch(
             func.count(self.model.id),
             filters=filters,
@@ -295,6 +365,19 @@ class CommonRepository:
         filters: Optional[List[BinaryExpression]] = None,
         join_filters: bool = True,
     ) -> bool:
+        """Test if a model instance exists.
+
+        Args:
+            - `filters`: Sequence of sqlalchemy expressions,
+                such as `model.id > 1` or `model.name == 'name'`.
+                Defaults to None.
+            - `join_filters`: Flag that indicates whether to gather
+                filter expressions by `and` or `or` clauses.
+                Defaults to True.
+
+        Returns:
+            The result of the test.
+        """
         q = self._fetch(
             self.model.id,
             filters=filters,
@@ -303,6 +386,18 @@ class CommonRepository:
         return bool(self.session.scalar(q))
 
     def _validate(self) -> None:
+        """
+        Validate repository arguments.
+
+        Returns:
+            None.
+
+        Raises:
+            RepositoryValidationError if:
+            - `self.session` is not an active SQLAlchemy session.
+            - `self.model` is an object instead of a class.
+            - `self.model` is not a subclass of `AbstractBaseModel`.
+        """
         if not isinstance(self.session, (Session, scoped_session)):
             raise RepositoryValidationError(
                 "Expected `self.session` to be an instance "
@@ -365,7 +460,7 @@ class CommonRepository:
                 )
                 raise InvalidModelArgType(
                     model=self.model,
-                    field=arg,
+                    field=field,
                     expected_type=field_type,
                     invalid_type=value_type,
                 )
@@ -373,6 +468,14 @@ class CommonRepository:
 
 @dataclass
 class UserRepository(CommonRepository):
+    """Concrete implementation of CommonRepository
+    with methods specific to User model.
+
+    Attributes:
+        - `session`: An instance of `sqlalchemy.orm.Session`
+        or `scoped_session`; session's `is_active` property must return True.
+    """
+
     model: Type[_BaseModel] = field(default=User, init=False)
 
     def get_user(self, *, user_id: int = 0, tg_id: int = 0) -> User | None:
@@ -415,6 +518,14 @@ class UserRepository(CommonRepository):
 
 @dataclass
 class CategoryRepository(CommonRepository):
+    """Concrete implementation of CommonRepository
+    with methods specific to Category model.
+
+    Attributes:
+        - `session`: An instance of `sqlalchemy.orm.Session`
+        or `scoped_session`; session's `is_active` property must return True.
+    """
+
     model: Type[_BaseModel] = field(default=Category, init=False)
 
     def get_category(
@@ -496,6 +607,14 @@ class CategoryRepository(CommonRepository):
 
 @dataclass
 class EntryRepository(CommonRepository):
+    """Concrete implementation of CommonRepository
+    with methods specific to Entry model.
+
+    Attributes:
+        - `session`: An instance of `sqlalchemy.orm.Session`
+        or `scoped_session`; session's `is_active` property must return True.
+    """
+
     model: Type[_BaseModel] = field(default=Entry, init=False)
 
     def get_entry(self, entry_id: int) -> Entry | None:
