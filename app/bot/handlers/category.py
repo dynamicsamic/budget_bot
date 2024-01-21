@@ -259,10 +259,10 @@ async def delete_category_confirm_or_cancel(
                 keyboards.buttons.show_categories, keyboards.buttons.main_menu
             ),
         )
+        logger.info(f"SUCCESS, category id {category_id} deletion canceled")
 
     await state.clear()
     await callback.answer()
-    logger.info(f"SUCCESS, category id {category_id} deletion canceled")
 
 
 @router.callback_query(
