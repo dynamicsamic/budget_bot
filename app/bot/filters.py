@@ -116,7 +116,7 @@ SelectCategoryPageFilter = CallbackQueryFilter(
     "show_categories_page", get_next_category_page
 )
 CategoryDeleteConfirmFilter = CallbackQueryFilter(
-    "category_delete_cancel", get_confirm_or_cancel
+    "category_delete", get_confirm_or_cancel
 )
 
 
