@@ -225,6 +225,19 @@ delete_category_lazy = CallbackQuery(
         text="just_message",
     ),
 )
+delete_category_cancel = CallbackQuery(
+    id="12345678",
+    from_user=user,
+    chat_instance="AABBCC",
+    data="category_delete_cancel",
+    message=Message(
+        message_id=11,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="just_message",
+    ),
+)
 
 
 @pytest.mark.asyncio
@@ -981,3 +994,38 @@ async def test_delete_category_lazy(create_test_data, requester):
     confirm_button = kb[1][0]
     assert confirm_button["text"] == "Продолжить"
     assert confirm_button["callback_data"] == "category_delete_confirm"
+
+
+@pytest.mark.asyncio
+async def test_category_delete_cancel(
+    create_test_data, requester, persistent_db_session
+):
+    repository = CategoryRepository(persistent_db_session)
+    initial_category_count = repository.count_user_categories(TARGET_USER_ID)
+
+    await requester.set_fsm_state(ShowCategories.show_one)
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=delete_category_lazy),
+    )
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=2, callback_query=delete_category_cancel),
+    )
+
+    current_category_count = repository.count_user_categories(TARGET_USER_ID)
+    assert current_category_count == initial_category_count
+
+    message = requester.read_last_sent_message()
+    expected_text = "Удаление категории отменено. Продолжите работу с ботом."
+    expected_markup = keyboards.button_menu(
+        keyboards.buttons.show_categories, keyboards.buttons.main_menu
+    )
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state is None
+
+    state_data = await requester.get_fsm_state_data()
+    assert state_data == {}
