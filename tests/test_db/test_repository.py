@@ -437,6 +437,31 @@ def test_category_exists_positional_args(catrep, create_inmemory_categories):
     catrep.category_exists(1, 1)
 
 
+def test_count_category_entries(
+    inmemory_db_session, catrep, create_inmemory_categories
+):
+    initial_entry_count = catrep.count_category_entries(TARGET_CATEGORY_ID)
+    assert initial_entry_count == 0
+
+    inmemory_db_session.add_all(
+        [
+            Entry(
+                id=i,
+                sum=100,
+                user_id=TARGET_USER_ID,
+                category_id=TARGET_CATEGORY_ID,
+            )
+            for i in range(1, 11)
+        ]
+    )
+    inmemory_db_session.commit()
+
+    current_entry_count = catrep.count_category_entries(TARGET_CATEGORY_ID)
+    assert current_entry_count == initial_entry_count + 10
+
+    assert catrep.count_category_entries(UNEXISTING_ID) == 0
+
+
 def test_create_entry_minimal_valid_args(entrep, create_inmemory_categories):
     entry = entrep.create_entry(**minimal_valid_entry)
     assert isinstance(entry, Entry)
