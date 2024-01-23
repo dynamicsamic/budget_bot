@@ -604,6 +604,14 @@ class CategoryRepository(CommonRepository):
 
         return self._exists(filters, join_filters)
 
+    def count_category_entries(self, category_id: int) -> int:
+        return self.session.scalar(
+            self._fetch(
+                func.count(Entry.id),
+                filters=[Entry.category_id == category_id],
+            )
+        )
+
 
 @dataclass
 class EntryRepository(CommonRepository):
