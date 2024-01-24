@@ -1,5 +1,7 @@
 from aiogram.types import InlineKeyboardButton
 
+from app.bot.callback_data import CategoryItemActionData
+
 signup_user = InlineKeyboardButton(
     text="Зарегистрировать аккаунт", callback_data="signup_user"
 )
@@ -46,3 +48,20 @@ entry_menu = InlineKeyboardButton(
 report_menu = InlineKeyboardButton(
     text="📋 Отчеты", callback_data="report_menu"
 )
+
+
+def switch_to_update_category(category_id: int):
+    callback_data = CategoryItemActionData(
+        action="update", category_id=category_id
+    )
+    return InlineKeyboardButton(
+        text="Лучше изменить категорию",
+        callback_data=callback_data.pack(),
+    )
+
+
+def confirm_delete_category(category_id: int):
+    return InlineKeyboardButton(
+        text="Лучше изменить категорию",
+        callback_data=f"delete_category_{category_id}",
+    )
