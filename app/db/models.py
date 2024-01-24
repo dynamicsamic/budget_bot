@@ -209,7 +209,7 @@ class Entry(AbstractBaseModel):
         ForeignKey("user.id", ondelete="CASCADE"), doc="id пользователя"
     )
     category_id: Mapped[int] = mapped_column(
-        ForeignKey("entry_category.id"), doc="id категории"
+        ForeignKey("entry_category.id", ondelete="CASCADE"), doc="id категории"
     )
     user: Mapped[User] = relationship(back_populates="entries")
     category: Mapped["Category"] = relationship(back_populates="entries")
