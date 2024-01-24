@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
 from app.bot import keyboards, prompts
 from app.bot.callback_data import CategoryItemActionData
-from app.bot.states import CreateCategory, DeleteCategory, ShowCategories
+from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator
@@ -212,11 +212,13 @@ show_category_control_options_invalid_type_id = CallbackQuery(
         text="just_message",
     ),
 )
-delete_category_lazy = CallbackQuery(
+delete_category = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"category_action:delete:{TARGET_CATEGORY_ID}",
+    data=CategoryItemActionData(
+        action="delete", category_id=TARGET_CATEGORY_ID
+    ).pack(),
     message=Message(
         message_id=10,
         date=datetime.now(),
@@ -225,13 +227,30 @@ delete_category_lazy = CallbackQuery(
         text="just_message",
     ),
 )
-delete_category_cancel = CallbackQuery(
+delete_category_confirm = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data="category_delete_cancel",
+    data=keyboards.buttons.confirm_delete_category(
+        TARGET_CATEGORY_ID
+    ).callback_data,
     message=Message(
         message_id=11,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="just_message",
+    ),
+)
+delete_category_switch_to_update = CallbackQuery(
+    id="12345678",
+    from_user=user,
+    chat_instance="AABBCC",
+    data=keyboards.buttons.switch_to_update_category(
+        TARGET_CATEGORY_ID
+    ).callback_data,
+    message=Message(
+        message_id=12,
         date=datetime.now(),
         from_user=user,
         chat=chat,
@@ -966,58 +985,72 @@ async def test_show_category_control_options_invalid_type_id(
 
 
 @pytest.mark.asyncio
-async def test_delete_category_lazy(create_test_data, requester):
+async def test_delete_category_warn_user(
+    persistent_db_session, create_test_data, requester
+):
     await requester.set_fsm_state(ShowCategories.show_one)
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=1, callback_query=delete_category_lazy),
+        Update(update_id=1, callback_query=delete_category),
     )
 
+    repository = CategoryRepository(persistent_db_session)
+    category = repository.get_category(TARGET_CATEGORY_ID)
+    entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
+
     message = requester.read_last_sent_message()
-    expected_text = prompts.deleted_object.format(obj_name="Категория")
-    expected_markup = keyboards.confirm_delete("category")
+    expected_text = prompts.show_delete_category_warning(
+        category.name, entry_count
+    )
+    button_1 = keyboards.buttons.switch_to_update_category(category.id)
+    button_2 = keyboards.buttons.confirm_delete_category(category.id)
+    expected_markup = keyboards.button_menu(button_1, button_2)
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
     state = await requester.get_fsm_state()
-    assert state == DeleteCategory.confirm_delete
+    assert state == ShowCategories.show_one
 
     state_data = await requester.get_fsm_state_data()
-    assert state_data == {"category_id": TARGET_CATEGORY_ID}
+    assert state_data == {}
 
     kb = message.reply_markup.model_dump().get("inline_keyboard")
 
     cancel_button = kb[0][0]
-    assert cancel_button["text"] == "Отменить удаление"
-    assert cancel_button["callback_data"] == "category_delete_cancel"
+    assert cancel_button["text"] == button_1.text
+    assert cancel_button["callback_data"] == button_1.callback_data
 
     confirm_button = kb[1][0]
-    assert confirm_button["text"] == "Продолжить"
-    assert confirm_button["callback_data"] == "category_delete_confirm"
+    assert confirm_button["text"] == button_2.text
+    assert confirm_button["callback_data"] == button_2.callback_data
 
 
 @pytest.mark.asyncio
-async def test_category_delete_cancel(
+async def test_category_delete_confirm(
     create_test_data, requester, persistent_db_session
 ):
     repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
+    initial_entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
+    assert initial_entry_count > 0
 
     await requester.set_fsm_state(ShowCategories.show_one)
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=1, callback_query=delete_category_lazy),
+        Update(update_id=1, callback_query=delete_category),
     )
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=2, callback_query=delete_category_cancel),
+        Update(update_id=2, callback_query=delete_category_confirm),
     )
 
     current_category_count = repository.count_user_categories(TARGET_USER_ID)
-    assert current_category_count == initial_category_count
+    current_entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
+    assert current_category_count == initial_category_count - 1
+    assert current_entry_count == 0
 
     message = requester.read_last_sent_message()
-    expected_text = "Удаление категории отменено. Продолжите работу с ботом."
+    expected_text = prompts.confirm_category_deleted
     expected_markup = keyboards.button_menu(
         keyboards.buttons.show_categories, keyboards.buttons.main_menu
     )
@@ -1029,3 +1062,41 @@ async def test_category_delete_cancel(
 
     state_data = await requester.get_fsm_state_data()
     assert state_data == {}
+
+
+@pytest.mark.asyncio
+async def test_category_delete_switch_to_update(
+    persistent_db_session, create_test_data, requester
+):
+    repository = CategoryRepository(persistent_db_session)
+    initial_category_count = repository.count_user_categories(TARGET_USER_ID)
+    initial_entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
+    assert initial_entry_count > 0
+
+    await requester.set_fsm_state(ShowCategories.show_one)
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=delete_category),
+    )
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=2, callback_query=delete_category_switch_to_update),
+    )
+
+    current_category_count = repository.count_user_categories(TARGET_USER_ID)
+    current_entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
+    assert current_category_count == initial_category_count
+    assert current_entry_count == initial_entry_count
+
+    message = requester.read_last_sent_message()
+    expected_text = (
+        "Введите новое название категории (не должно быть длинее 128 символов)"
+    )
+    assert message.text == expected_text
+    assert message.reply_markup is None
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateCategory.name
+
+    state_data = await requester.get_fsm_state_data()
+    assert state_data == {"category_id": TARGET_CATEGORY_ID}
