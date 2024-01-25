@@ -6,24 +6,6 @@ class UserCreateState(StatesGroup):
     set_budget_currency = State()
 
 
-class BudgetCreateState(StatesGroup):
-    set_name = State()
-    set_currency = State()
-
-
-class BudgetUpdateState(StatesGroup):
-    choose_attribute = State()
-    update_name = State()
-    confirm_update_name = State()
-    update_currency = State()
-    confirm_update_currency = State()
-    finish = State()
-
-
-class BudgetShowState(StatesGroup):
-    show_budgets = State()
-
-
 class CreateCategory(StatesGroup):
     set_name = State()
     set_type = State()
@@ -34,12 +16,13 @@ class ShowCategories(StatesGroup):
     show_one = State()
 
 
-class DeleteCategory(StatesGroup):
-    confirm_delete = State()
-
-
 class UpdateCategory(StatesGroup):
-    name = State()
+    choose_attribute = State()
+    update_name = State()
+    confirm_update_name = State()
+    update_type = State()
+    confirm_update_type = State()
+    finish = State()
 
 
 class CreateEntry(StatesGroup):
