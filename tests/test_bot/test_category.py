@@ -257,6 +257,34 @@ delete_category_switch_to_update = CallbackQuery(
         text="just_message",
     ),
 )
+update_category_choose_attribute = CallbackQuery(
+    id="12345678",
+    from_user=user,
+    chat_instance="AABBCC",
+    data=CategoryItemActionData(
+        action="update", category_id=TARGET_CATEGORY_ID
+    ).pack(),
+    message=Message(
+        message_id=13,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="just_message",
+    ),
+)
+update_category_name = CallbackQuery(
+    id="12345678",
+    from_user=user,
+    chat_instance="AABBCC",
+    data="update_category_name",
+    message=Message(
+        message_id=13,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="just_message",
+    ),
+)
 
 
 @pytest.mark.asyncio
@@ -1089,14 +1117,68 @@ async def test_category_delete_switch_to_update(
     assert current_entry_count == initial_entry_count
 
     message = requester.read_last_sent_message()
-    expected_text = (
-        "Введите новое название категории (не должно быть длинее 128 символов)"
+    expected_markup = keyboards.create_callback_buttons(
+        button_names={
+            "название": "name",
+            "тип": "type",
+            "завершить": "finish",
+        },
+        callback_prefix="update_category",
     )
-    assert message.text == expected_text
-    assert message.reply_markup is None
+    assert message.text == prompts.update_category_invite_user
+    assert message.reply_markup == expected_markup
 
     state = await requester.get_fsm_state()
-    assert state == UpdateCategory.name
+    assert state == UpdateCategory.choose_attribute
 
     state_data = await requester.get_fsm_state_data()
     assert state_data == {"category_id": TARGET_CATEGORY_ID}
+
+
+@pytest.mark.asyncio
+async def test_update_category_choose_attribute(create_test_data, requester):
+    await requester.set_fsm_state(ShowCategories.show_one)
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=update_category_choose_attribute),
+    )
+
+    message = requester.read_last_sent_message()
+    expected_markup = keyboards.create_callback_buttons(
+        button_names={
+            "название": "name",
+            "тип": "type",
+            "завершить": "finish",
+        },
+        callback_prefix="update_category",
+    )
+    assert message.text == prompts.update_category_invite_user
+    assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateCategory.choose_attribute
+
+    state_data = await requester.get_fsm_state_data()
+    assert state_data == {"category_id": TARGET_CATEGORY_ID}
+
+
+@pytest.mark.asyncio
+async def test_update_category_request_name(create_test_data, requester):
+    await requester.set_fsm_state(UpdateCategory.choose_attribute)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=update_category_name),
+    )
+
+    message = requester.read_last_sent_message()
+    expected_text = (
+        "Введите новое название категории"
+        f"{prompts.category_name_description}"
+    )
+    expected_markup = keyboards.button_menu(
+        keyboards.buttons.cancel_operation, keyboards.buttons.main_menu
+    )
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
