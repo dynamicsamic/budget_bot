@@ -54,7 +54,7 @@ def interactive_item_list(
         [
             types.InlineKeyboardButton(
                 text=item.render(),
-                callback_data=f"{callback_prefix}_{item.id}",
+                callback_data=f"{callback_prefix}:{item.id}",
             )
             for item in items
         ]
@@ -77,7 +77,7 @@ def paginated_item_list(
         [
             types.InlineKeyboardButton(
                 text=item.render(),
-                callback_data=f"{callback_prefix}_{item.id}",
+                callback_data=f"{callback_prefix}:{item.id}",
             )
             for item in items
         ]
@@ -88,7 +88,7 @@ def paginated_item_list(
         extra_buttons.append(
             types.InlineKeyboardButton(
                 text="Предыдущие",
-                callback_data=f"{paginator.callback_prefix}_previous",
+                callback_data=f"{paginator.callback_prefix}:previous",
             )
         )
 
@@ -96,7 +96,7 @@ def paginated_item_list(
         extra_buttons.append(
             types.InlineKeyboardButton(
                 text="Следующие",
-                callback_data=f"{paginator.callback_prefix}_next",
+                callback_data=f"{paginator.callback_prefix}:next",
             )
         )
 
@@ -115,7 +115,7 @@ def create_callback_buttons(
     for button_name, callback_suffix in button_names.items():
         builder.button(
             text=button_name.capitalize(),
-            callback_data=f"{callback_prefix}_{callback_suffix.lower()}",
+            callback_data=f"{callback_prefix}:{callback_suffix.lower()}",
         )
 
     return builder.as_markup()
@@ -153,30 +153,6 @@ def category_item_list_interactive(categories: Iterable[models.Category]):
         "category_item",
         [buttons.create_new_category, buttons.main_menu],
     )
-
-
-def confirm_delete(model_name: str) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.button(
-        text="Отменить удаление",
-        callback_data=f"{model_name}_delete_cancel",
-    )
-    builder.button(
-        text="Продолжить",
-        callback_data=f"{model_name}_delete_confirm",
-    )
-    builder.adjust(1)
-    return builder.as_markup()
-
-
-def choose_category_type():
-    builder = InlineKeyboardBuilder()
-    builder.button(text="Доходы", callback_data="choose_entry_category_income")
-    builder.button(
-        text="Расходы", callback_data="choose_entry_category_expenses"
-    )
-    builder.adjust(1)
-    return builder.as_markup()
 
 
 def category_item_choose_action(category_id: int):

@@ -63,5 +63,5 @@ def switch_to_update_category(category_id: int):
 def confirm_delete_category(category_id: int):
     return InlineKeyboardButton(
         text="Лучше изменить категорию",
-        callback_data=f"delete_category_{category_id}",
+        callback_data=f"delete_category:{category_id}",
     )
