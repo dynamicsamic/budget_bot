@@ -236,6 +236,7 @@ class CommonRepository:
             raise ModelInstanceNotFound(
                 f"Model {self.model.get_tablename()}, id {id}"
             )
+        self.session.commit()
         return deleted
 
     def _fetch(
