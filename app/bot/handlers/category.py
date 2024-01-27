@@ -5,7 +5,10 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from app.bot import keyboards, prompts
-from app.bot.callback_data import CategoryItemActionData
+from app.bot.callback_data import (
+    CategoryItemActionData,
+    UpdateCategoryChooseAttribute,
+)
 from app.bot.filters import (
     CategoryDeleteConfirmFilter,
     CategoryIdFIlter,
@@ -14,12 +17,7 @@ from app.bot.filters import (
     SelectCategoryPageFilter,
 )
 from app.bot.middlewares import CategoryRepositoryMiddleWare
-from app.bot.states import (
-    CreateCategory,
-    DeleteCategory,
-    ShowCategories,
-    UpdateCategory,
-)
+from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
@@ -215,51 +213,44 @@ async def show_category_control_options(
     ShowCategories.show_one,
     CategoryItemActionData.filter(F.action == "delete"),
 )
-async def delete_category_lazy(
+async def delete_category_warn_user(
     callback: types.CallbackQuery,
-    state: FSMContext,
     callback_data: CategoryItemActionData,
+    repository: CategoryRepository,
 ):
+    category_id = callback_data.category_id
+    category = repository.get_category(category_id)
+    entry_count = repository.count_category_entries(category_id)
+
     await callback.message.answer(
-        prompts.deleted_object.format(obj_name="Категория"),
-        reply_markup=keyboards.confirm_delete("category"),
+        prompts.show_delete_category_warning(category.name, entry_count),
+        reply_markup=keyboards.button_menu(
+            keyboards.buttons.switch_to_update_category(category_id),
+            keyboards.buttons.confirm_delete_category(category_id),
+        ),
     )
-    await state.set_state(DeleteCategory.confirm_delete)
-    await state.update_data(category_id=callback_data.category_id)
     await callback.answer()
     logger.info("SUCCESS")
 
 
 @router.callback_query(
-    DeleteCategory.confirm_delete,
+    ShowCategories.show_one,
     CategoryDeleteConfirmFilter,
 )
-async def delete_category_confirm_or_cancel(
+async def delete_category_confirm(
     callback: types.CallbackQuery,
     state: FSMContext,
     repository: CategoryRepository,
-    confirm_or_cancel: str,
+    category_id: int,
 ):
-    category_data = await state.get_data()
-    category_id = category_data["category_id"]
-
-    if confirm_or_cancel == "confirm":
-        repository.delete_category(category_id)
-        await callback.message.answer(
-            "Продолжаем работу с ботом",
-            reply_markup=keyboards.button_menu(
-                keyboards.buttons.show_categories, keyboards.buttons.main_menu
-            ),
-        )
-        logger.info(f"SUCCESS, category id {category_id} deleted")
-    else:
-        await callback.message.answer(
-            "Удаление категории отменено. Продолжите работу с ботом.",
-            reply_markup=keyboards.button_menu(
-                keyboards.buttons.show_categories, keyboards.buttons.main_menu
-            ),
-        )
-        logger.info(f"SUCCESS, category id {category_id} deletion canceled")
+    repository.delete_category(category_id)
+    await callback.message.answer(
+        prompts.confirm_category_deleted,
+        reply_markup=keyboards.button_menu(
+            keyboards.buttons.show_categories, keyboards.buttons.main_menu
+        ),
+    )
+    logger.info(f"SUCCESS, category id {category_id} deleted")
 
     await state.clear()
     await callback.answer()
@@ -269,23 +260,84 @@ async def delete_category_confirm_or_cancel(
     ShowCategories.show_one,
     CategoryItemActionData.filter(F.action == "update"),
 )
-async def update_category_get_name(
+async def update_category_choose_attribute(
     callback: types.CallbackQuery,
     callback_data: CategoryItemActionData,
     state: FSMContext,
 ):
     await state.clear()  # clear show state to start update state
-    await state.set_data({"category_id": callback_data.category_id})
+
     await callback.message.answer(
-        "Введите новое название категории (не должно быть длинее 128 символов)"
+        prompts.update_category_invite_user,
+        reply_markup=keyboards.create_callback_buttons(
+            button_names={
+                "название": "name",
+                "тип": "type",
+                "завершить": "finish",
+            },
+            callback_prefix="update_category",
+        ),
     )
 
-    await state.set_state(UpdateCategory.name)
+    await state.set_state(UpdateCategory.choose_attribute)
+    await state.set_data({"category_id": callback_data.category_id})
     await callback.answer()
 
 
+@router.callback_query(
+    UpdateCategory.choose_attribute,
+    UpdateCategoryChooseAttribute.filter(F.attribute == "name"),
+)
+async def update_category_request_name(
+    callback: types.CallbackQuery, state: FSMContext
+):
+    await callback.message.answer(
+        "Введите новое название категории"
+        f"{prompts.category_name_description}",
+        reply_markup=keyboards.button_menu(
+            keyboards.buttons.cancel_operation, keyboards.buttons.main_menu
+        ),
+    )
+    await state.set_state(UpdateCategory.update_name)
+
+
+@router.message(UpdateCategory.update_name, CategoryNameFilter)
+async def update_category_set_name(
+    message: types.Message,
+    state: FSMContext,
+    user: User,
+    repository: CategoryRepository,
+    category_name: str,
+):
+    if repository.category_exists(
+        user_id=user.id, category_name=category_name
+    ):
+        raise ModelInstanceDuplicateAttempt(
+            user_tg_id=user.tg_id,
+            model_name="Категория",
+            duplicate_arg_name="Название",
+            duplicate_arg_value=category_name,
+        )
+
+    await message.answer(
+        prompts.update_category_confirm_new_name.format(
+            category_name=category_name
+        ),
+        reply_markup=keyboards.create_callback_buttons(
+            button_names={
+                "название": "name",
+                "тип": "type",
+                "завершить": "finish",
+            },
+            callback_prefix="update_category",
+        ),
+    )
+    await state.update_data(category_name=category_name)
+    await state.set_state(UpdateCategory.choose_attribute)
+
+
 @router.message(
-    UpdateCategory.name,
+    UpdateCategory.choose_attribute,
     CategoryNameFilter,
 )
 async def update_category_get_type(
