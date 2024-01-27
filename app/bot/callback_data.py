@@ -11,8 +11,8 @@ class CategoryItemActionData(CallbackData, prefix="category_action"):
     category_id: int
 
 
-class DeleteCategoryConfirmOrCancel(CallbackData, prefix="category_delete"):
-    action: str
+class UpdateCategoryChooseAttribute(CallbackData, prefix="update_category"):
+    attribute: str
 
 
 class EntryItemActionData(CallbackData, prefix="action_entry_item"):
