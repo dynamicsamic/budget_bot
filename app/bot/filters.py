@@ -38,16 +38,16 @@ class BudgetNameFilter(BaseFilter):
 class CallbackQueryFilter(Filter):
     def __init__(
         self,
-        callback_prefix: str,
         get_context: Callable[[str], dict[str, Any] | None],
+        separator: str = ":",
     ) -> None:
-        self.callback_prefix = callback_prefix
         self.get_context = get_context
+        self.separator = separator
+        self.callback_prefix = ""
 
     async def __call__(self, callback: CallbackQuery) -> dict[str, Any] | bool:
         if suffix := self._get_callback_suffix(callback):
-            callback_context = self.get_context(suffix)
-            if callback_context is None:
+            if (callback_context := self.get_context(suffix)) is None:
                 raise InvalidCallbackData(
                     f"callback_prefix={self.callback_prefix}, suffix={suffix}"
                 )
@@ -56,10 +56,12 @@ class CallbackQueryFilter(Filter):
         return False
 
     def _get_callback_suffix(self, callback: CallbackQuery) -> str | None:
-        *body, suffix = callback.data.split(f"{self.callback_prefix}_")
-        if body == []:
+        *prefix, suffix = callback.data.rsplit(self.separator, maxsplit=1)
+
+        if prefix == []:
             return
 
+        self.callback_prefix = prefix[0]
         return suffix
 
 
@@ -110,14 +112,10 @@ CategoryNameFilter = PatternMatchMessageFilter(
     return_argname="category_name",
     exception_type=InvalidCategoryName,
 )
-CategoryTypeFilter = CallbackQueryFilter("category_type", get_category_type)
-CategoryIdFIlter = CallbackQueryFilter("category_id", get_category_id)
-SelectCategoryPageFilter = CallbackQueryFilter(
-    "show_categories_page", get_next_category_page
-)
-CategoryDeleteConfirmFilter = CallbackQueryFilter(
-    "category_delete", get_confirm_or_cancel
-)
+CategoryTypeFilter = CallbackQueryFilter(get_category_type)
+CategoryIdFIlter = CallbackQueryFilter(get_category_id)
+SelectCategoryPageFilter = CallbackQueryFilter(get_next_category_page)
+CategoryDeleteConfirmFilter = CallbackQueryFilter(get_category_id)
 
 
 class GetEntryId(BaseFilter):
