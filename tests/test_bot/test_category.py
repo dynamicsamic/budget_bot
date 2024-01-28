@@ -5,7 +5,7 @@ from aiogram.enums import ChatType
 from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
-from app.bot import keyboards, prompts
+from app.bot.replies import keyboards, prompts, buttons
 from app.bot.callback_data import CategoryItemActionData
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.repository import CategoryRepository
@@ -43,20 +43,20 @@ create_category_callback = CallbackQuery(
         date=datetime.now(),
         from_user=user,
         chat=chat,
-        text=keyboards.buttons.create_new_category.text,
+        text=buttons.create_new_category.text,
     ),
 )
 press_cancel_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=keyboards.buttons.cancel_operation.callback_data,
+    data=buttons.cancel_operation.callback_data,
     message=Message(
         message_id=2,
         date=datetime.now(),
         from_user=user,
         chat=chat,
-        text=keyboards.buttons.cancel_operation.text,
+        text=buttons.cancel_operation.text,
     ),
 )
 
@@ -183,7 +183,7 @@ show_categories_callback = CallbackQuery(
         date=datetime.now(),
         from_user=user,
         chat=chat,
-        text=keyboards.buttons.show_categories.text,
+        text=buttons.show_categories.text,
     ),
 )
 show_category_control_options = CallbackQuery(
@@ -231,9 +231,7 @@ delete_category_confirm = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=keyboards.buttons.confirm_delete_category(
-        TARGET_CATEGORY_ID
-    ).callback_data,
+    data=buttons.confirm_delete_category(TARGET_CATEGORY_ID).callback_data,
     message=Message(
         message_id=11,
         date=datetime.now(),
@@ -246,9 +244,7 @@ delete_category_switch_to_update = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=keyboards.buttons.switch_to_update_category(
-        TARGET_CATEGORY_ID
-    ).callback_data,
+    data=buttons.switch_to_update_category(TARGET_CATEGORY_ID).callback_data,
     message=Message(
         message_id=12,
         date=datetime.now(),
@@ -264,19 +260,6 @@ update_category_choose_attribute = CallbackQuery(
     data=CategoryItemActionData(
         action="update", category_id=TARGET_CATEGORY_ID
     ).pack(),
-    message=Message(
-        message_id=13,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="just_message",
-    ),
-)
-update_category_name = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="update_category:name",
     message=Message(
         message_id=13,
         date=datetime.now(),
@@ -301,7 +284,7 @@ async def test_category_handlers_redirect_anonymous_user(
         "выбрав одну из кнопок ниже."
     )
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.signup_user, keyboards.buttons.activate_user
+        buttons.signup_user, buttons.activate_user
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -323,7 +306,7 @@ async def test_create_category_command(create_test_data, requester):
         f"{prompts.category_name_description}"
     )
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.cancel_operation, keyboards.buttons.main_menu
+        buttons.cancel_operation, buttons.main_menu
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -434,7 +417,7 @@ async def test_create_category_set_existing_name(create_test_data, requester):
         f"{exception}. Придумайте новое значение и повторите попытку "
         "или прервите процедуру, нажав на кнопку отмены."
     )
-    expected_markup = keyboards.button_menu(keyboards.buttons.cancel_operation)
+    expected_markup = keyboards.button_menu(buttons.cancel_operation)
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
@@ -484,7 +467,7 @@ async def test_create_category_set_valid_income_type_and_finish(
         f"Вы успешно создали новую категорию: {created_category.render()}"
     )
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.show_categories, keyboards.buttons.main_menu
+        buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -535,7 +518,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
         f"Вы успешно создали новую категорию: {created_category.render()}"
     )
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.show_categories, keyboards.buttons.main_menu
+        buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -644,7 +627,7 @@ async def test_create_category_callback(create_test_data, requester):
         f"{prompts.category_name_description}"
     )
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.cancel_operation, keyboards.buttons.main_menu
+        buttons.cancel_operation, buttons.main_menu
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -668,8 +651,8 @@ async def test_show_categories_command_with_zero_categories(
         "Создайте категорию, нажав на кнопку ниже."
     )
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.create_new_category,
-        keyboards.buttons.main_menu,
+        buttons.create_new_category,
+        buttons.main_menu,
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -1030,8 +1013,8 @@ async def test_delete_category_warn_user(
     expected_text = prompts.show_delete_category_warning(
         category.name, entry_count
     )
-    button_1 = keyboards.buttons.switch_to_update_category(category.id)
-    button_2 = keyboards.buttons.confirm_delete_category(category.id)
+    button_1 = buttons.switch_to_update_category(category.id)
+    button_2 = buttons.confirm_delete_category(category.id)
     expected_markup = keyboards.button_menu(button_1, button_2)
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -1080,7 +1063,7 @@ async def test_category_delete_confirm(
     message = requester.read_last_sent_message()
     expected_text = prompts.confirm_category_deleted
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.show_categories, keyboards.buttons.main_menu
+        buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -1167,9 +1150,23 @@ async def test_update_category_request_name(create_test_data, requester):
     await requester.set_fsm_state(UpdateCategory.choose_attribute)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
 
+    request_name_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="update_category:name",
+        message=Message(
+            message_id=13,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=1, callback_query=update_category_name),
+        Update(update_id=1, callback_query=request_name_callback),
     )
 
     message = requester.read_last_sent_message()
@@ -1178,7 +1175,117 @@ async def test_update_category_request_name(create_test_data, requester):
         f"{prompts.category_name_description}"
     )
     expected_markup = keyboards.button_menu(
-        keyboards.buttons.cancel_operation, keyboards.buttons.main_menu
+        buttons.cancel_operation, buttons.main_menu
+    )
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
+
+
+@pytest.mark.asyncio
+async def test_update_category_set_name(
+    persistent_db_session, create_test_data, requester
+):
+    await requester.set_fsm_state(UpdateCategory.update_name)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+
+    repository = CategoryRepository(persistent_db_session)
+    initial_category_name = repository.get_category(TARGET_CATEGORY_ID).name
+
+    valid_name_message = Message(
+        message_id=13,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="updated_name",
+    )
+
+    await requester.make_request(
+        SendMessage,
+        Update(update_id=1, message=valid_name_message),
+    )
+
+    message = requester.read_last_sent_message()
+    expected_text = prompts.update_category_confirm_new_name.format(
+        category_name=valid_name_message.text
+    )
+    expected_markup = keyboards.category_update_options
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateCategory.choose_attribute
+
+    current_category_name = repository.get_category(TARGET_CATEGORY_ID).name
+    assert current_category_name != initial_category_name
+    assert current_category_name == valid_name_message.text
+
+
+@pytest.mark.asyncio
+async def test_update_category_set_invalid_name(
+    persistent_db_session, create_test_data, requester
+):
+    await requester.set_fsm_state(UpdateCategory.update_name)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+
+    repository = CategoryRepository(persistent_db_session)
+    initial_category_name = repository.get_category(TARGET_CATEGORY_ID).name
+
+    invalid_name_message = Message(
+        message_id=13,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="/nvalid$",
+    )
+
+    await requester.make_request(
+        SendMessage,
+        Update(update_id=1, message=invalid_name_message),
+    )
+
+    message = requester.read_last_sent_message()
+    expected_text = (
+        "Недопустимое название категории."
+        f"{prompts.category_name_description}"
+    )
+    assert message.text == expected_text
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateCategory.update_name
+
+    current_category_name = repository.get_category(TARGET_CATEGORY_ID).name
+    assert current_category_name == initial_category_name
+
+
+@pytest.mark.asyncio
+async def test_update_category_request_type(create_test_data, requester):
+    await requester.set_fsm_state(UpdateCategory.choose_attribute)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+
+    request_type_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="update_category:type",
+        message=Message(
+            message_id=13,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=request_type_callback),
+    )
+
+    message = requester.read_last_sent_message()
+    expected_text = "Выберите новый тип категории"
+    expected_markup = keyboards.create_callback_buttons(
+        button_names={"Доходы": "income", "Расходы": "expenses"},
+        callback_prefix="select_category_type",
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
