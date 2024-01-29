@@ -13,7 +13,7 @@ from app.bot.callback_data import (
 from app.custom_types import _BaseModel
 from app.db import models
 
-from . import buttons
+from .. import buttons
 
 signup_to_proceed = types.InlineKeyboardMarkup(
     inline_keyboard=[
@@ -119,6 +119,16 @@ def create_callback_buttons(
         )
 
     return builder.as_markup()
+
+
+category_update_options = create_callback_buttons(
+    button_names={
+        "название": "name",
+        "тип": "type",
+        "завершить": "finish",
+    },
+    callback_prefix="update_category",
+)
 
 
 def states_group_callback_buttons(
