@@ -5,7 +5,8 @@ from aiogram.filters import ExceptionTypeFilter
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.bot import keyboards, prompts
+from app.bot.replies import keyboards, prompts
+from app.bot.replies.buttons import cancel_operation
 from app.exceptions import (
     EmptyModelKwargs,
     InvalidCallbackData,
@@ -62,11 +63,11 @@ async def serverside_error_handler(
 
 @router.errors(ExceptionTypeFilter(InvalidCategoryName))
 async def invalid_category_name_handler(error_event: types.ErrorEvent):
-    logger.info(f"Invalid user input triggered {error_event.exception}")
     await error_event.update.message.answer(
         "Недопустимое название категории."
         f"{prompts.category_name_description}"
     )
+    logger.info(f"Invalid user input triggered {error_event.exception}")
 
 
 @router.errors(ExceptionTypeFilter(ModelInstanceDuplicateAttempt))
@@ -75,7 +76,7 @@ async def instance_duplicate_attempt_handler(error_event: types.ErrorEvent):
     await error_event.update.message.answer(
         f"{exception}. Придумайте новое значение и повторите попытку "
         "или прервите процедуру, нажав на кнопку отмены.",
-        reply_markup=keyboards.button_menu(keyboards.buttons.cancel_operation),
+        reply_markup=keyboards.button_menu(cancel_operation),
     )
     logger.info(
         f"User {exception.user_tg_id} triggered exception: {repr(exception)}"

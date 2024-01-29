@@ -4,7 +4,8 @@ from aiogram import F, Router, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from app.bot.keyboards import button_menu, buttons, cmd_report_kb, main_menu
+from app.bot.replies.keyboards import button_menu, cmd_report_kb, main_menu
+from app.bot.replies import buttons
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.db.models import User
 from app.utils import aiogram_log_handler

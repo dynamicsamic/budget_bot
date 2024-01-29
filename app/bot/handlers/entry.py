@@ -6,7 +6,8 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import Session, scoped_session
 
 from app import settings
-from app.bot import filters, keyboards, states
+from app.bot import filters, states
+from app.bot.replies import keyboards
 from app.bot.middlewares import EntryRepositoryMiddleWare
 from app.db.models import User
 from app.db.repository import CategoryRepository, EntryRepository

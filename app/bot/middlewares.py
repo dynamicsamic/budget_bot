@@ -8,7 +8,7 @@ from aiogram.dispatcher.flags import get_flag
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app import settings
-from app.bot import keyboards
+from app.bot.replies import keyboards, buttons
 from app.db import db_session
 from app.db.repository import (
     CategoryRepository,
@@ -46,7 +46,7 @@ async def redirect_handler(event: TelegramObject, *_, **__):
         "Для работы с ботом, зарегистрируйтесь или активируйте Ваш аккаунт, "
         "выбрав одну из кнопок ниже.",
         reply_markup=keyboards.button_menu(
-            keyboards.buttons.signup_user, keyboards.buttons.activate_user
+            buttons.signup_user, buttons.activate_user
         ),
     )
     logger.info("SUCCESS: anonymous user redirected")

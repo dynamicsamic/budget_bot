@@ -2,7 +2,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.bot import keyboards
+from app.bot.replies import keyboards, buttons
 from app.bot.filters import BudgetCurrencyFilter
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.bot.states import UserCreateState
@@ -25,7 +25,7 @@ async def signup_user(
         await callback.message.answer(
             "Вы уже зарегистрированы в системе. "
             "Вы можете продложить работу с ботом в главном меню.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+            reply_markup=keyboards.button_menu(buttons.main_menu),
         )
         return
 
@@ -52,8 +52,8 @@ async def signup_user(
             "Вы можете продолжить работу со своими бюджетами, "
             "нажав кнопку активации ниже.",
             reply_markup=keyboards.button_menu(
-                keyboards.buttons.activate_user,
-                keyboards.buttons.cancel_operation,
+                buttons.activate_user,
+                buttons.cancel_operation,
             ),
         )
         return
@@ -92,9 +92,7 @@ async def signup_user_set_currency(
             "(в любом регистре). Цифры и иные символы не допускаются.\n"
             "Отдавайте предпочтение общепринятым сокращениям, например "
             "RUB или USD.",
-            reply_markup=keyboards.button_menu(
-                keyboards.buttons.cancel_operation
-            ),
+            reply_markup=keyboards.button_menu(buttons.cancel_operation),
         )
         return
 
@@ -133,7 +131,7 @@ async def signup_user_finish(
         await callback.message.answer(
             "Поздравляем! Вы успешно зарегистрированы в системе.\n"
             "Вы можете продложить работу с ботом в главном меню.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+            reply_markup=keyboards.button_menu(buttons.main_menu),
         )
 
     else:
@@ -154,7 +152,7 @@ async def activate_user(
         await callback.message.answer(
             "Ваш аккаунт активен, дополнительных действий не требуется. "
             "Вы можете продложить работу с ботом в главном меню.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.main_menu),
+            reply_markup=keyboards.button_menu(buttons.main_menu),
         )
         return
 
@@ -165,9 +163,7 @@ async def activate_user(
             await callback.message.answer(
                 "Ваш аккаунт снова активен.\n"
                 "Вы можете продложить работу с ботом в главном меню.",
-                reply_markup=keyboards.button_menu(
-                    keyboards.buttons.main_menu
-                ),
+                reply_markup=keyboards.button_menu(buttons.main_menu),
             )
 
         else:
@@ -179,7 +175,7 @@ async def activate_user(
         await callback.message.answer(
             "Ваш акканут отсутствует в системе. Зарегистритруйтесь, "
             "нажав кнопку ниже.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.signup_user),
+            reply_markup=keyboards.button_menu(buttons.signup_user),
         )
         return
 
@@ -201,8 +197,8 @@ async def delete_user(
                 "сможете восстановить свой аккаунт в течение этого времени,"
                 " воспользовавшись копкой ниже. Да прибудет с Вами сила.",
                 reply_markup=keyboards.button_menu(
-                    keyboards.buttons.activate_user,
-                    keyboards.buttons.main_menu,
+                    buttons.activate_user,
+                    buttons.main_menu,
                 ),
             )
         else:
@@ -214,9 +210,7 @@ async def delete_user(
         await callback.message.answer(
             "Ваш акканут запланирован к удалению."
             "Вы можете остановить процедуру удаления, нажав кнопку ниже.",
-            reply_markup=keyboards.button_menu(
-                keyboards.buttons.activate_user
-            ),
+            reply_markup=keyboards.button_menu(buttons.activate_user),
         )
     else:
         await callback.message.answer(
@@ -224,7 +218,7 @@ async def delete_user(
             "пользовались ботом и желаете удалить ваши данные, то эти данные "
             "уже были удалены, дополнительных действий не требуется."
             "Вы можете зарегистрировать новый аккаунт, нажав на кнопку ниже.",
-            reply_markup=keyboards.button_menu(keyboards.buttons.signup_user),
+            reply_markup=keyboards.button_menu(buttons.signup_user),
         )
 
     await callback.answer()
@@ -236,7 +230,7 @@ async def show_user_profile(callback: CallbackQuery):
         "Меню управления профилем. "
         "Со временем здесь могут появиться новые функции",
         reply_markup=keyboards.button_menu(
-            keyboards.buttons.delete_user,
-            keyboards.buttons.main_menu,
+            buttons.delete_user,
+            buttons.main_menu,
         ),
     )
