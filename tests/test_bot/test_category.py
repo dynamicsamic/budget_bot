@@ -9,6 +9,7 @@ from app.bot.replies import keyboards, prompts, buttons
 from app.bot.callback_data import CategoryItemActionData
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.repository import CategoryRepository
+from app.db.models import CategoryType
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator
 
@@ -199,19 +200,6 @@ show_category_control_options = CallbackQuery(
         text="just_message",
     ),
 )
-show_category_control_options_invalid_type_id = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="category_id:invalid",
-    message=Message(
-        message_id=9,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="just_message",
-    ),
-)
 delete_category = CallbackQuery(
     id="12345678",
     from_user=user,
@@ -234,34 +222,6 @@ delete_category_confirm = CallbackQuery(
     data=buttons.confirm_delete_category(TARGET_CATEGORY_ID).callback_data,
     message=Message(
         message_id=11,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="just_message",
-    ),
-)
-delete_category_switch_to_update = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data=buttons.switch_to_update_category(TARGET_CATEGORY_ID).callback_data,
-    message=Message(
-        message_id=12,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="just_message",
-    ),
-)
-update_category_choose_attribute = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data=CategoryItemActionData(
-        action="update", category_id=TARGET_CATEGORY_ID
-    ).pack(),
-    message=Message(
-        message_id=13,
         date=datetime.now(),
         from_user=user,
         chat=chat,
@@ -980,11 +940,26 @@ async def test_show_category_control_options_invalid_type_id(
     create_test_data, requester
 ):
     await requester.set_fsm_state(ShowCategories.show_many)
+
+    invalid_type_id_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="category_id:invalid",
+        message=Message(
+            message_id=9,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
     await requester.make_request(
         AnswerCallbackQuery,
         Update(
             update_id=1,
-            callback_query=show_category_control_options_invalid_type_id,
+            callback_query=invalid_type_id_callback,
         ),
     )
     message = requester.read_last_sent_message()
@@ -1084,6 +1059,22 @@ async def test_category_delete_switch_to_update(
     initial_entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
     assert initial_entry_count > 0
 
+    switch_to_update_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=buttons.switch_to_update_category(
+            TARGET_CATEGORY_ID
+        ).callback_data,
+        message=Message(
+            message_id=12,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
     await requester.set_fsm_state(ShowCategories.show_one)
     await requester.make_request(
         AnswerCallbackQuery,
@@ -1091,7 +1082,7 @@ async def test_category_delete_switch_to_update(
     )
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=2, callback_query=delete_category_switch_to_update),
+        Update(update_id=2, callback_query=switch_to_update_callback),
     )
 
     current_category_count = repository.count_user_categories(TARGET_USER_ID)
@@ -1121,9 +1112,26 @@ async def test_category_delete_switch_to_update(
 @pytest.mark.asyncio
 async def test_update_category_choose_attribute(create_test_data, requester):
     await requester.set_fsm_state(ShowCategories.show_one)
+
+    choose_attribute_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=CategoryItemActionData(
+            action="update", category_id=TARGET_CATEGORY_ID
+        ).pack(),
+        message=Message(
+            message_id=13,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=1, callback_query=update_category_choose_attribute),
+        Update(update_id=1, callback_query=choose_attribute_callback),
     )
 
     message = requester.read_last_sent_message()
@@ -1289,3 +1297,170 @@ async def test_update_category_request_type(create_test_data, requester):
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateCategory.update_type
+
+
+@pytest.mark.asyncio
+async def test_update_category_set_income_type(
+    persistent_db_session, create_test_data, requester
+):
+    await requester.set_fsm_state(UpdateCategory.update_type)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+
+    set_income_type_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="select_category_type:income",
+        message=Message(
+            message_id=13,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=set_income_type_callback),
+    )
+
+    repository = CategoryRepository(persistent_db_session)
+    updated_category_type = repository.get_category(TARGET_CATEGORY_ID).type
+    assert updated_category_type == CategoryType.INCOME
+
+    message = requester.read_last_sent_message()
+    expected_text = prompts.update_category_confirm_new_type.format(
+        category_type=CategoryType.INCOME.description
+    )
+    expected_markup = keyboards.category_update_options
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateCategory.choose_attribute
+
+
+@pytest.mark.asyncio
+async def test_update_category_set_expenses_type(
+    persistent_db_session, create_test_data, requester
+):
+    await requester.set_fsm_state(UpdateCategory.update_type)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+
+    set_expenses_type_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="select_category_type:expenses",
+        message=Message(
+            message_id=13,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=set_expenses_type_callback),
+    )
+
+    repository = CategoryRepository(persistent_db_session)
+    updated_category_type = repository.get_category(TARGET_CATEGORY_ID).type
+    assert updated_category_type == CategoryType.EXPENSES
+
+    message = requester.read_last_sent_message()
+    expected_text = prompts.update_category_confirm_new_type.format(
+        category_type=CategoryType.EXPENSES.description
+    )
+    expected_markup = keyboards.category_update_options
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateCategory.choose_attribute
+
+
+@pytest.mark.asyncio
+async def test_update_category_finish(
+    persistent_db_session, create_test_data, requester
+):
+    await requester.set_fsm_state(UpdateCategory.choose_attribute)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    await requester.update_fsm_state_data(category_name="updated")
+
+    finish_category_update_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="update_category:finish",
+        message=Message(
+            message_id=13,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=finish_category_update_callback),
+    )
+
+    repository = CategoryRepository(persistent_db_session)
+    category = repository.get_category(TARGET_CATEGORY_ID)
+
+    message = requester.read_last_sent_message()
+    expected_text = prompts.show_update_summary(category)
+    expected_markup = keyboards.button_menu(
+        buttons.show_categories, buttons.main_menu
+    )
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state is None
+
+
+@pytest.mark.asyncio
+async def test_update_category_finish_without_changes(
+    create_test_data, requester
+):
+    await requester.set_fsm_state(UpdateCategory.choose_attribute)
+    await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+
+    finish_category_update_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="update_category:finish",
+        message=Message(
+            message_id=13,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(update_id=1, callback_query=finish_category_update_callback),
+    )
+
+    message = requester.read_last_sent_message()
+    expected_text = prompts.update_without_changes
+    expected_markup = keyboards.button_menu(
+        buttons.show_categories, buttons.main_menu
+    )
+    assert message.text == expected_text
+    assert message.reply_markup == expected_markup
+
+    state = await requester.get_fsm_state()
+    assert state is None
