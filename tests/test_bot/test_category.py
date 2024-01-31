@@ -34,19 +34,6 @@ create_category_command = Message(
     chat=chat,
     text="/create_category",
 )
-create_category_callback = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="create_category",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text=buttons.create_new_category.text,
-    ),
-)
 press_cancel_callback = CallbackQuery(
     id="12345678",
     from_user=user,
@@ -94,39 +81,6 @@ valid_income_category_type = CallbackQuery(
         chat=chat,
         text="Доходы",
     ),
-)
-valid_expenses_category_type = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="select_category_type:expenses",
-    message=Message(
-        message_id=4,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="Расходы",
-    ),
-)
-invalid_category_type = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="select_category_type:invalid",
-    message=Message(
-        message_id=4,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="invalid",
-    ),
-)
-second_user_show_categories_command = Message(
-    message_id=5,
-    date=datetime.now(),
-    from_user=second_user,
-    chat=second_chat,
-    text="/show_categories",
 )
 show_categories_command = Message(
     message_id=5,
@@ -185,19 +139,6 @@ show_categories_callback = CallbackQuery(
         from_user=user,
         chat=chat,
         text=buttons.show_categories.text,
-    ),
-)
-show_category_control_options = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data=f"category_id:{TARGET_CATEGORY_ID}",
-    message=Message(
-        message_id=9,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="just_message",
     ),
 )
 delete_category = CallbackQuery(
@@ -290,17 +231,14 @@ async def test_create_category_command_press_cancel_button(
 
 @pytest.mark.asyncio
 async def test_create_category_set_valid_name(create_test_data, requester):
+    ################ test setup ##################
+    await requester.set_fsm_state(CreateCategory.set_name)
+    ##############################################
+
     await requester.make_request(
         SendMessage,
         Update(
             update_id=1,
-            message=create_category_command,
-        ),
-    )
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=2,
             message=valid_category_name,
         ),
     )
@@ -323,17 +261,14 @@ async def test_create_category_set_valid_name(create_test_data, requester):
 
 @pytest.mark.asyncio
 async def test_create_category_set_invalid_name(create_test_data, requester):
+    ################ test setup ##################
+    await requester.set_fsm_state(CreateCategory.set_name)
+    ##############################################
+
     await requester.make_request(
         SendMessage,
         Update(
             update_id=1,
-            message=create_category_command,
-        ),
-    )
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=2,
             message=invalid_category_name,
         ),
     )
@@ -351,17 +286,14 @@ async def test_create_category_set_invalid_name(create_test_data, requester):
 
 @pytest.mark.asyncio
 async def test_create_category_set_existing_name(create_test_data, requester):
+    ################ test setup ##################
+    await requester.set_fsm_state(CreateCategory.set_name)
+    ##############################################
+
     await requester.make_request(
         SendMessage,
         Update(
             update_id=1,
-            message=create_category_command,
-        ),
-    )
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=2,
             message=existing_category_name,
         ),
     )
@@ -389,27 +321,20 @@ async def test_create_category_set_existing_name(create_test_data, requester):
 async def test_create_category_set_valid_income_type_and_finish(
     create_test_data, requester, persistent_db_session
 ):
+    ################ test setup ##################
+    await requester.update_fsm_state_data(
+        category_name=valid_category_name.text
+    )
+    await requester.set_fsm_state(CreateCategory.set_type)
+    ##############################################
+
     repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
 
     await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=1,
-            message=create_category_command,
-        ),
-    )
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=2,
-            message=valid_category_name,
-        ),
-    )
-    await requester.make_request(
         AnswerCallbackQuery,
         Update(
-            update_id=3,
+            update_id=1,
             callback_query=valid_income_category_type,
         ),
     )
@@ -440,28 +365,35 @@ async def test_create_category_set_valid_income_type_and_finish(
 async def test_create_category_set_valid_expenses_type_and_finish(
     create_test_data, requester, persistent_db_session
 ):
+    ################ test setup ##################
+    await requester.update_fsm_state_data(
+        category_name=valid_category_name.text
+    )
+    await requester.set_fsm_state(CreateCategory.set_type)
+    ##############################################
+
     repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
 
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=1,
-            message=create_category_command,
+    expenses_type_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="select_category_type:expenses",
+        message=Message(
+            message_id=4,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="Расходы",
         ),
     )
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=2,
-            message=valid_category_name,
-        ),
-    )
+
     await requester.make_request(
         AnswerCallbackQuery,
         Update(
-            update_id=3,
-            callback_query=valid_expenses_category_type,
+            update_id=1,
+            callback_query=expenses_type_callback,
         ),
     )
 
@@ -491,28 +423,35 @@ async def test_create_category_set_valid_expenses_type_and_finish(
 async def test_create_category_set_invalid_type_and_finish(
     create_test_data, requester, persistent_db_session
 ):
+    ################ test setup ##################
+    await requester.update_fsm_state_data(
+        category_name=valid_category_name.text
+    )
+    await requester.set_fsm_state(CreateCategory.set_type)
+    ##############################################
+
     repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
 
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=1,
-            message=create_category_command,
+    invalid_type_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="select_category_type:invalid",
+        message=Message(
+            message_id=4,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="invalid",
         ),
     )
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=2,
-            message=valid_category_name,
-        ),
-    )
+
     await requester.make_request(
         AnswerCallbackQuery,
         Update(
-            update_id=3,
-            callback_query=invalid_category_type,
+            update_id=1,
+            callback_query=invalid_type_callback,
         ),
     )
 
@@ -531,31 +470,19 @@ async def test_create_category_set_invalid_type_and_finish(
 async def test_create_category_set_type_finish_invalid_name(
     create_test_data, requester, persistent_db_session
 ):
+    ################ test setup ##################
+    # intentionally inject a bug, category_name must be a valid str
+    await requester.update_fsm_state_data(category_name=25)
+    await requester.set_fsm_state(CreateCategory.set_type)
+    ##############################################
+
     repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
 
     await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=1,
-            message=create_category_command,
-        ),
-    )
-    await requester.make_request(
-        SendMessage,
-        Update(
-            update_id=2,
-            message=valid_category_name,
-        ),
-    )
-
-    # intentionally inject a bug, category_name must be a valid str
-    await requester.update_fsm_state_data(category_name=25)
-
-    await requester.make_request(
         AnswerCallbackQuery,
         Update(
-            update_id=3,
+            update_id=1,
             callback_query=valid_income_category_type,
         ),
     )
@@ -573,6 +500,20 @@ async def test_create_category_set_type_finish_invalid_name(
 
 @pytest.mark.asyncio
 async def test_create_category_callback(create_test_data, requester):
+    create_category_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="create_category",
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text=buttons.create_new_category.text,
+        ),
+    )
+
     await requester.make_request(
         AnswerCallbackQuery,
         Update(
@@ -600,6 +541,14 @@ async def test_create_category_callback(create_test_data, requester):
 async def test_show_categories_command_with_zero_categories(
     create_test_data, requester
 ):
+    second_user_show_categories_command = Message(
+        message_id=5,
+        date=datetime.now(),
+        from_user=second_user,
+        chat=second_chat,
+        text="/show_categories",
+    )
+
     await requester.make_request(
         SendMessage,
         Update(update_id=1, message=second_user_show_categories_command),
@@ -653,15 +602,15 @@ async def test_show_categories_command(
 
     kb = message.reply_markup.model_dump().get("inline_keyboard")
     for button, i in zip(kb, range(1, page_limit + 1)):
-        assert button[0]["callback_data"] == f"category_id_{i}"
+        assert button[0]["callback_data"] == f"category_id:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
-    assert next_button["callback_data"] == f"{paginator.callback_prefix}_next"
+    assert next_button["callback_data"] == f"{paginator.callback_prefix}:next"
 
     assert all(button[0]["text"] != "Предыдущие" for button in kb)
     assert all(
-        button[0]["callback_data"] != f"{paginator.callback_prefix}_previous"
+        button[0]["callback_data"] != f"{paginator.callback_prefix}:previous"
         for button in kb
     )
 
@@ -710,17 +659,17 @@ async def test_show_categories_next_page(
             paginator.current_offset + page_limit + 1,
         ),
     ):
-        assert button[0]["callback_data"] == f"category_id_{i}"
+        assert button[0]["callback_data"] == f"category_id:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
-    assert next_button["callback_data"] == f"{paginator.callback_prefix}_next"
+    assert next_button["callback_data"] == f"{paginator.callback_prefix}:next"
 
     previous_button = kb[-2][0]
     assert previous_button["text"] == "Предыдущие"
     assert (
         previous_button["callback_data"]
-        == f"{paginator.callback_prefix}_previous"
+        == f"{paginator.callback_prefix}:previous"
     )
 
 
@@ -772,18 +721,18 @@ async def test_show_categories_last_page(
             paginator.current_offset + page_limit + 1,
         ),
     ):
-        assert button[0]["callback_data"] == f"category_id_{i}"
+        assert button[0]["callback_data"] == f"category_id:{i}"
 
     previous_button = kb[-1][0]
     assert previous_button["text"] == "Предыдущие"
     assert (
         previous_button["callback_data"]
-        == f"{paginator.callback_prefix}_previous"
+        == f"{paginator.callback_prefix}:previous"
     )
 
     assert all(button[0]["text"] != "Следующие" for button in kb)
     assert all(
-        button[0]["callback_data"] != f"{paginator.callback_prefix}_next"
+        button[0]["callback_data"] != f"{paginator.callback_prefix}:next"
         for button in kb
     )
 
@@ -828,15 +777,15 @@ async def test_show_categories_previous_page(
 
     kb = message.reply_markup.model_dump().get("inline_keyboard")
     for button, i in zip(kb, range(1, page_limit + 1)):
-        assert button[0]["callback_data"] == f"category_id_{i}"
+        assert button[0]["callback_data"] == f"category_id:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
-    assert next_button["callback_data"] == f"{paginator.callback_prefix}_next"
+    assert next_button["callback_data"] == f"{paginator.callback_prefix}:next"
 
     assert all(button[0]["text"] != "Предыдущие" for button in kb)
     assert all(
-        button[0]["callback_data"] != f"{paginator.callback_prefix}_previous"
+        button[0]["callback_data"] != f"{paginator.callback_prefix}:previous"
         for button in kb
     )
 
@@ -894,15 +843,15 @@ async def test_show_categories_callback(
 
     kb = message.reply_markup.model_dump().get("inline_keyboard")
     for button, i in zip(kb, range(1, page_limit + 1)):
-        assert button[0]["callback_data"] == f"category_id_{i}"
+        assert button[0]["callback_data"] == f"category_id:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
-    assert next_button["callback_data"] == f"{paginator.callback_prefix}_next"
+    assert next_button["callback_data"] == f"{paginator.callback_prefix}:next"
 
     assert all(button[0]["text"] != "Предыдущие" for button in kb)
     assert all(
-        button[0]["callback_data"] != f"{paginator.callback_prefix}_previous"
+        button[0]["callback_data"] != f"{paginator.callback_prefix}:previous"
         for button in kb
     )
 
@@ -910,9 +859,24 @@ async def test_show_categories_callback(
 @pytest.mark.asyncio
 async def test_show_category_control_options(create_test_data, requester):
     await requester.set_fsm_state(ShowCategories.show_many)
+
+    control_options_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=f"category_id:{TARGET_CATEGORY_ID}",
+        message=Message(
+            message_id=9,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="just_message",
+        ),
+    )
+
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=1, callback_query=show_category_control_options),
+        Update(update_id=1, callback_query=control_options_callback),
     )
 
     message = requester.read_last_sent_message()
