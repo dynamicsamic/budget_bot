@@ -47,27 +47,12 @@ press_cancel_callback = CallbackQuery(
         text=buttons.cancel_operation.text,
     ),
 )
-
 valid_category_name = Message(
     message_id=2,
     date=datetime.now(),
     from_user=user,
     chat=chat,
     text="salary",
-)
-invalid_category_name = Message(
-    message_id=2,
-    date=datetime.now(),
-    from_user=user,
-    chat=chat,
-    text="$alary",
-)
-existing_category_name = Message(
-    message_id=2,
-    date=datetime.now(),
-    from_user=user,
-    chat=chat,
-    text="category1",
 )
 valid_income_category_type = CallbackQuery(
     id="12345678",
@@ -126,19 +111,6 @@ show_invalid_categories_page_callback = CallbackQuery(
         from_user=user,
         chat=chat,
         text="Предыдущие",
-    ),
-)
-show_categories_callback = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="show_categories",
-    message=Message(
-        message_id=8,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text=buttons.show_categories.text,
     ),
 )
 delete_category = CallbackQuery(
@@ -265,6 +237,14 @@ async def test_create_category_set_invalid_name(create_test_data, requester):
     await requester.set_fsm_state(CreateCategory.set_name)
     ##############################################
 
+    invalid_category_name = Message(
+        message_id=2,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="$alary",
+    )
+
     await requester.make_request(
         SendMessage,
         Update(
@@ -289,6 +269,14 @@ async def test_create_category_set_existing_name(create_test_data, requester):
     ################ test setup ##################
     await requester.set_fsm_state(CreateCategory.set_name)
     ##############################################
+
+    existing_category_name = Message(
+        message_id=2,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text="category1",
+    )
 
     await requester.make_request(
         SendMessage,
@@ -815,6 +803,19 @@ async def test_show_categories_invalid_page(create_test_data, requester):
 async def test_show_categories_callback(
     create_test_data, requester, persistent_db_session
 ):
+    show_categories_callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data="show_categories",
+        message=Message(
+            message_id=8,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text=buttons.show_categories.text,
+        ),
+    )
     await requester.make_request(
         AnswerCallbackQuery,
         Update(update_id=1, callback_query=show_categories_callback),
@@ -858,8 +859,6 @@ async def test_show_categories_callback(
 
 @pytest.mark.asyncio
 async def test_show_category_control_options(create_test_data, requester):
-    await requester.set_fsm_state(ShowCategories.show_many)
-
     control_options_callback = CallbackQuery(
         id="12345678",
         from_user=user,
@@ -903,8 +902,6 @@ async def test_show_category_control_options(create_test_data, requester):
 async def test_show_category_control_options_invalid_type_id(
     create_test_data, requester
 ):
-    await requester.set_fsm_state(ShowCategories.show_many)
-
     invalid_type_id_callback = CallbackQuery(
         id="12345678",
         from_user=user,
@@ -938,10 +935,13 @@ async def test_show_category_control_options_invalid_type_id(
 async def test_delete_category_warn_user(
     persistent_db_session, create_test_data, requester
 ):
+    ################ test setup ##################
     await requester.set_fsm_state(ShowCategories.show_one)
+    ##############################################
+
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(update_id=1, callback_query=delete_category),
+        Update(update_id=2, callback_query=delete_category),
     )
 
     repository = CategoryRepository(persistent_db_session)
@@ -1075,7 +1075,9 @@ async def test_category_delete_switch_to_update(
 
 @pytest.mark.asyncio
 async def test_update_category_choose_attribute(create_test_data, requester):
+    ################ test setup ##################
     await requester.set_fsm_state(ShowCategories.show_one)
+    ##############################################
 
     choose_attribute_callback = CallbackQuery(
         id="12345678",
@@ -1119,8 +1121,10 @@ async def test_update_category_choose_attribute(create_test_data, requester):
 
 @pytest.mark.asyncio
 async def test_update_category_request_name(create_test_data, requester):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.choose_attribute)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    ##############################################
 
     request_name_callback = CallbackQuery(
         id="12345678",
@@ -1157,8 +1161,10 @@ async def test_update_category_request_name(create_test_data, requester):
 async def test_update_category_set_name(
     persistent_db_session, create_test_data, requester
 ):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_name)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    ##############################################
 
     repository = CategoryRepository(persistent_db_session)
     initial_category_name = repository.get_category(TARGET_CATEGORY_ID).name
@@ -1196,8 +1202,10 @@ async def test_update_category_set_name(
 async def test_update_category_set_invalid_name(
     persistent_db_session, create_test_data, requester
 ):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_name)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    ##############################################
 
     repository = CategoryRepository(persistent_db_session)
     initial_category_name = repository.get_category(TARGET_CATEGORY_ID).name
@@ -1231,8 +1239,10 @@ async def test_update_category_set_invalid_name(
 
 @pytest.mark.asyncio
 async def test_update_category_request_type(create_test_data, requester):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.choose_attribute)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    ##############################################
 
     request_type_callback = CallbackQuery(
         id="12345678",
@@ -1270,8 +1280,10 @@ async def test_update_category_request_type(create_test_data, requester):
 async def test_update_category_set_income_type(
     persistent_db_session, create_test_data, requester
 ):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_type)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    ##############################################
 
     set_income_type_callback = CallbackQuery(
         id="12345678",
@@ -1312,8 +1324,10 @@ async def test_update_category_set_income_type(
 async def test_update_category_set_expenses_type(
     persistent_db_session, create_test_data, requester
 ):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_type)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    ##############################################
 
     set_expenses_type_callback = CallbackQuery(
         id="12345678",
@@ -1354,9 +1368,11 @@ async def test_update_category_set_expenses_type(
 async def test_update_category_finish(
     persistent_db_session, create_test_data, requester
 ):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.choose_attribute)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
     await requester.update_fsm_state_data(category_name="updated")
+    ##############################################
 
     finish_category_update_callback = CallbackQuery(
         id="12345678",
@@ -1396,8 +1412,10 @@ async def test_update_category_finish(
 async def test_update_category_finish_without_changes(
     create_test_data, requester
 ):
+    ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.choose_attribute)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
+    ##############################################
 
     finish_category_update_callback = CallbackQuery(
         id="12345678",
