@@ -1,6 +1,9 @@
 from aiogram.types import InlineKeyboardButton
 
-from app.bot.callback_data import CategoryItemActionData
+from app.bot.callback_data import (
+    CategoryItemActionData,
+    delete_category,
+)
 
 signup_user = InlineKeyboardButton(
     text="Зарегистрировать аккаунт", callback_data="signup_user"
@@ -62,6 +65,6 @@ def switch_to_update_category(category_id: int):
 
 def confirm_delete_category(category_id: int):
     return InlineKeyboardButton(
-        text="Лучше изменить категорию",
-        callback_data=f"delete_category:{category_id}",
+        text="Все-таки удалить",
+        callback_data=f"{delete_category}:{category_id}",
     )

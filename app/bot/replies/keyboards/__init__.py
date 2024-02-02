@@ -9,6 +9,8 @@ from app.bot.callback_data import (
     CategoryItemActionData,
     EntryItemActionData,
     ReportTypeCallback,
+    category_id,
+    update_category,
 )
 from app.custom_types import _BaseModel
 from app.db import models
@@ -127,7 +129,7 @@ category_update_options = create_callback_buttons(
         "тип": "type",
         "завершить": "finish",
     },
-    callback_prefix="update_category",
+    callback_prefix=update_category,
 )
 
 
@@ -151,7 +153,7 @@ def paginated_category_item_list(
 ):
     return paginated_item_list(
         categories,
-        "category_id",
+        category_id,
         paginator,
         [buttons.create_new_category, buttons.main_menu],
     )
