@@ -9,6 +9,12 @@ from app import settings
 from app.db.models import CategoryType
 from app.exceptions import InvalidCallbackData, InvalidCategoryName
 from app.utils import validate_entry_date, validate_entry_sum
+from app.bot.callback_data import (
+    category_id,
+    paginated_categories_page,
+    select_category_type,
+    delete_category,
+)
 
 
 def get_suffix(string: str) -> str:
@@ -16,7 +22,7 @@ def get_suffix(string: str) -> str:
     return suffix
 
 
-class BudgetNameFilter(BaseFilter):
+class BudgetNameFilter(Filter):
     async def __call__(
         self, msg: Message | CallbackQuery
     ) -> dict[str, str | None]:
@@ -38,12 +44,11 @@ class BudgetNameFilter(BaseFilter):
 class CallbackQueryFilter(Filter):
     def __init__(
         self,
+        callback_prefix: str,
         get_context: Callable[[str], dict[str, Any] | None],
-        separator: str = ":",
     ) -> None:
+        self.callback_prefix = callback_prefix
         self.get_context = get_context
-        self.separator = separator
-        self.callback_prefix = ""
 
     async def __call__(self, callback: CallbackQuery) -> dict[str, Any] | bool:
         if suffix := self._get_callback_suffix(callback):
@@ -56,12 +61,10 @@ class CallbackQueryFilter(Filter):
         return False
 
     def _get_callback_suffix(self, callback: CallbackQuery) -> str | None:
-        *prefix, suffix = callback.data.rsplit(self.separator, maxsplit=1)
-
-        if prefix == []:
+        *body, suffix = callback.data.split(f"{self.callback_prefix}:")
+        if body == []:
             return
 
-        self.callback_prefix = prefix[0]
         return suffix
 
 
@@ -101,21 +104,21 @@ def get_category_id(category_id: str) -> dict[str, int] | None:
     return
 
 
-def get_confirm_or_cancel(confirm_or_cancel: str) -> dict[str, int] | None:
-    if confirm_or_cancel in ("confirm", "cancel"):
-        return {"confirm_or_cancel": confirm_or_cancel}
-    return
-
-
 CategoryNameFilter = PatternMatchMessageFilter(
     pattern=r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$",
     return_argname="category_name",
     exception_type=InvalidCategoryName,
 )
-CategoryTypeFilter = CallbackQueryFilter(get_category_type)
-CategoryIdFIlter = CallbackQueryFilter(get_category_id)
-SelectCategoryPageFilter = CallbackQueryFilter(get_next_category_page)
-CategoryDeleteConfirmFilter = CallbackQueryFilter(get_category_id)
+CategoryTypeFilter = CallbackQueryFilter(
+    select_category_type, get_category_type
+)
+CategoryIdFIlter = CallbackQueryFilter(category_id, get_category_id)
+SelectCategoryPageFilter = CallbackQueryFilter(
+    paginated_categories_page, get_next_category_page
+)
+CategoryDeleteConfirmFilter = CallbackQueryFilter(
+    delete_category, get_category_id
+)
 
 
 class GetEntryId(BaseFilter):
