@@ -1,9 +1,7 @@
 from aiogram.types import InlineKeyboardButton
 
-from app.bot.callback_data import (
-    CategoryItemActionData,
-    delete_category,
-)
+from app.bot.callback_data import CategoryItemActionData
+from app.bot.handlers.shared import delete_category
 
 signup_user = InlineKeyboardButton(
     text="Зарегистрировать аккаунт", callback_data="signup_user"

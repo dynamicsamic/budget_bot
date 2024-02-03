@@ -9,12 +9,10 @@ from app.bot.callback_data import (
     CategoryItemActionData,
     EntryItemActionData,
     ReportTypeCallback,
-    category_id,
-    update_category,
 )
 from app.custom_types import _BaseModel
 from app.db import models
-
+from app.bot.handlers import shared
 from .. import buttons
 
 signup_to_proceed = types.InlineKeyboardMarkup(
@@ -129,7 +127,7 @@ category_update_options = create_callback_buttons(
         "тип": "type",
         "завершить": "finish",
     },
-    callback_prefix=update_category,
+    callback_prefix=shared.update_category,
 )
 
 
@@ -153,7 +151,7 @@ def paginated_category_item_list(
 ):
     return paginated_item_list(
         categories,
-        category_id,
+        shared.category_id,
         paginator,
         [buttons.create_new_category, buttons.main_menu],
     )
