@@ -60,3 +60,12 @@ def show_update_summary(obj: _BaseModel) -> str:
 
 
 update_without_changes = "Обновление завершено без изменений"
+
+budget_currency_description = (
+    "Наименование валюты должно содержать от 3-х до 10-ти букв "
+    "(в любом регистре). Цифры и иные символы не допускаются.\n"
+    "Отдавайте предпочтение общепринятым сокращениям, например RUB или USD."
+)
+invalid_budget_currency_description = (
+    "Неверный формат обозначения валюты!\n" f"{budget_currency_description}"
+)
