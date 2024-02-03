@@ -8,17 +8,13 @@ from aiogram.types import CallbackQuery, Chat, Message, Update, User
 from app.bot.replies import keyboards, prompts, buttons
 from app.bot.callback_data import (
     CategoryItemActionData,
-    category_id,
-    select_category_type,
-    paginated_categories_page,
-    update_category,
 )
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.repository import CategoryRepository
 from app.db.models import CategoryType
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator
-
+from app.bot.handlers import shared
 from ..test_utils import CATEGORY_SAMPLE, TARGET_CATEGORY_ID, TARGET_USER_ID
 from .conftest import chat, second_chat, second_user, user
 
@@ -64,7 +60,7 @@ valid_income_category_type = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{select_category_type}:income",
+    data=f"{shared.select_category_type}:income",
     message=Message(
         message_id=4,
         date=datetime.now(),
@@ -84,7 +80,7 @@ show_next_categories_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{paginated_categories_page}:next",
+    data=f"{shared.shared.paginated_categories_page}:next",
     message=Message(
         message_id=6,
         date=datetime.now(),
@@ -97,7 +93,7 @@ show_previous_categories_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{paginated_categories_page}:previous",
+    data=f"{shared.shared.paginated_categories_page}:previous",
     message=Message(
         message_id=7,
         date=datetime.now(),
@@ -110,7 +106,7 @@ show_invalid_categories_page_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{paginated_categories_page}:invalid",
+    data=f"{shared.shared.paginated_categories_page}:invalid",
     message=Message(
         message_id=7,
         date=datetime.now(),
@@ -225,7 +221,7 @@ async def test_create_category_set_valid_name(create_test_data, requester):
     expected_text = "Выберите один из двух типов категорий"
     expected_markup = keyboards.create_callback_buttons(
         button_names={"Доходы": "income", "Расходы": "expenses"},
-        callback_prefix=select_category_type,
+        callback_prefix=shared.select_category_type,
     )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
@@ -373,7 +369,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{select_category_type}:expenses",
+        data=f"{shared.select_category_type}:expenses",
         message=Message(
             message_id=4,
             date=datetime.now(),
@@ -431,7 +427,7 @@ async def test_create_category_set_invalid_type_and_finish(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{select_category_type}:invalid",
+        data=f"{shared.select_category_type}:invalid",
         message=Message(
             message_id=4,
             date=datetime.now(),
@@ -575,7 +571,7 @@ async def test_show_categories_command(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
     )
     categories = CategoryRepository(persistent_db_session).get_user_categories(
         TARGET_USER_ID
@@ -624,7 +620,7 @@ async def test_show_categories_next_page(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
     )
     paginator.switch_next()
     categories = CategoryRepository(persistent_db_session).get_user_categories(
@@ -685,7 +681,7 @@ async def test_show_categories_last_page(
     )
     page_limit = 5
     paginator = OffsetPaginator(
-        paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
     )
     paginator.switch_next()
     paginator.switch_next()
@@ -750,7 +746,7 @@ async def test_show_categories_previous_page(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
     )
     categories = CategoryRepository(persistent_db_session).get_user_categories(
         TARGET_USER_ID
@@ -829,7 +825,7 @@ async def test_show_categories_callback(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
     )
     categories = CategoryRepository(persistent_db_session).get_user_categories(
         TARGET_USER_ID
@@ -870,7 +866,7 @@ async def test_show_category_control_options(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{category_id}:{TARGET_CATEGORY_ID}",
+        data=f"{shared.category_id}:{TARGET_CATEGORY_ID}",
         message=Message(
             message_id=9,
             date=datetime.now(),
@@ -914,7 +910,7 @@ async def test_show_category_control_options_invalid_type_id(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{category_id}:invalid",
+        data=f"{shared.category_id}:invalid",
         message=Message(
             message_id=9,
             date=datetime.now(),
@@ -1124,7 +1120,7 @@ async def test_update_category_request_name(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{update_category}:name",
+        data=f"{shared.update_category}:name",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1242,7 +1238,7 @@ async def test_update_category_request_type(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{update_category}:type",
+        data=f"{shared.update_category}:type",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1283,7 +1279,7 @@ async def test_update_category_set_income_type(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{select_category_type}:income",
+        data=f"{shared.select_category_type}:income",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1327,7 +1323,7 @@ async def test_update_category_set_expenses_type(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{select_category_type}:expenses",
+        data=f"{shared.select_category_type}:expenses",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1372,7 +1368,7 @@ async def test_update_category_finish(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{update_category}:finish",
+        data=f"{shared.update_category}:finish",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1415,7 +1411,7 @@ async def test_update_category_finish_without_changes(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{update_category}:finish",
+        data=f"{shared.update_category}:finish",
         message=Message(
             message_id=13,
             date=datetime.now(),
