@@ -2,19 +2,20 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.bot.replies import keyboards, buttons
+from app.bot.replies import keyboards, buttons, prompts
 from app.bot.filters import BudgetCurrencyFilter
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.bot.states import UserCreateState
 from app.db.models import User
 from app.db.repository import UserRepository
+from . import shared
 
 router = Router()
 router.callback_query.middleware(UserRepositoryMiddleWare())
 
 
 @router.callback_query(
-    F.data == "signup_user", flags={"allow_anonymous": True}
+    F.data == shared.signup_user, flags={"allow_anonymous": True}
 )
 async def signup_user(
     callback: CallbackQuery,
@@ -67,12 +68,10 @@ async def signup_user(
     F.data == "create_user_set_currency",
     flags={"allow_anonymous": True},
 )
-async def signup_user_get_currency(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(
-        "Наименование валюты должно содержать от 3-х до 10-ти букв "
-        "(в любом регистре). Цифры и иные символы не допускаются.\n"
-        "Отдавайте предпочтение общепринятым сокращениям, например RUB или USD."
-    )
+async def signup_user_request_currency(
+    callback: CallbackQuery, state: FSMContext
+):
+    await callback.message.answer(prompts.budget_currency_description)
     await state.set_state(UserCreateState.set_budget_currency)
     await callback.answer()
 
@@ -87,11 +86,7 @@ async def signup_user_set_currency(
 ):
     if filtered_budget_currency is None:
         await message.answer(
-            "Неверный формат обозначения валюты!\n"
-            "Наименование должно содержать от 3-х до 10-ти букв "
-            "(в любом регистре). Цифры и иные символы не допускаются.\n"
-            "Отдавайте предпочтение общепринятым сокращениям, например "
-            "RUB или USD.",
+            prompts.invalid_budget_currency_description,
             reply_markup=keyboards.button_menu(buttons.cancel_operation),
         )
         return

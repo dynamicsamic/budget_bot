@@ -7,8 +7,6 @@ from aiogram.fsm.context import FSMContext
 from app.bot.callback_data import (
     CategoryItemActionData,
     UpdateCategoryChooseAttribute,
-    paginated_categories_page,
-    select_category_type,
 )
 from app.bot.filters import (
     CategoryDeleteConfirmFilter,
@@ -24,6 +22,8 @@ from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator, aiogram_log_handler
+from . import shared
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(aiogram_log_handler)
@@ -35,7 +35,7 @@ router.message.middleware(CategoryRepositoryMiddleWare())
 router.callback_query.middleware(CategoryRepositoryMiddleWare())
 
 
-@router.message(Command("create_category"))
+@router.message(Command(shared.create_category_command))
 async def cmd_create_category(
     message: types.Message,
     state: FSMContext,
@@ -73,7 +73,7 @@ async def create_category_set_name(
         "Выберите один из двух типов категорий",
         reply_markup=keyboards.create_callback_buttons(
             button_names={"Доходы": "income", "Расходы": "expenses"},
-            callback_prefix=select_category_type,
+            callback_prefix=shared.select_category_type,
         ),
     )
 
@@ -113,7 +113,7 @@ async def create_category_set_type_and_finish(
     logger.info(f"SUCCESS, created new category: {created.render()}")
 
 
-@router.message(Command("show_categories"))
+@router.message(Command(shared.show_categories_command))
 async def cmd_show_categories(
     message: types.Message,
     state: FSMContext,
@@ -137,7 +137,7 @@ async def cmd_show_categories(
     else:
         category_count = repository.count_user_categories(user.id)
         paginator = OffsetPaginator(
-            paginated_categories_page, category_count, 5
+            shared.paginated_categories_page, category_count, 5
         )
         await message.answer(
             prompts.category_choose_action,
@@ -177,7 +177,6 @@ async def show_categories_page(
         ),
     )
     await state.update_data(paginator=paginator)
-    # await state.set_state(ShowCategories.show_many)
     logger.info(
         f"SUCCESS, show {paginator.page_limit} categories "
         f"starting from {paginator.current_offset + 1}"
@@ -332,7 +331,7 @@ async def update_category_request_type(
         "Выберите новый тип категории",
         reply_markup=keyboards.create_callback_buttons(
             button_names={"Доходы": "income", "Расходы": "expenses"},
-            callback_prefix="select_category_type",
+            callback_prefix=shared.select_category_type,
         ),
     )
     await state.set_state(UpdateCategory.update_type)
@@ -399,13 +398,13 @@ async def update_category_request_type(
     await callback.answer()
 
 
-@router.callback_query(F.data == "create_category")
+@router.callback_query(F.data == shared.create_category_callback)
 async def create_category(callback: types.CallbackQuery, state: FSMContext):
     await cmd_create_category(callback.message, state)
     await callback.answer()
 
 
-@router.callback_query(F.data == "show_categories")
+@router.callback_query(F.data == shared.show_categories_callback)
 async def show_categories(
     callback: types.CallbackQuery,
     state: FSMContext,

@@ -9,12 +9,7 @@ from app import settings
 from app.db.models import CategoryType
 from app.exceptions import InvalidCallbackData, InvalidCategoryName
 from app.utils import validate_entry_date, validate_entry_sum
-from app.bot.callback_data import (
-    category_id,
-    paginated_categories_page,
-    select_category_type,
-    delete_category,
-)
+from app.bot.handlers import shared
 
 
 def get_suffix(string: str) -> str:
@@ -110,14 +105,14 @@ CategoryNameFilter = PatternMatchMessageFilter(
     exception_type=InvalidCategoryName,
 )
 CategoryTypeFilter = CallbackQueryFilter(
-    select_category_type, get_category_type
+    shared.select_category_type, get_category_type
 )
-CategoryIdFIlter = CallbackQueryFilter(category_id, get_category_id)
+CategoryIdFIlter = CallbackQueryFilter(shared.category_id, get_category_id)
 SelectCategoryPageFilter = CallbackQueryFilter(
-    paginated_categories_page, get_next_category_page
+    shared.paginated_categories_page, get_next_category_page
 )
 CategoryDeleteConfirmFilter = CallbackQueryFilter(
-    delete_category, get_category_id
+    shared.delete_category, get_category_id
 )
 
 
