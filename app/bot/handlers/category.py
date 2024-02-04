@@ -262,7 +262,7 @@ async def update_category_choose_attribute(
 
     await state.set_state(UpdateCategory.choose_attribute)
     await state.set_data({"category_id": callback_data.category_id})
-    logger.info(f"SUCCESS")
+    logger.info("SUCCESS")
     await callback.answer()
 
 
@@ -281,7 +281,7 @@ async def update_category_request_name(
         ),
     )
     await state.set_state(UpdateCategory.update_name)
-    logger.info(f"SUCCESS")
+    logger.info("SUCCESS")
     await callback.answer()
 
 
@@ -335,7 +335,7 @@ async def update_category_request_type(
         ),
     )
     await state.set_state(UpdateCategory.update_type)
-    logger.info(f"SUCCESS")
+    logger.info("SUCCESS")
     await callback.answer()
 
 
@@ -368,7 +368,7 @@ async def update_category_set_type(
     UpdateCategory.choose_attribute,
     UpdateCategoryChooseAttribute.filter(F.attribute == "finish"),
 )
-async def update_category_request_type(
+async def update_category_finish(
     callback: types.CallbackQuery,
     state: FSMContext,
     repository: CategoryRepository,
