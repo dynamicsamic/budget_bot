@@ -33,10 +33,7 @@ async def signup_user(
     elif user.is_anonymous:
         await state.update_data(tg_id=callback.from_user.id)
         await callback.message.answer(
-            "Пожалуйста, выберите валюту бюджета."
-            "Для всех пользователей установлена валюта по умолчанию - RUB\n"
-            "Нажмите кнопку `Принять` для завершения регистрации."
-            "Нажмите кнопку `Изменить`, если желаете выбрать другую валюту.",
+            prompts.choose_budget_currency,
             reply_markup=keyboards.create_callback_buttons(
                 button_names={
                     "изменить": "set_currency",
