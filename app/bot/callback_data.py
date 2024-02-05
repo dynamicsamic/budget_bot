@@ -1,6 +1,10 @@
 from aiogram.filters.callback_data import CallbackData
 
 
+class SignupUserCallbackData(CallbackData, prefix="signup_user"):
+    action: str
+
+
 class ReportTypeCallback(CallbackData, prefix="report"):
     type: str
     period: str
