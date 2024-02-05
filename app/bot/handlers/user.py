@@ -1,21 +1,28 @@
+import logging
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.bot.replies import keyboards, buttons, prompts
+from app.bot.callback_data import SignupUserCallbackData
 from app.bot.filters import BudgetCurrencyFilter
 from app.bot.middlewares import UserRepositoryMiddleWare
+from app.bot.replies import buttons, keyboards, prompts
 from app.bot.states import UserCreateState
 from app.db.models import User
 from app.db.repository import UserRepository
-from . import shared
+from app.utils import aiogram_log_handler
+
+logger = logging.getLogger(__name__)
+logger.addHandler(aiogram_log_handler)
 
 router = Router()
 router.callback_query.middleware(UserRepositoryMiddleWare())
 
 
 @router.callback_query(
-    F.data == shared.signup_user, flags={"allow_anonymous": True}
+    SignupUserCallbackData.filter(F.action == "start"),
+    flags={"allow_anonymous": True},
 )
 async def signup_user(
     callback: CallbackQuery,
@@ -24,8 +31,7 @@ async def signup_user(
 ):
     if user.is_active:
         await callback.message.answer(
-            "Вы уже зарегистрированы в системе. "
-            "Вы можете продложить работу с ботом в главном меню.",
+            prompts.signup_active_user,
             reply_markup=keyboards.button_menu(buttons.main_menu),
         )
         return
@@ -39,16 +45,14 @@ async def signup_user(
                     "изменить": "set_currency",
                     "принять": "finish",
                 },
-                callback_prefix="create_user",
+                callback_prefix="signup_user",
             ),
         )
+        logger.info("start <signup_new_user> process")
 
     else:
         await callback.message.answer(
-            "Ранее Вы уже пользовались Бюджетным ботом, "
-            "но решили перестать им пользоваться."
-            "Вы можете продолжить работу со своими бюджетами, "
-            "нажав кнопку активации ниже.",
+            prompts.signup_inactive_user,
             reply_markup=keyboards.button_menu(
                 buttons.activate_user,
                 buttons.cancel_operation,
@@ -62,7 +66,7 @@ async def signup_user(
 
 @router.callback_query(
     UserCreateState.wait_for_action,
-    F.data == "create_user_set_currency",
+    SignupUserCallbackData.filter(F.action == "set_currency"),
     flags={"allow_anonymous": True},
 )
 async def signup_user_request_currency(
@@ -94,9 +98,9 @@ async def signup_user_set_currency(
         "Завершите регистрацию, нажав на кнопку Завершить.",
         reply_markup=keyboards.create_callback_buttons(
             button_names={
-                "Завершить": "finish",
+                "завершить": "finish",
             },
-            callback_prefix="create_user",
+            callback_prefix="signup_user",
         ),
     )
     await state.set_state(UserCreateState.wait_for_action)
@@ -104,7 +108,7 @@ async def signup_user_set_currency(
 
 @router.callback_query(
     UserCreateState.wait_for_action,
-    F.data == "create_user_finish",
+    SignupUserCallbackData.filter(F.action == "finish"),
     flags={"allow_anonymous": True},
 )
 async def signup_user_finish(
