@@ -1,8 +1,8 @@
 from aiogram.fsm.state import State, StatesGroup
 
 
-class UserCreateState(StatesGroup):
-    wait_for_action = State()
+class CreateUser(StatesGroup):
+    choose_action = State()
     set_budget_currency = State()
 
 
