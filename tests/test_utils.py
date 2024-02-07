@@ -5,7 +5,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncGenerator,
-    Coroutine,
     Deque,
     Dict,
     Optional,
@@ -122,44 +121,6 @@ def create_test_entries(db_session):
     ]
     db_session.add_all(positives + negatives)
     db_session.commit()
-
-
-def get_dispatcher_context(
-    dispatcher: Dispatcher,
-    bot: Bot,
-    chat: Chat,
-    user: AiogramUser,
-) -> FSMContext:
-    return dispatcher.fsm.get_context(bot, chat.id, user.id)
-
-
-async def get_dispatcher_state(
-    dispatcher: Dispatcher,
-    bot: Bot,
-    chat: Chat,
-    user: AiogramUser,
-) -> Coroutine[Any, Any, str | None]:
-    return await get_dispatcher_context(
-        dispatcher, bot, chat, user
-    ).get_state()
-
-
-async def get_dispatcher_state_data(
-    dispatcher: Dispatcher,
-    bot: Bot,
-    chat: Chat,
-    user: AiogramUser,
-) -> Coroutine[Any, Any, Dict[str, Any]]:
-    return await get_dispatcher_context(dispatcher, bot, chat, user).get_data()
-
-
-async def clear_dispatcher_state(
-    dispatcher: Dispatcher,
-    bot: Bot,
-    chat: Chat,
-    user: AiogramUser,
-) -> Coroutine[Any, Any, None]:
-    return await get_dispatcher_context(dispatcher, bot, chat, user).clear()
 
 
 @dataclass
