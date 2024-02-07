@@ -79,7 +79,7 @@ choose_budget_currency = (
 
 signup_active_user = (
     "Вы уже зарегистрированы в системе. "
-    "Вы можете продложить работу с ботом в главном меню.",
+    "Вы можете продложить работу с ботом в главном меню."
 )
 
 signup_inactive_user = (
@@ -88,3 +88,10 @@ signup_inactive_user = (
     "Вы можете продолжить работу со своими бюджетами, "
     "нажав кнопку активации ниже."
 )
+
+
+def signup_user_show_currency_and_finish(budget_currency: str) -> str:
+    return (
+        f"Валюта Вашего бюджета - `{budget_currency}`."
+        "Завершите регистрацию, нажав на кнопку Завершить."
+    )
