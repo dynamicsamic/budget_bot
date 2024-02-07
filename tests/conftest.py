@@ -83,6 +83,13 @@ def persistent_db_session():
 
 
 @pytest.fixture
+def create_test_tables():
+    Base.metadata.create_all(bind=test_engine)
+    yield
+    Base.metadata.drop_all(bind=test_engine)
+
+
+@pytest.fixture
 def create_test_data():
     Base.metadata.create_all(bind=test_engine)
     with db_session() as session:
