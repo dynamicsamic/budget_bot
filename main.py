@@ -4,7 +4,7 @@ import logging
 from app.bot import bot, dp
 from app.bot.handlers import router
 from app.db import test_engine
-from app.db.base import Base
+from app.db.models import Base
 
 logging.basicConfig(level=logging.INFO)
 
