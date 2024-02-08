@@ -5,8 +5,9 @@ from aiogram.filters import ExceptionTypeFilter
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.bot.replies import keyboards, prompts
+from app.bot.replies import prompts
 from app.bot.replies.buttons import cancel_operation
+from app.bot.replies.keyboards.base import button_menu
 from app.exceptions import (
     EmptyModelKwargs,
     InvalidCallbackData,
@@ -76,7 +77,7 @@ async def instance_duplicate_attempt_handler(error_event: types.ErrorEvent):
     await error_event.update.message.answer(
         f"{exception}. Придумайте новое значение и повторите попытку "
         "или прервите процедуру, нажав на кнопку отмены.",
-        reply_markup=keyboards.button_menu(cancel_operation),
+        reply_markup=button_menu(cancel_operation),
     )
     logger.info(
         f"User {exception.user_tg_id} triggered exception: {repr(exception)}"

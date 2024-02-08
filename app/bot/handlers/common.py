@@ -4,9 +4,11 @@ from aiogram import F, Router, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from app.bot.replies.keyboards import button_menu, cmd_report_kb, main_menu
-from app.bot.replies import buttons
 from app.bot.middlewares import UserRepositoryMiddleWare
+from app.bot.replies import buttons
+from app.bot.replies.keyboards.applied import cmd_report_kb, main_menu
+from app.bot.replies.keyboards.base import button_menu
+from app.bot.states import CreateUser
 from app.db.models import User
 from app.utils import aiogram_log_handler
 
@@ -25,9 +27,11 @@ async def cmd_test(message: types.Message, state: FSMContext):
 @router.message(Command("start"), flags={"allow_anonymous": True})
 async def cmd_start(
     message: types.Message,
+    state: FSMContext,
     user: User,
 ):
     if user.is_anonymous:
+        await state.set_state(CreateUser.choose_action)
         await message.answer(
             """Вас приветсвует Бюджетный Менеджер!
             Чтобы начать пользоваться менеджером, 
