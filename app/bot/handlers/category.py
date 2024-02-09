@@ -16,13 +16,19 @@ from app.bot.filters import (
     SelectCategoryPageFilter,
 )
 from app.bot.middlewares import CategoryRepositoryMiddleWare
-from app.bot.replies import buttons, prompts
-from app.bot.replies.keyboards.applied import (
-    category_item_choose_action,
-    category_update_options,
-    paginated_category_item_list,
-)
+from app.bot.replies import prompts
+from app.bot.replies.keyboards import buttons
 from app.bot.replies.keyboards.base import button_menu, create_callback_buttons
+from app.bot.replies.keyboards.category import (
+    categories_paginated_list,
+    category_choose_update_delete,
+    category_type_menu,
+    category_update_options,
+    create_category_menu,
+    delete_category_warning,
+    show_categories_menu,
+)
+from app.bot.replies.keyboards.common import switch_to_main_or_cancel
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository
@@ -49,7 +55,7 @@ async def cmd_create_category(
     await message.answer(
         "Введите название новой категории.\n"
         f"{prompts.category_name_description}",
-        reply_markup=button_menu(buttons.cancel_operation, buttons.main_menu),
+        reply_markup=switch_to_main_or_cancel,
     )
     await state.set_state(CreateCategory.set_name)
     logger.info("SUCCESS")
@@ -75,10 +81,7 @@ async def create_category_set_name(
 
     await message.answer(
         "Выберите один из двух типов категорий",
-        reply_markup=create_callback_buttons(
-            button_names={"Доходы": "income", "Расходы": "expenses"},
-            callback_prefix=shared.select_category_type,
-        ),
+        reply_markup=category_type_menu,
     )
 
     await state.update_data(category_name=category_name)
@@ -108,7 +111,7 @@ async def create_category_set_type_and_finish(
 
     await callback.message.answer(
         f"Вы успешно создали новую категорию: {created.render()}",
-        reply_markup=button_menu(buttons.show_categories, buttons.main_menu),
+        reply_markup=show_categories_menu,
     )
     await state.clear()
     await callback.answer()
@@ -127,10 +130,7 @@ async def cmd_show_categories(
         await message.answer(
             "У вас пока нет созданных категорий.\n"
             "Создайте категорию, нажав на кнопку ниже.",
-            reply_markup=button_menu(
-                buttons.create_new_category,
-                buttons.main_menu,
-            ),
+            reply_markup=create_category_menu,
         )
         logger.info(
             "FAILURE, no categories to show, redirect to create_category"
@@ -143,7 +143,7 @@ async def cmd_show_categories(
         )
         await message.answer(
             prompts.category_choose_action,
-            reply_markup=paginated_category_item_list(
+            reply_markup=categories_paginated_list(
                 categories.result, paginator
             ),
         )
@@ -174,9 +174,7 @@ async def show_categories_page(
     )
     await callback.message.answer(
         prompts.category_choose_action,
-        reply_markup=paginated_category_item_list(
-            categories.result, paginator
-        ),
+        reply_markup=categories_paginated_list(categories.result, paginator),
     )
     await state.update_data(paginator=paginator)
     logger.info(
@@ -192,7 +190,7 @@ async def show_category_control_options(
     await state.clear()  # remove paginator from state data
     await callback.message.answer(
         "Выберите действие",
-        reply_markup=category_item_choose_action(category_id),
+        reply_markup=category_choose_update_delete(category_id),
     )
     await state.set_state(ShowCategories.show_one)
     logger.info("SUCCESS")
@@ -214,10 +212,7 @@ async def delete_category_warn_user(
 
     await callback.message.answer(
         prompts.show_delete_category_warning(category.name, entry_count),
-        reply_markup=button_menu(
-            buttons.switch_to_update_category(category_id),
-            buttons.confirm_delete_category(category_id),
-        ),
+        reply_markup=delete_category_warning(category_id),
     )
     logger.info("SUCCESS")
     await callback.answer()
@@ -236,7 +231,7 @@ async def delete_category_confirm(
     repository.delete_category(category_id)
     await callback.message.answer(
         prompts.confirm_category_deleted,
-        reply_markup=button_menu(buttons.show_categories, buttons.main_menu),
+        reply_markup=show_categories_menu,
     )
 
     await state.clear()
@@ -276,7 +271,7 @@ async def update_category_request_name(
     await callback.message.answer(
         "Введите новое название категории"
         f"{prompts.category_name_description}",
-        reply_markup=button_menu(buttons.cancel_operation, buttons.main_menu),
+        reply_markup=switch_to_main_or_cancel,
     )
     await state.set_state(UpdateCategory.update_name)
     logger.info("SUCCESS")

@@ -5,9 +5,15 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from app.bot.middlewares import UserRepositoryMiddleWare
-from app.bot.replies import buttons
-from app.bot.replies.keyboards.applied import cmd_report_kb, main_menu
-from app.bot.replies.keyboards.base import button_menu
+from app.bot.replies.keyboards.common import (
+    show_main_menu,
+    switch_to_main_or_cancel,
+)
+from app.bot.replies.keyboards.entry import cmd_report_kb
+from app.bot.replies.keyboards.user import (
+    user_activation_menu,
+    user_signup_menu,
+)
 from app.bot.states import CreateUser
 from app.db.models import User
 from app.utils import aiogram_log_handler
@@ -37,7 +43,7 @@ async def cmd_start(
             Чтобы начать пользоваться менеджером, 
             создайте новый бюджет в нужной вам валюте и несколько категорий
             доходов и расходов для удобства.""",
-            reply_markup=button_menu(buttons.signup_user),
+            reply_markup=user_signup_menu,
         )
     elif not user.is_active:
         await message.answer(
@@ -45,14 +51,14 @@ async def cmd_start(
             Чтобы возобновить работу с менеджером, 
             нажмите на кнопку `Активировать`.
             """,
-            reply_markup=button_menu(buttons.activate_user),
+            reply_markup=user_activation_menu,
         )
     else:
         await message.answer(
             """С возвращением в Бюджетный Менеджер!
             Продолжите работу в главном меню.
             """,
-            reply_markup=button_menu(buttons.main_menu),
+            reply_markup=switch_to_main_or_cancel,
         )
 
 
@@ -75,9 +81,9 @@ async def cancel(callback: types.CallbackQuery, state: FSMContext):
     logger.info("SUCCESS, operation canceled, state cleared")
 
 
-@router.message(Command("show_menu"))
+@router.message(Command("show_main_menu"))
 async def cmd_show_menu(message: types.Message):
-    await message.answer("Основное меню", reply_markup=main_menu.as_markup())
+    await message.answer("Основное меню", reply_markup=show_main_menu)
 
 
 @router.message(Command("get_report"))
