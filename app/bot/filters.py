@@ -6,34 +6,19 @@ from aiogram.filters import BaseFilter, Filter
 from aiogram.types import CallbackQuery, Message
 
 from app import settings
-from app.db.models import CategoryType
-from app.exceptions import InvalidCallbackData, InvalidCategoryName
-from app.utils import validate_entry_date, validate_entry_sum
 from app.bot.handlers import shared
+from app.db.models import CategoryType
+from app.exceptions import (
+    InvalidBudgetCurrency,
+    InvalidCallbackData,
+    InvalidCategoryName,
+)
+from app.utils import validate_entry_date, validate_entry_sum
 
 
 def get_suffix(string: str) -> str:
     *_, suffix = string.rsplit("_", maxsplit=1)
     return suffix
-
-
-class BudgetNameFilter(Filter):
-    async def __call__(
-        self, msg: Message | CallbackQuery
-    ) -> dict[str, str | None]:
-        user_input = (
-            msg.text
-            if isinstance(msg, Message)
-            else CallbackQuery.message.text
-        )
-
-        context = {"filtered_budget_name": None}
-
-        valid_name_pattern = r"^[A-Za-zА-Яа-я0-9-_]{4,25}$"
-        if re.match(valid_name_pattern, user_input):
-            context["filtered_budget_name"] = user_input
-
-        return context
 
 
 class CallbackQueryFilter(Filter):
@@ -98,6 +83,12 @@ def get_category_id(category_id: str) -> dict[str, int] | None:
         return {"category_id": int(category_id)}
     return
 
+
+BudgetCurrencyFilter = PatternMatchMessageFilter(
+    pattern=r"^[A-Za-zА-Яа-я]{3,10}$",
+    return_argname="budget_currency",
+    exception_type=InvalidBudgetCurrency,
+)
 
 CategoryNameFilter = PatternMatchMessageFilter(
     pattern=r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$",
@@ -171,23 +162,3 @@ class EntryDateFilter(BaseFilter):
             "transaction_date": transaction_date,
             "error_message": error_message,
         }
-
-
-class BudgetCurrencyFilter(BaseFilter):
-    async def __call__(
-        self, msg: Message | CallbackQuery
-    ) -> dict[str, str | None]:
-        user_input = (
-            msg.text
-            if isinstance(msg, Message)
-            else CallbackQuery.message.text
-        )
-
-        context = {"filtered_budget_currency": None}
-
-        valid_currency_pattern = r"^[A-Za-zА-Яа-я]{3,10}$"
-
-        if re.match(valid_currency_pattern, user_input):
-            context["filtered_budget_currency"] = user_input
-
-        return context
