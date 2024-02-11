@@ -8,8 +8,10 @@ from aiogram.dispatcher.flags import get_flag
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app import settings
-from app.bot.replies import buttons
-from app.bot.replies.keyboards.base import button_menu
+from app.bot.replies.keyboards.user import (
+    user_activation_menu,
+    user_signup_menu,
+)
 from app.db import db_session
 from app.db.repository import (
     CategoryRepository,
@@ -40,13 +42,22 @@ def AnonymousUser():
     return anonymous(-1, -1, False, True, -1, -1)
 
 
-async def redirect_handler(event: TelegramObject, *_, **__):
-    message = event.message if isinstance(event, CallbackQuery) else event
+async def redirect_inactive_user(event: TelegramObject, *_, **__):
+    message = event if isinstance(event, Message) else event.message
 
     await message.answer(
-        "Для работы с ботом, зарегистрируйтесь или активируйте Ваш аккаунт, "
-        "выбрав одну из кнопок ниже.",
-        reply_markup=button_menu(buttons.signup_user, buttons.activate_user),
+        "Для работы с ботом, активируйте Ваш аккаунт, нажав на кнопку ниже.",
+        reply_markup=user_activation_menu,
+    )
+    logger.info("SUCCESS: anonymous user redirected")
+
+
+async def redirect_anonymous_user(event: TelegramObject, *_, **__):
+    message = event if isinstance(event, Message) else event.message
+
+    await message.answer(
+        "Для работы с ботом, зарегистрируйтесь, нажав на кнопку ниже.",
+        reply_markup=user_signup_menu,
     )
     logger.info("SUCCESS: anonymous user redirected")
 
@@ -115,7 +126,9 @@ class RedirectAnonymousUserMiddleWare(BaseMiddleware):
         user = data.get("user")
 
         if not user.is_active and not allow_anonymous:
-            return await redirect_handler(event, data)
+            if user.is_anonymous:
+                return await redirect_anonymous_user(event, data)
+            return await redirect_inactive_user(event, data)
 
         return await handler(event, data)
 
