@@ -1,5 +1,13 @@
-signup_user = "signup_user"
+start_command = "start"
+cancel_command = "cancel"
+show_main_menu_command = "show_main_menu"
+cancel_callback = cancel_command
+show_main_menu_callback = show_main_menu_command
 
+signup_user = "signup_user"
+activate_user = "activate_user"
+delete_user = "delete_user"
+update_user = "update_user"
 create_category_command = "create_category"
 show_categories_command = "show_categories"
 create_category_callback = create_category_command

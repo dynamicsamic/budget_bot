@@ -4,19 +4,19 @@ from app.bot.callback_data import (
     CategoryItemActionData,
     SignupUserCallbackData,
 )
-from app.bot.handlers.shared import delete_category
+from app.bot.handlers import shared
 
 ##############
 ### COMMON ###
 ##############
 
 cancel_operation = InlineKeyboardButton(
-    text="Отменить действие", callback_data="cancel"
+    text="Отменить действие", callback_data=shared.cancel_callback
 )
 
 switch_to_main_menu = InlineKeyboardButton(
     text="🔙 Вернуться в главное меню",
-    callback_data="main_menu_return",
+    callback_data=shared.show_main_menu_callback,
 )
 
 
@@ -30,11 +30,11 @@ signup_user = InlineKeyboardButton(
 )
 
 activate_user = InlineKeyboardButton(
-    text="Активировать аккаунт", callback_data="activate_user"
+    text="Активировать аккаунт", callback_data=shared.activate_user
 )
 
 delete_user = InlineKeyboardButton(
-    text="Удалить аккаунт", callback_data="delete_user"
+    text="Удалить аккаунт", callback_data=shared.delete_user
 )
 
 show_user_profile = InlineKeyboardButton(
@@ -75,7 +75,7 @@ def switch_to_update_category(category_id: int):
 def confirm_delete_category(category_id: int):
     return InlineKeyboardButton(
         text="Все-таки удалить",
-        callback_data=f"{delete_category}:{category_id}",
+        callback_data=f"{shared.delete_category}:{category_id}",
     )
 
 
