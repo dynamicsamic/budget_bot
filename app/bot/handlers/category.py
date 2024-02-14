@@ -43,8 +43,8 @@ logger.addHandler(aiogram_log_handler)
 
 router = Router()
 
-router.message.middleware(CategoryRepositoryMiddleWare())
-router.callback_query.middleware(CategoryRepositoryMiddleWare())
+router.message.middleware(CategoryRepositoryMiddleWare)
+router.callback_query.middleware(CategoryRepositoryMiddleWare)
 
 
 @router.message(Command(shared.create_category_command))
@@ -115,7 +115,7 @@ async def create_category_set_type_and_finish(
     )
     await state.clear()
     await callback.answer()
-    logger.info(f"SUCCESS, created new category: {created.render()}")
+    logger.info(f"SUCCESS, new category created: {created}")
 
 
 @router.message(Command(shared.show_categories_command))

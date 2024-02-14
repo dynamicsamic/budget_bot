@@ -6,14 +6,13 @@ from aiogram.fsm.context import FSMContext
 
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.bot.replies import prompts
-from app.bot.replies.keyboards.common import (
-    show_main_menu,
-    switch_to_main_or_cancel,
-)
 from app.bot.replies.keyboards.entry import cmd_report_kb
-from app.bot.replies.keyboards.user import (
-    user_activation_menu,
-    user_signup_menu,
+from app.bot.replies.templates import (
+    cancel_operation,
+    main_menu,
+    start_message_active,
+    start_message_anonymous,
+    start_message_inactive,
 )
 from app.bot.states import CreateUser
 from app.db.models import User
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(aiogram_log_handler)
 
 router = Router()
-router.message.middleware(UserRepositoryMiddleWare())
+router.message.middleware(UserRepositoryMiddleWare)
 
 
 @router.message(Command("test"))
@@ -41,20 +40,11 @@ async def cmd_start(
 ):
     if user.is_anonymous:
         await state.set_state(CreateUser.start)
-        await message.answer(
-            prompts.start_message_anonymous,
-            reply_markup=user_signup_menu,
-        )
+        await message.answer(**start_message_anonymous)
     elif not user.is_active:
-        await message.answer(
-            prompts.start_message_inactive,
-            reply_markup=user_activation_menu,
-        )
+        await message.answer(**start_message_inactive)
     else:
-        await message.answer(
-            prompts.start_message_active,
-            reply_markup=switch_to_main_or_cancel,
-        )
+        await message.answer(**start_message_active)
 
 
 @router.message(Command(shared.cancel_command))
@@ -70,17 +60,14 @@ async def cmd_cancel(message: types.Message, state: FSMContext):
 @router.callback_query(F.data.casefold() == shared.cancel_callback)
 async def cancel(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer(
-        text=prompts.cancel_operation_note,
-        reply_markup=types.ReplyKeyboardRemove(),
-    )
+    await callback.message.answer(**cancel_operation)
     await callback.answer()
     logger.info("SUCCESS, operation canceled, state cleared")
 
 
 @router.message(Command(shared.show_main_menu_command))
 async def cmd_show_menu(message: types.Message):
-    await message.answer(prompts.main_menu_note, reply_markup=show_main_menu)
+    await message.answer(**main_menu)
     logger.info("SUCCESS")
 
 
