@@ -15,6 +15,7 @@ from app.bot.replies.keyboards.user import (
 from app.db import db_session
 from app.db.repository import (
     CategoryRepository,
+    CommonRepository,
     EntryRepository,
     UserRepository,
     get_user,
@@ -98,19 +99,10 @@ class IdentifyUserMiddleWare(BaseMiddleware):
         event: CallbackQuery | Message,
         data: Dict[str, Any],
     ) -> Any:
-        session = data.get("db_session")
-        if session is not None and session.is_active:
-            user = get_user(session, tg_id=event.from_user.id)
-            if user is None:
-                user = AnonymousUser()
-            data["user"] = user
-
-        else:
-            with db_session() as session:
-                user = get_user(session, tg_id=event.from_user.id)
-                if user is None:
-                    user = AnonymousUser()
-                data["user"] = user
+        with db_session(existing_session=data.get("db_session")) as session:
+            data["user"] = (
+                get_user(session, tg_id=event.from_user.id) or AnonymousUser()
+            )
 
         return await handler(event, data)
 
@@ -133,51 +125,31 @@ class RedirectAnonymousUserMiddleWare(BaseMiddleware):
         return await handler(event, data)
 
 
-class UserRepositoryMiddleWare(BaseMiddleware):
+class RepositoryMiddleware(BaseMiddleware):
+    def __init__(self, **repositories: CommonRepository):
+        if not repositories:
+            return  # TODO: raise exception
+        self.repositories = repositories
+
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
         event: CallbackQuery | Message,
         data: Dict[str, Any],
     ) -> Any:
-        session = data.get("db_session")
-        if session is not None and session.is_active:
-            data["repository"] = UserRepository(session)
-        else:
-            with db_session() as session:
-                data["repository"] = UserRepository(session)
-        return await handler(event, data)
+        return await handler(event, self._add_repositories(data))
+
+    def _add_repositories(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        with db_session(existing_session=data.get("db_session")) as session:
+            for name, repo in self.repositories.items():
+                data[name] = repo(session)
+        return data
 
 
-class CategoryRepositoryMiddleWare(BaseMiddleware):
-    async def __call__(
-        self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
-        event: CallbackQuery | Message,
-        data: Dict[str, Any],
-    ) -> Any:
-        session = data.get("db_session")
-        if session is not None and session.is_active:
-            data["repository"] = CategoryRepository(session)
-        else:
-            with db_session() as session:
-                data["repository"] = CategoryRepository(session)
-        return await handler(event, data)
-
-
-class EntryRepositoryMiddleWare(BaseMiddleware):
-    async def __call__(
-        self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
-        event: CallbackQuery | Message,
-        data: Dict[str, Any],
-    ) -> Any:
-        session = data.get("db_session")
-        if session is not None and session.is_active:
-            data["ca_repository"] = CategoryRepository(session)
-            data["en_repository"] = EntryRepository(session)
-        else:
-            with db_session() as session:
-                data["ca_repository"] = CategoryRepository(session)
-                data["en_repository"] = EntryRepository(session)
-        return await handler(event, data)
+UserRepositoryMiddleWare = RepositoryMiddleware(repository=UserRepository)
+CategoryRepositoryMiddleWare = RepositoryMiddleware(
+    repository=CategoryRepository
+)
+EntryRepositoryMiddleWare = RepositoryMiddleware(
+    category_repo=CategoryRepository, entry_repo=EntryRepository
+)
