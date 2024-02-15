@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 from aiogram.methods import AnswerCallbackQuery, SendMessage
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove, Update
+from aiogram.types import CallbackQuery, Message, Update
 
 from app.bot.handlers.shared import (
     cancel_callback,
@@ -11,14 +11,12 @@ from app.bot.handlers.shared import (
     show_main_menu_command,
     start_command,
 )
-from app.bot.replies import prompts
-from app.bot.replies.keyboards.common import (
-    show_main_menu,
-    switch_to_main_or_cancel,
-)
-from app.bot.replies.keyboards.user import (
-    user_activation_menu,
-    user_signup_menu,
+from app.bot.replies.templates.common import (
+    cancel_operation,
+    main_menu,
+    start_message_active,
+    start_message_anonymous,
+    start_message_inactive,
 )
 from app.bot.states import CreateUser
 from app.db.repository import UserRepository
@@ -43,8 +41,8 @@ async def test_anonymous_user_start_command(create_test_tables, requester):
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.start_message_anonymous
-    assert message.reply_markup == user_signup_menu
+    assert message.text == start_message_anonymous["text"]
+    assert message.reply_markup == start_message_anonymous["reply_markup"]
 
     state = await requester.get_fsm_state()
     assert state == CreateUser.start
@@ -57,8 +55,8 @@ async def test_active_user_start_command(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.start_message_active
-    assert message.reply_markup == switch_to_main_or_cancel
+    assert message.text == start_message_active["text"]
+    assert message.reply_markup == start_message_active["reply_markup"]
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -76,8 +74,8 @@ async def test_inactive_user_start_command(
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.start_message_inactive
-    assert message.reply_markup == user_activation_menu
+    assert message.text == start_message_inactive["text"]
+    assert message.reply_markup == start_message_inactive["reply_markup"]
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -98,8 +96,8 @@ async def test_cancel_command(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.cancel_operation_note
-    assert message.reply_markup == ReplyKeyboardRemove()
+    assert message.text == cancel_operation["text"]
+    assert message.reply_markup == cancel_operation["reply_markup"]
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -127,8 +125,8 @@ async def test_cancel_callback(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.cancel_operation_note
-    assert message.reply_markup == ReplyKeyboardRemove()
+    assert message.text == cancel_operation["text"]
+    assert message.reply_markup == cancel_operation["reply_markup"]
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -149,8 +147,8 @@ async def test_show_main_menu_command(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.main_menu_note
-    assert message.reply_markup == show_main_menu
+    assert message.text == main_menu["text"]
+    assert message.reply_markup == main_menu["reply_markup"]
 
 
 @pytest.mark.asyncio
@@ -175,8 +173,8 @@ async def test_show_main_menu_callback(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.main_menu_note
-    assert message.reply_markup == show_main_menu
+    assert message.text == main_menu["text"]
+    assert message.reply_markup == main_menu["reply_markup"]
 
     state = await requester.get_fsm_state()
     assert state is None
