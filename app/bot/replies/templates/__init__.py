@@ -7,11 +7,17 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
-from app.bot.replies import prompts
-from app.bot.replies.keyboards import common, user
-
 
 class Template:
+    """Container type wrapper for args passed to aiogram Message methods.
+
+    Intended to be used in `message.answer` or `callback.message.answer`
+    or `message.reply` and such.
+
+    Supports unpacking (`**template`), iterating (`for i,j in template`)
+    and indexing (`template[key]`)
+    """
+
     def __init__(
         self,
         text: str,
@@ -39,18 +45,3 @@ class Template:
 
     def keys(self):
         return self._properties.keys()
-
-
-start_message_anonymous = Template(
-    prompts.start_message_anonymous, user.user_signup_menu
-)
-start_message_inactive = Template(
-    prompts.start_message_inactive, user.user_activation_menu
-)
-start_message_active = Template(
-    prompts.start_message_active, common.switch_to_main_or_cancel
-)
-cancel_operation = Template(
-    prompts.cancel_operation_note, ReplyKeyboardRemove()
-)
-main_menu = Template(prompts.main_menu_note, common.show_main_menu)
