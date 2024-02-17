@@ -2,8 +2,9 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class CreateUser(StatesGroup):
-    choose_action = State()
-    set_budget_currency = State()
+    choose_signup_type = State()
+    advanced_signup = State()
+    get_budget_currency = State()
 
 
 class CreateCategory(StatesGroup):

@@ -33,7 +33,7 @@ async def cmd_start(
     user: User,
 ):
     if user.is_anonymous:
-        await state.set_state(CreateUser.start)
+        await state.set_state(CreateUser.choose_signup_type)
         await message.answer(**start_message_anonymous)
     elif not user.is_active:
         await message.answer(**start_message_inactive)
