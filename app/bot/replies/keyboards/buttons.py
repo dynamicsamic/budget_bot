@@ -33,6 +33,10 @@ activate_user = InlineKeyboardButton(
     text="Активировать аккаунт", callback_data=shared.activate_user
 )
 
+update_user = InlineKeyboardButton(
+    text="Изменить данные аккаунта", callback_data=shared.update_user
+)
+
 delete_user = InlineKeyboardButton(
     text="Удалить аккаунт", callback_data=shared.delete_user
 )
@@ -49,11 +53,6 @@ show_user_profile = InlineKeyboardButton(
 create_category = InlineKeyboardButton(
     text="🟢 Создать новую категорию",
     callback_data="create_category",
-)
-
-create_entry = InlineKeyboardButton(
-    text="🟢 Создать новую транзакцию",
-    callback_data="entry_create",
 )
 
 
@@ -89,4 +88,9 @@ entry_menu = InlineKeyboardButton(
 
 report_menu = InlineKeyboardButton(
     text="📋 Отчеты", callback_data="report_menu"
+)
+
+create_entry = InlineKeyboardButton(
+    text="🟢 Создать новую транзакцию",
+    callback_data="entry_create",
 )
