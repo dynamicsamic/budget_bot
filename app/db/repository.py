@@ -442,7 +442,7 @@ class CommonRepository:
             )
             raise EmptyModelKwargs(f"{self.model.get_tablename()}")
 
-        model_fields = self.model.fields
+        model_fields = self.model.fields()
 
         for arg, value in kwargs.items():
             field = model_fields.get(arg)

@@ -33,10 +33,10 @@ def test_abstract_base_model_attributes_have_correct_sqlalchemy_types():
 
 
 def test_abstract_base_model_has_fields_details_attributes():
-    assert isinstance(abstract_object.fields, dict)
-    assert isinstance(abstract_object.fieldtypes, dict)
-    assert isinstance(abstract_object.fieldnames, set)
-    assert isinstance(abstract_object.primary_keys, set)
+    assert isinstance(abstract_object.fields(), dict)
+    assert isinstance(abstract_object.fieldtypes(), dict)
+    assert isinstance(abstract_object.fieldnames(), set)
+    assert isinstance(abstract_object.primary_keys(), set)
 
 
 def test_abstract_base_model_fields_attribute():
@@ -45,7 +45,7 @@ def test_abstract_base_model_fields_attribute():
         "created_at": AbstractSubclass.created_at,
         "last_updated": AbstractSubclass.last_updated,
     }
-    assert expected_fields == abstract_object.fields
+    assert expected_fields == abstract_object.fields()
 
 
 def test_abstract_base_model_fieldtypes_attribute():
@@ -54,17 +54,17 @@ def test_abstract_base_model_fieldtypes_attribute():
         "created_at": AbstractSubclass.created_at.type,
         "last_updated": AbstractSubclass.last_updated.type,
     }
-    assert expected_fieldtypes == abstract_object.fieldtypes
+    assert expected_fieldtypes == abstract_object.fieldtypes()
 
 
 def test_abstract_base_model_fieldnames_attribute():
     expected_fieldnames = {"id", "created_at", "last_updated"}
-    assert abstract_object.fieldnames == expected_fieldnames
+    assert abstract_object.fieldnames() == expected_fieldnames
 
 
 def test_abstract_base_model_primary_keys():
     expected_primary_keys = {"id"}
-    assert abstract_object.primary_keys == expected_primary_keys
+    assert abstract_object.primary_keys() == expected_primary_keys
 
 
 def test_abstract_base_model_public_name_attribute():
@@ -138,7 +138,7 @@ def test_user_class_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    assert User.fieldnames == expected_fieldnames
+    assert User.fieldnames() == expected_fieldnames
 
 
 def test_user_fields_has_doc_attributes():
@@ -246,7 +246,7 @@ def test_category_model_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    assert Category.fieldnames == expected_fieldnames
+    assert Category.fieldnames() == expected_fieldnames
 
 
 def test_category_fields_has_doc_attributes():
@@ -360,7 +360,7 @@ def test_entry_model_has_expected_fields():
         "created_at",
         "last_updated",
     }
-    assert Entry.fieldnames == expected_fieldnames
+    assert Entry.fieldnames() == expected_fieldnames
 
 
 def test_entry_fields_has_doc_attributes():

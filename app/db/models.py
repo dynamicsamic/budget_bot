@@ -30,7 +30,6 @@ class ModelFieldsDetails:
     """Mixin that adds information about actual sqlalchemy model fields."""
 
     @classmethod
-    @property
     def fields(cls) -> dict[str, Type[QueryableAttribute]]:
         """Get actual model fields and their attribute classes."""
         return {
@@ -41,27 +40,24 @@ class ModelFieldsDetails:
         }
 
     @classmethod
-    @property
     def fieldtypes(cls) -> dict[str, _SQLAlchemyDataType]:
         """Get actual model fields and their attribute sqlalchemy types."""
         return {
             attr_name: attr_obj.type
-            for attr_name, attr_obj in cls.fields.items()
+            for attr_name, attr_obj in cls.fields().items()
         }
 
     @classmethod
-    @property
     def fieldnames(cls) -> set[str]:
         """Get actual model field names."""
-        return set(cls.fields.keys())
+        return set(cls.fields().keys())
 
     @classmethod
-    @property
     def primary_keys(cls) -> set[str]:
         """Get actual model's primary keys."""
         return {
             fieldname
-            for fieldname, field_obj in cls.fields.items()
+            for fieldname, field_obj in cls.fields().items()
             if getattr(field_obj, "primary_key")
         }
 
@@ -146,6 +142,9 @@ class User(AbstractBaseModel):
             f"{self.__class__.__name__}(Id={self.id}, TelegramId={self.tg_id}, "
             f"Currency={self.budget_currency}, IsActive={self.is_active})"
         )
+
+    def render(self) -> str:
+        return f"Telegram id {self.tg_id}, валюта {self.budget_currency}"
 
 
 class Category(AbstractBaseModel):
