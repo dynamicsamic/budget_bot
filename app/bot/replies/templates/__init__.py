@@ -28,11 +28,13 @@ class Template:
             | ForceReply
             | None
         ) = None,
-        /,
         **kwargs: Any,
     ):
         self._properties = kwargs
         self._properties.update(text=text, reply_markup=reply_markup)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._properties
 
     def __getitem__(self, key) -> Any:
         return self._properties.get(key)
@@ -42,6 +44,9 @@ class Template:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._properties})"
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._properties[key] = value
 
     def keys(self):
         return self._properties.keys()
