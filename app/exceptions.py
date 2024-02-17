@@ -116,3 +116,7 @@ class InvalidCallbackData(BotException):
 
 class InvalidCategoryName(BotException):
     pass
+
+
+class InvalidBudgetCurrency(BotException):
+    pass

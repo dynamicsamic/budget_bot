@@ -6,10 +6,11 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.bot.replies import prompts
-from app.bot.replies.buttons import cancel_operation
 from app.bot.replies.keyboards.base import button_menu
+from app.bot.replies.keyboards.buttons import cancel_operation
 from app.exceptions import (
     EmptyModelKwargs,
+    InvalidBudgetCurrency,
     InvalidCallbackData,
     InvalidCategoryName,
     InvalidModelArgType,
@@ -60,6 +61,14 @@ async def serverside_error_handler(
 
     await message.answer(prompts.serverside_error_response)
     await state.clear()
+
+
+@router.errors(ExceptionTypeFilter(InvalidBudgetCurrency))
+async def invalid_budget_currency_handler(error_event: types.ErrorEvent):
+    await error_event.update.message.answer(
+        "Недопустимая валюта." f"{prompts.budget_currency_description}"
+    )
+    logger.info(f"Invalid user input triggered {error_event.exception}")
 
 
 @router.errors(ExceptionTypeFilter(InvalidCategoryName))
