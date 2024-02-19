@@ -7,6 +7,10 @@ class CreateUser(StatesGroup):
     get_budget_currency = State()
 
 
+class UpdateUser(StatesGroup):
+    budget_currency = State()
+
+
 class CreateCategory(StatesGroup):
     set_name = State()
     set_type = State()
