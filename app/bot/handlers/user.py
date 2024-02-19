@@ -8,7 +8,7 @@ from app.bot.callback_data import SignupUserCallbackData
 from app.bot.filters import BudgetCurrencyFilter
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.bot.replies.templates import user as ust
-from app.bot.states import CreateUser
+from app.bot.states import CreateUser, UpdateUser
 from app.db.models import User
 from app.db.repository import UserRepository
 from app.utils import aiogram_log_handler
@@ -109,6 +109,51 @@ async def delete_user(
     await callback.message.answer(**ust.show_delete_summary)
     await callback.answer()
     logger.info(f"SUCCESS, user id {user.id} became inactive")
+
+
+@router.callback_query(F.data == "update_budget_currency")
+async def update_budget_currency(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(UpdateUser.budget_currency)
+    await callback.message.answer(**ust.budget_currency_description)
+    await callback.answer()
+
+
+@router.message(UpdateUser.budget_currency, BudgetCurrencyFilter)
+async def set_updated_currency(
+    message: Message,
+    state: FSMContext,
+    budget_currency: str,
+):
+    await state.update_data(budget_currency=budget_currency)
+    await message.answer(**ust.confirm_updated_currency(budget_currency))
+
+
+@router.callback_query(
+    UpdateUser.budget_currency, F.data == "update_currency_reset"
+)
+async def reset_updated_currency(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(budget_currency=None)
+    await callback.message.answer(**ust.budget_currency_description)
+    await callback.answer()
+
+
+@router.callback_query(
+    UpdateUser.budget_currency, F.data == "update_currency_confirm"
+)
+async def confirm_updated_currency(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user: User,
+    repository: UserRepository,
+):
+    state_data = await state.get_data()
+    budget_currency = state_data.get("budget_currency", "RUB")
+    repository.update_user(user.id, budget_currency=budget_currency)
+    await callback.message.answer(
+        **ust.show_currency_update_summary(budget_currency)
+    )
+    await state.clear()
+    await callback.answer()
 
 
 @router.callback_query(
