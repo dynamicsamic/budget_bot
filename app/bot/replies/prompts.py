@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.custom_types import _BaseModel
 from app.db.models import User
 
@@ -60,6 +62,10 @@ def show_update_summary(obj: _BaseModel) -> str:
     )
 
 
+def show_lite_update_summary(name: str, value: Any) -> str:
+    return f"Установлено новое значение атрибута {name} - `{value}`."
+
+
 update_without_changes = "Обновление завершено без изменений"
 
 budget_currency_description = (
@@ -102,6 +108,14 @@ signup_inactive_user = (
     "Вы можете продолжить работу со своими бюджетами, "
     "нажав кнопку активации ниже."
 )
+
+
+def budget_currency_update_note(budget_currency: str) -> str:
+    return (
+        f"Наименование валюты будет изменено на {budget_currency}."
+        "Нажмите кнопку `Принять` для завершения редактирования."
+        "Нажмите кнопку `Повторить ввод` для повторного ввода."
+    )
 
 
 def signup_user_show_currency_and_finish(budget_currency: str) -> str:

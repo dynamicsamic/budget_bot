@@ -8,7 +8,7 @@ from .buttons import (
     show_user_profile,
     signup_user,
     switch_to_main_menu,
-    update_user,
+    update_budget_currency,
 )
 
 user_signup_menu = button_menu(
@@ -22,9 +22,17 @@ user_activation_menu = button_menu(
 switch_to_user_profile = button_menu(
     show_user_profile, switch_to_main_menu, cancel_operation
 )
+
 user_profile_menu = button_menu(
-    update_user, delete_user, cancel_operation, switch_to_main_menu
+    update_budget_currency, delete_user, switch_to_main_menu, cancel_operation
 )
+
+confirm_updated_currency_menu = create_callback_buttons(
+    button_names={"Принять": "confirm", "Повторить ввод": "reset"},
+    callback_prefix="update_currency",
+    extra_buttons=[switch_to_main_menu, cancel_operation],
+)
+
 choose_signup_type = create_callback_buttons(
     button_names={
         "стандартная регистрация": "basic",

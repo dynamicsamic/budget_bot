@@ -34,8 +34,22 @@ def show_signup_summary(user: User) -> Template:
     )
 
 
+def confirm_updated_currency(budget_currency: str) -> Template:
+    return Template(
+        prompts.budget_currency_update_note(budget_currency),
+        uskbd.confirm_updated_currency_menu,
+    )
+
+
 def show_currency(budget_currency: str) -> Template:
     return Template(
         prompts.signup_user_show_currency_and_finish(budget_currency),
         uskbd.finish_advanced_signup,
+    )
+
+
+def show_currency_update_summary(budget_currency: str) -> Template:
+    return Template(
+        prompts.show_lite_update_summary(name="Валюта", value=budget_currency),
+        uskbd.switch_to_user_profile,
     )

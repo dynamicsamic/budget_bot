@@ -37,6 +37,10 @@ update_user = InlineKeyboardButton(
     text="Изменить данные аккаунта", callback_data=shared.update_user
 )
 
+update_budget_currency = InlineKeyboardButton(
+    text="Изменить валюту", callback_data="update_budget_currency"
+)
+
 delete_user = InlineKeyboardButton(
     text="Удалить аккаунт", callback_data=shared.delete_user
 )
