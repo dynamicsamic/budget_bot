@@ -6,7 +6,7 @@ from aiogram.filters import BaseFilter, Filter
 from aiogram.types import CallbackQuery, Message
 
 from app import settings
-from app.bot.handlers import shared
+from app.bot import shared
 from app.db.models import CategoryType
 from app.exceptions import (
     InvalidBudgetCurrency,
@@ -58,7 +58,7 @@ class PatternMatchMessageFilter(Filter):
 
     async def __call__(self, message: Message) -> dict[str, str]:
         if re.match(self.pattern, message.text):
-            return {self.return_argname: message.text.casefold()}
+            return {self.return_argname: message.text}
         raise self.exception_type(
             f"{self.return_argname} does not match pattern {self.pattern}"
         )
