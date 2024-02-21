@@ -3,10 +3,10 @@ from typing import Iterable
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from app.bot import shared
 from app.bot.callback_data import (
     CategoryItemActionData,
 )
-from app.bot.handlers import shared
 from app.db import models
 
 from .base import (

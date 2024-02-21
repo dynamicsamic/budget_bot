@@ -1,10 +1,10 @@
 from aiogram.types import InlineKeyboardButton
 
+from app.bot import shared
 from app.bot.callback_data import (
     CategoryItemActionData,
     SignupUserCallbackData,
 )
-from app.bot.handlers import shared
 
 ##############
 ### COMMON ###
