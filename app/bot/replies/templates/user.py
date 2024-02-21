@@ -10,7 +10,7 @@ choose_signup_type = Template(
 )
 
 advanced_signup_menu = Template(
-    prompts.advanced_signup_description, uskbd.set_budget_currency_menu
+    prompts.advanced_signup_description, uskbd.get_budget_currency_menu
 )
 
 budget_currency_description = Template(prompts.budget_currency_description)
@@ -24,7 +24,7 @@ show_profile = Template(
 )
 
 show_delete_summary = Template(
-    prompts.user_delete_success, uskbd.user_activation_menu
+    prompts.user_delete_success, uskbd.activation_menu
 )
 
 

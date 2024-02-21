@@ -50,3 +50,6 @@ class Template:
 
     def keys(self):
         return self._properties.keys()
+
+    def values(self):
+        return self._properties.values()
