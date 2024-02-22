@@ -5,9 +5,7 @@ from aiogram.filters import ExceptionTypeFilter
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.bot.replies import prompts
-from app.bot.replies.keyboards.base import button_menu
-from app.bot.replies.keyboards.buttons import cancel_operation
+from app.bot.replies.templates import error as ert
 from app.exceptions import (
     EmptyModelKwargs,
     InvalidBudgetCurrency,
@@ -40,7 +38,7 @@ serverside_errors = (
 
 
 @router.errors(ExceptionTypeFilter(*serverside_errors))
-async def serverside_error_handler(
+async def serverside_error(
     error_event: types.ErrorEvent, bot: Bot, state: FSMContext
 ):
     error_message = (
@@ -59,34 +57,27 @@ async def serverside_error_handler(
     elif update.callback_query is not None:
         message = update.callback_query.message
 
-    await message.answer(prompts.serverside_error_response)
+    await message.answer(**ert.serverside_error)
     await state.clear()
 
 
 @router.errors(ExceptionTypeFilter(InvalidBudgetCurrency))
-async def invalid_budget_currency_handler(error_event: types.ErrorEvent):
-    await error_event.update.message.answer(
-        "Недопустимая валюта." f"{prompts.budget_currency_description}"
-    )
+async def invalid_budget_currency(error_event: types.ErrorEvent):
+    await error_event.update.message.answer(**ert.invalid_budget_currency)
     logger.info(f"Invalid user input triggered {error_event.exception}")
 
 
 @router.errors(ExceptionTypeFilter(InvalidCategoryName))
-async def invalid_category_name_handler(error_event: types.ErrorEvent):
-    await error_event.update.message.answer(
-        "Недопустимое название категории."
-        f"{prompts.category_name_description}"
-    )
+async def invalid_category_name(error_event: types.ErrorEvent):
+    await error_event.update.message.answer(**ert.invalid_category_name)
     logger.info(f"Invalid user input triggered {error_event.exception}")
 
 
 @router.errors(ExceptionTypeFilter(ModelInstanceDuplicateAttempt))
-async def instance_duplicate_attempt_handler(error_event: types.ErrorEvent):
+async def instance_duplicate_attempt(error_event: types.ErrorEvent):
     exception: ModelInstanceDuplicateAttempt = error_event.exception
     await error_event.update.message.answer(
-        f"{exception}. Придумайте новое значение и повторите попытку "
-        "или прервите процедуру, нажав на кнопку отмены.",
-        reply_markup=button_menu(cancel_operation),
+        **ert.instance_duplicate_attempt(exception)
     )
     logger.info(
         f"User {exception.user_tg_id} triggered exception: {repr(exception)}"
