@@ -8,9 +8,9 @@ from aiogram.dispatcher.flags import get_flag
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app import settings
-from app.bot.replies.keyboards.user import (
-    user_activation_menu,
-    user_signup_menu,
+from app.bot.replies.templates.common import (
+    redirect_anonymous,
+    redirect_inactive,
 )
 from app.db import db_session
 from app.db.repository import (
@@ -46,20 +46,14 @@ def AnonymousUser():
 async def redirect_inactive_user(event: TelegramObject, *_, **__):
     message = event if isinstance(event, Message) else event.message
 
-    await message.answer(
-        "Для работы с ботом, активируйте Ваш аккаунт, нажав на кнопку ниже.",
-        reply_markup=user_activation_menu,
-    )
-    logger.info("SUCCESS: anonymous user redirected")
+    await message.answer(**redirect_inactive)
+    logger.info("SUCCESS: inactive user redirected")
 
 
 async def redirect_anonymous_user(event: TelegramObject, *_, **__):
     message = event if isinstance(event, Message) else event.message
 
-    await message.answer(
-        "Для работы с ботом, зарегистрируйтесь, нажав на кнопку ниже.",
-        reply_markup=user_signup_menu,
-    )
+    await message.answer(**redirect_anonymous)
     logger.info("SUCCESS: anonymous user redirected")
 
 
