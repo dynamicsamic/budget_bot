@@ -29,36 +29,36 @@ _SQLAlchemyDataType = TypeVar("_SQLAlchemyDataType")
 class ModelFieldsDetails:
     """Mixin that adds information about actual sqlalchemy model fields."""
 
-    @classmethod
-    def fields(cls) -> dict[str, Type[QueryableAttribute]]:
+    @property
+    def fields(self) -> dict[str, Type[QueryableAttribute]]:
         """Get actual model fields and their attribute classes."""
         return {
-            attr_name: attr_obj
-            for attr_name, attr_obj in cls.__dict__.items()
+            attr_name: attr_class
+            for attr_name, attr_class in type(self).__dict__.items()
             if not attr_name.startswith("_")
-            and getattr(attr_obj, "is_attribute", None)
+            and hasattr(attr_class, "is_attribute")
         }
 
-    @classmethod
-    def fieldtypes(cls) -> dict[str, _SQLAlchemyDataType]:
+    @property
+    def fieldtypes(self) -> dict[str, _SQLAlchemyDataType]:
         """Get actual model fields and their attribute sqlalchemy types."""
         return {
             attr_name: attr_obj.type
-            for attr_name, attr_obj in cls.fields().items()
+            for attr_name, attr_obj in self.fields.items()
         }
 
-    @classmethod
-    def fieldnames(cls) -> set[str]:
+    @property
+    def fieldnames(self) -> set[str]:
         """Get actual model field names."""
-        return set(cls.fields().keys())
+        return set(self.fields.keys())
 
-    @classmethod
-    def primary_keys(cls) -> set[str]:
+    @property
+    def primary_keys(self) -> set[str]:
         """Get actual model's primary keys."""
         return {
             fieldname
-            for fieldname, field_obj in cls.fields().items()
-            if getattr(field_obj, "primary_key")
+            for fieldname, field_obj in self.fields.items()
+            if getattr(field_obj, "primary_key", None)
         }
 
     @classmethod
@@ -128,10 +128,9 @@ class User(AbstractBaseModel):
         passive_deletes=True,
     )
 
-    @classmethod
     @property
-    def _datefield(cls) -> InstrumentedAttribute:
-        return cls.created_at
+    def _datefield(self) -> InstrumentedAttribute:
+        return type(self).created_at
 
     @property
     def is_anonymous(self):
@@ -169,10 +168,9 @@ class Category(AbstractBaseModel):
     user: Mapped[User] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
 
-    @classmethod
     @property
-    def _datefield(cls) -> InstrumentedAttribute:
-        return cls.last_used
+    def _datefield(self) -> InstrumentedAttribute:
+        return type(self).last_used
 
     def __repr__(self) -> str:
         return (
@@ -213,15 +211,13 @@ class Entry(AbstractBaseModel):
     user: Mapped[User] = relationship(back_populates="entries")
     category: Mapped["Category"] = relationship(back_populates="entries")
 
-    @classmethod
     @property
-    def _datefield(cls) -> InstrumentedAttribute:
-        return cls.transaction_date
+    def _datefield(self) -> InstrumentedAttribute:
+        return type(self).transaction_date
 
-    @classmethod
     @property
-    def _cashflowfield(cls) -> InstrumentedAttribute:
-        return cls.sum
+    def _cashflowfield(self) -> InstrumentedAttribute:
+        return type(self).sum
 
     @property
     def _sum(self) -> str:

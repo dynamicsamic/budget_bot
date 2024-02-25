@@ -244,7 +244,7 @@ class CommonRepository:
         query_arg: Optional[_TypedColumnClauseArgument] = None,
         *,
         order_by: Optional[List[_OrderByValue]] = None,
-        filters: Optional[List[BinaryExpression]] = None,
+        filters: List[BinaryExpression] | None = None,
         join_filters: Optional[bool] = True,
     ) -> Select[Row]:
         """Construct basic SELECT query.
@@ -310,7 +310,7 @@ class CommonRepository:
         self,
         *,
         order_by: Optional[List[_OrderByValue]] = None,
-        filters: Optional[List[BinaryExpression]] = None,
+        filters: List[BinaryExpression] | None = None,
         offset: int = 0,
         limit: int = 10,
     ) -> ScalarResult[_BaseModel]:
@@ -337,7 +337,7 @@ class CommonRepository:
     @query_logger
     def _count(
         self,
-        filters: Optional[List[BinaryExpression]] = None,
+        filters: List[BinaryExpression] | None = None,
         join_filters: bool = True,
     ) -> int:
         """Count model items that satisfy provided filters.
@@ -363,7 +363,7 @@ class CommonRepository:
     @query_logger
     def _exists(
         self,
-        filters: Optional[List[BinaryExpression]] = None,
+        filters: List[BinaryExpression] | None = None,
         join_filters: bool = True,
     ) -> bool:
         """Test if a model instance exists.
@@ -442,7 +442,7 @@ class CommonRepository:
             )
             raise EmptyModelKwargs(f"{self.model.get_tablename()}")
 
-        model_fields = self.model.fields()
+        model_fields = self.model.fields
 
         for arg, value in kwargs.items():
             field = model_fields.get(arg)
@@ -452,6 +452,9 @@ class CommonRepository:
                     f"{self.model.get_tablename()}: `{arg}`."
                 )
                 raise InvalidModelAttribute(model=self.model, invalid_arg=arg)
+
+            if not hasattr(field, "type"):
+                continue  # protect from relationships; raise an error?
 
             value_type, field_type = type(value), field.type.python_type
             if not issubclass(value_type, field_type):
@@ -506,6 +509,13 @@ class UserRepository(CommonRepository):
         user_id: int,
     ) -> bool:
         return self._delete(user_id)
+
+    def count_users(
+        self,
+        filters: List[BinaryExpression] | None = None,
+        join_filters: bool = True,
+    ) -> int:
+        return self._count(filters, join_filters)
 
     def user_exists(self, *, user_id: int = 0, tg_id: int = 0) -> bool:
         return self._exists(
