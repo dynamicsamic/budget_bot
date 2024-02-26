@@ -32,9 +32,8 @@ async def choose_signup_type(
     tg_id = callback.from_user.id
     await state.update_data(tg_id=tg_id)
     await callback.message.answer(**ust.choose_signup_type)
-    logger.info(f"start signup for user tg_id {tg_id}")
-
     await callback.answer()
+    logger.info(f"start signup for user tg_id {tg_id}")
 
 
 @router.callback_query(
@@ -46,6 +45,7 @@ async def start_advanced_signup(callback: CallbackQuery, state: FSMContext):
     await state.set_state(CreateUser.advanced_signup)
     await callback.message.answer(**ust.advanced_signup_menu)
     await callback.answer()
+    logger.info(f"user tg_id {callback.from_user.id} chose advanced signup.")
 
 
 @router.callback_query(
@@ -57,6 +57,9 @@ async def request_currency(callback: CallbackQuery, state: FSMContext):
     await state.set_state(CreateUser.get_budget_currency)
     await callback.message.answer(**ust.budget_currency_description)
     await callback.answer()
+    logger.info(
+        f"waiting for currency from user tg_id {callback.from_user.id}."
+    )
 
 
 @router.message(
@@ -70,6 +73,9 @@ async def set_currency(
     await state.set_state(CreateUser.choose_signup_type)
     await state.update_data(budget_currency=budget_currency)
     await message.answer(**ust.show_currency(budget_currency))
+    logger.info(
+        f"user tg_id {message.from_user.id} set currency to {budget_currency}."
+    )
 
 
 @router.callback_query(
