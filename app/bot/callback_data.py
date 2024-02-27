@@ -1,7 +1,15 @@
 from aiogram.filters.callback_data import CallbackData
 
+from app.bot import shared
 
-class SignupUserCallbackData(CallbackData, prefix="signup_user"):
+
+class SignupUserCallbackData(CallbackData, prefix=shared.signup_user):
+    action: str
+
+
+class UpdateBudgetCurrencyCallbackData(
+    CallbackData, prefix=shared.update_budget_currency
+):
     action: str
 
 
