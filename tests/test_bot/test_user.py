@@ -4,13 +4,16 @@ import pytest
 from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Message, Update
 
+from app.bot import shared
 from app.bot.callback_data import SignupUserCallbackData
 from app.bot.replies.keyboards import buttons
+from app.bot.replies.templates import common as cot
 from app.bot.replies.templates import error as ert
 from app.bot.replies.templates import user as ust
 from app.bot.states import CreateUser
 from app.db.repository import UserRepository
 
+from ..test_utils import TARGET_USER_ID
 from .conftest import chat, user
 
 
@@ -243,3 +246,85 @@ async def test_finish_signup_basic(
 
     state = await requester.get_fsm_state()
     assert state is None
+
+
+@pytest.mark.asyncio
+async def test_show_user_profile(create_test_data, requester):
+    callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=shared.show_user_profile,
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="text",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
+    )
+    text, markup = ust.show_profile.values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+
+@pytest.mark.asyncio
+async def test_show_anonymous_user_profile(create_test_tables, requester):
+    callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=shared.show_user_profile,
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="text",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
+    )
+    text, markup = cot.redirect_anonymous.values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+
+@pytest.mark.asyncio
+async def test_delete_user(create_test_data, persistent_db_session, requester):
+    repository = UserRepository(persistent_db_session)
+    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    assert db_user.is_active is True
+
+    callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=shared.delete_user,
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="text",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
+    )
+    text, markup = ust.show_delete_summary.values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    assert db_user.is_active is False
