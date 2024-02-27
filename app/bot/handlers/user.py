@@ -4,7 +4,11 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.bot.callback_data import SignupUserCallbackData
+from app.bot import shared
+from app.bot.callback_data import (
+    SignupUserCallbackData,
+    UpdateBudgetCurrencyCallbackData,
+)
 from app.bot.filters import BudgetCurrencyFilter
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.bot.replies.templates import user as ust
@@ -101,13 +105,14 @@ async def finish_signup(
     logger.info(f"SUCCESS, new user created: {created}")
 
 
-@router.callback_query(F.data == "show_user_profile")
+@router.callback_query(F.data == shared.show_user_profile)
 async def show_user_profile(callback: CallbackQuery):
     await callback.message.answer(**ust.show_profile)
     await callback.answer()
+    logger.info(f"SUCCESS, show profile for user {callback.from_user.id}")
 
 
-@router.callback_query(F.data == "delete_user")
+@router.callback_query(F.data == shared.delete_user)
 async def delete_user(
     callback: CallbackQuery, user: User, repository: UserRepository
 ):
@@ -117,7 +122,9 @@ async def delete_user(
     logger.info(f"SUCCESS, user id {user.id} became inactive")
 
 
-@router.callback_query(F.data == "update_budget_currency")
+@router.callback_query(
+    F.data == UpdateBudgetCurrencyCallbackData.filter(F.action == "start")
+)
 async def update_budget_currency(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UpdateUser.budget_currency)
     await callback.message.answer(**ust.budget_currency_description)
