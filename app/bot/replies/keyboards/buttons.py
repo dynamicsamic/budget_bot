@@ -4,6 +4,7 @@ from app.bot import shared
 from app.bot.callback_data import (
     CategoryItemActionData,
     SignupUserCallbackData,
+    UpdateBudgetCurrencyCallbackData,
 )
 
 ##############
@@ -38,7 +39,8 @@ update_user = InlineKeyboardButton(
 )
 
 update_budget_currency = InlineKeyboardButton(
-    text="Изменить валюту", callback_data="update_budget_currency"
+    text="Изменить валюту",
+    callback_data=UpdateBudgetCurrencyCallbackData(action="start").pack(),
 )
 
 delete_user = InlineKeyboardButton(
@@ -46,7 +48,7 @@ delete_user = InlineKeyboardButton(
 )
 
 show_user_profile = InlineKeyboardButton(
-    text="Мой аккаунт", callback_data="show_user_profile"
+    text="Мой аккаунт", callback_data=shared.show_user_profile
 )
 
 
