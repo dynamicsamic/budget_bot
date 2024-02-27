@@ -8,6 +8,9 @@ signup_user = "signup_user"
 activate_user = "activate_user"
 delete_user = "delete_user"
 update_user = "update_user"
+show_user_profile = "show_user_profile"
+update_budget_currency = "update_currency"
+
 create_category_command = "create_category"
 show_categories_command = "show_categories"
 create_category_callback = create_category_command
