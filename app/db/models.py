@@ -1,6 +1,6 @@
 import datetime as dt
 import enum
-from typing import List, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type, TypeVar
 
 from sqlalchemy import (
     CheckConstraint,
@@ -26,38 +26,36 @@ from app.utils import epoch_start, pretty_datetime
 _SQLAlchemyDataType = TypeVar("_SQLAlchemyDataType")
 
 
+class classproperty(property):
+    # copied from https://stackoverflow.com/a/13624858
+    def __get__(self, __instance: Any, __owner: type | None = None) -> Any:
+        return self.fget(__owner)
+
+
 class ModelFieldsDetails:
     """Mixin that adds information about actual sqlalchemy model fields."""
 
-    @property
-    def fields(self) -> dict[str, Type[QueryableAttribute]]:
+    @classproperty
+    def fields(cls) -> dict[str, Type[QueryableAttribute]]:
         """Get actual model fields and their attribute classes."""
         return {
             attr_name: attr_class
-            for attr_name, attr_class in type(self).__dict__.items()
+            for attr_name, attr_class in cls.__dict__.items()
             if not attr_name.startswith("_")
-            and hasattr(attr_class, "is_attribute")
+            and getattr(attr_class, "is_attribute", None)
         }
 
-    @property
-    def fieldtypes(self) -> dict[str, _SQLAlchemyDataType]:
-        """Get actual model fields and their attribute sqlalchemy types."""
-        return {
-            attr_name: attr_obj.type
-            for attr_name, attr_obj in self.fields.items()
-        }
-
-    @property
-    def fieldnames(self) -> set[str]:
+    @classproperty
+    def fieldnames(cls) -> set[str]:
         """Get actual model field names."""
-        return set(self.fields.keys())
+        return set(cls.fields.keys())
 
-    @property
-    def primary_keys(self) -> set[str]:
+    @classproperty
+    def primary_keys(cls) -> set[str]:
         """Get actual model's primary keys."""
         return {
             fieldname
-            for fieldname, field_obj in self.fields.items()
+            for fieldname, field_obj in cls.fields.items()
             if getattr(field_obj, "primary_key", None)
         }
 
@@ -128,12 +126,12 @@ class User(AbstractBaseModel):
         passive_deletes=True,
     )
 
-    @property
-    def _datefield(self) -> InstrumentedAttribute:
-        return type(self).created_at
+    @classproperty
+    def _datefield(cls) -> InstrumentedAttribute:
+        return cls.created_at
 
-    @property
-    def is_anonymous(self):
+    @classproperty
+    def is_anonymous(cls):
         return False
 
     def __repr__(self) -> str:
@@ -168,9 +166,9 @@ class Category(AbstractBaseModel):
     user: Mapped[User] = relationship(back_populates="categories")
     entries: Mapped[List["Entry"]] = relationship(back_populates="category")
 
-    @property
-    def _datefield(self) -> InstrumentedAttribute:
-        return type(self).last_used
+    @classproperty
+    def _datefield(cls) -> InstrumentedAttribute:
+        return cls.last_used
 
     def __repr__(self) -> str:
         return (
@@ -211,13 +209,13 @@ class Entry(AbstractBaseModel):
     user: Mapped[User] = relationship(back_populates="entries")
     category: Mapped["Category"] = relationship(back_populates="entries")
 
-    @property
-    def _datefield(self) -> InstrumentedAttribute:
-        return type(self).transaction_date
+    @classproperty
+    def _datefield(cls) -> InstrumentedAttribute:
+        return cls.transaction_date
 
-    @property
-    def _cashflowfield(self) -> InstrumentedAttribute:
-        return type(self).sum
+    @classproperty
+    def _cashflowfield(cls) -> InstrumentedAttribute:
+        return cls.sum
 
     @property
     def _sum(self) -> str:
