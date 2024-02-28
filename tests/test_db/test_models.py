@@ -34,7 +34,6 @@ def test_abstract_base_model_attributes_have_correct_sqlalchemy_types():
 
 def test_abstract_base_model_has_fields_details_attributes():
     assert isinstance(abstract_object.fields, dict)
-    assert isinstance(abstract_object.fieldtypes, dict)
     assert isinstance(abstract_object.fieldnames, set)
     assert isinstance(abstract_object.primary_keys, set)
 
@@ -45,16 +44,7 @@ def test_abstract_base_model_fields_attribute():
         "created_at": AbstractSubclass.created_at,
         "last_updated": AbstractSubclass.last_updated,
     }
-    assert expected_fields == abstract_object.fields()
-
-
-def test_abstract_base_model_fieldtypes_attribute():
-    expected_fieldtypes = {
-        "id": AbstractSubclass.id.type,
-        "created_at": AbstractSubclass.created_at.type,
-        "last_updated": AbstractSubclass.last_updated.type,
-    }
-    assert expected_fieldtypes == abstract_object.fieldtypes
+    assert expected_fields == abstract_object.fields
 
 
 def test_abstract_base_model_fieldnames_attribute():
@@ -323,19 +313,12 @@ def test_category_gets_deleted_when_user_deleted(
     assert current_category_count == 0
 
 
-def test_category_delete_success_if_no_entries_exist(
-    inmemory_db_session, create_inmemory_categories
-):
-    inmemory_db_session.query(Category).filter_by(id=1).delete()
-    inmemory_db_session.commit()
-
-
-@pytest.mark.xfail(raises=IntegrityError, strict=True)
-def test_category_delete_raise_error_if_entries_exist(
+def test_category_delete_cascades_entries_delete(
     inmemory_db_session, create_inmemory_entries
 ):
     inmemory_db_session.query(Category).filter_by(id=1).delete()
     inmemory_db_session.commit()
+    assert not inmemory_db_session.query(Entry).filter_by(category_id=1).all()
 
 
 def test_category_render(inmemory_db_session, create_inmemory_categories):
