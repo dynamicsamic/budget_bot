@@ -5,12 +5,15 @@ from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Message, Update
 
 from app.bot import shared
-from app.bot.callback_data import SignupUserCallbackData
+from app.bot.callback_data import (
+    SignupUserCallbackData,
+    UpdateBudgetCurrencyCallbackData,
+)
 from app.bot.replies.keyboards import buttons
 from app.bot.replies.templates import common as cot
 from app.bot.replies.templates import error as ert
 from app.bot.replies.templates import user as ust
-from app.bot.states import CreateUser
+from app.bot.states import CreateUser, UpdateUser
 from app.db.repository import UserRepository
 
 from ..test_utils import TARGET_USER_ID
@@ -326,5 +329,195 @@ async def test_delete_user(create_test_data, persistent_db_session, requester):
     assert message.text == text
     assert message.reply_markup == markup
 
-    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    persistent_db_session.refresh(db_user)
     assert db_user.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_update_budget_currency(create_test_data, requester):
+    callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=UpdateBudgetCurrencyCallbackData(action="start").pack(),
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="text",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
+    )
+    text, markup = ust.budget_currency_description.values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateUser.budget_currency
+
+
+@pytest.mark.asyncio
+async def test_set_updated_currency(create_test_data, requester):
+    await requester.set_fsm_state(UpdateUser.budget_currency)
+
+    valid_currency = "Valid"
+    msg = Message(
+        message_id=1,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text=valid_currency,
+    )
+
+    await requester.make_request(SendMessage, Update(update_id=1, message=msg))
+
+    text, markup = ust.confirm_updated_currency(valid_currency).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+    data = await requester.get_fsm_state_data()
+    assert data.get("budget_currency") == valid_currency
+
+
+@pytest.mark.asyncio
+async def test_set_invalid_updated_currency(create_test_data, requester):
+    await requester.set_fsm_state(UpdateUser.budget_currency)
+
+    invalid_currency = "inValid$"
+    msg = Message(
+        message_id=1,
+        date=datetime.now(),
+        from_user=user,
+        chat=chat,
+        text=invalid_currency,
+    )
+
+    await requester.make_request(SendMessage, Update(update_id=1, message=msg))
+
+    text, markup = ert.invalid_budget_currency.values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateUser.budget_currency
+
+    data = await requester.get_fsm_state_data()
+    assert "budget_currency" not in data
+
+
+@pytest.mark.asyncio
+async def test_reset_currency(create_test_data, requester):
+    await requester.set_fsm_state(UpdateUser.budget_currency)
+
+    callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=UpdateBudgetCurrencyCallbackData(action="reset").pack(),
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="text",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
+    )
+    text, markup = ust.budget_currency_description.values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+    state = await requester.get_fsm_state()
+    assert state == UpdateUser.budget_currency
+
+    data = await requester.get_fsm_state_data()
+    assert data.get("budget_currency") is None
+
+
+@pytest.mark.asyncio
+async def test_confirm_updated_currency(
+    create_test_data, requester, persistent_db_session
+):
+    valid_currency = "valid"
+    repository = UserRepository(persistent_db_session)
+    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    assert db_user.budget_currency != valid_currency
+
+    await requester.set_fsm_state(UpdateUser.budget_currency)
+    await requester.update_fsm_state_data(budget_currency=valid_currency)
+
+    callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=UpdateBudgetCurrencyCallbackData(action="confirm").pack(),
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="text",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
+    )
+    text, markup = ust.show_currency_update_summary(valid_currency).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+    persistent_db_session.refresh(db_user)
+    assert db_user.budget_currency == valid_currency
+
+    state = await requester.get_fsm_state()
+    assert state is None
+
+
+@pytest.mark.asyncio
+async def test_activate_user(
+    create_test_data, requester, persistent_db_session
+):
+    repository = UserRepository(persistent_db_session)
+    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    assert db_user.is_active is True
+    del db_user
+
+    repository.update_user(TARGET_USER_ID, is_active=False)
+
+    callback = CallbackQuery(
+        id="12345678",
+        from_user=user,
+        chat_instance="AABBCC",
+        data=shared.activate_user,
+        message=Message(
+            message_id=1,
+            date=datetime.now(),
+            from_user=user,
+            chat=chat,
+            text="text",
+        ),
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
+    )
+    text, markup = ust.show_activation_summary.values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
+
+    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    assert db_user.is_active is True
