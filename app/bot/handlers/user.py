@@ -37,7 +37,7 @@ async def choose_signup_type(
     await state.update_data(tg_id=tg_id)
     await callback.message.answer(**ust.choose_signup_type)
     await callback.answer()
-    logger.info(f"start signup for user tg_id {tg_id}")
+    logger.info(f"start signup for user id={tg_id}")
 
 
 @router.callback_query(
@@ -49,7 +49,7 @@ async def start_advanced_signup(callback: CallbackQuery, state: FSMContext):
     await state.set_state(CreateUser.advanced_signup)
     await callback.message.answer(**ust.advanced_signup_menu)
     await callback.answer()
-    logger.info(f"user tg_id {callback.from_user.id} chose advanced signup.")
+    logger.info(f"user id={callback.from_user.id} chose advanced signup.")
 
 
 @router.callback_query(
@@ -62,7 +62,7 @@ async def request_currency(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(**ust.budget_currency_description)
     await callback.answer()
     logger.info(
-        f"waiting for currency from user tg_id {callback.from_user.id}."
+        f"waiting for currency from new user id={callback.from_user.id}."
     )
 
 
@@ -78,7 +78,8 @@ async def set_currency(
     await state.update_data(budget_currency=budget_currency)
     await message.answer(**ust.show_currency(budget_currency))
     logger.info(
-        f"user tg_id {message.from_user.id} set currency to {budget_currency}."
+        f"new user id={message.from_user.id} "
+        f"submitted valid currency: {budget_currency}."
     )
 
 
@@ -102,14 +103,14 @@ async def finish_signup(
 
     await state.clear()
     await callback.answer()
-    logger.info(f"SUCCESS, new user created: {created}")
+    logger.info(f"new user created: {created}")
 
 
 @router.callback_query(F.data == shared.show_user_profile)
 async def show_user_profile(callback: CallbackQuery):
     await callback.message.answer(**ust.show_profile)
     await callback.answer()
-    logger.info(f"SUCCESS, show profile for user {callback.from_user.id}")
+    logger.info(f"show profile for user id={callback.from_user.id}")
 
 
 @router.callback_query(F.data == shared.delete_user)
@@ -119,16 +120,17 @@ async def delete_user(
     repository.update_user(user.id, is_active=False)
     await callback.message.answer(**ust.show_delete_summary)
     await callback.answer()
-    logger.info(f"SUCCESS, user id {user.id} became inactive")
+    logger.info(f"user id={callback.from_user.id} deactivated")
 
 
 @router.callback_query(
-    F.data == UpdateBudgetCurrencyCallbackData.filter(F.action == "start")
+    UpdateBudgetCurrencyCallbackData.filter(F.action == "start")
 )
 async def update_budget_currency(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UpdateUser.budget_currency)
     await callback.message.answer(**ust.budget_currency_description)
     await callback.answer()
+    logger.info(f"user id={callback.from_user.id} started currency update")
 
 
 @router.message(UpdateUser.budget_currency, BudgetCurrencyFilter)
@@ -139,19 +141,26 @@ async def set_updated_currency(
 ):
     await state.update_data(budget_currency=budget_currency)
     await message.answer(**ust.confirm_updated_currency(budget_currency))
+    logger.info(
+        f"user id={message.from_user.id} is "
+        f"switching budget currency to: {budget_currency}"
+    )
 
 
 @router.callback_query(
-    UpdateUser.budget_currency, F.data == "update_currency_reset"
+    UpdateUser.budget_currency,
+    UpdateBudgetCurrencyCallbackData.filter(F.action == "reset"),
 )
 async def reset_updated_currency(callback: CallbackQuery, state: FSMContext):
     await state.update_data(budget_currency=None)
     await callback.message.answer(**ust.budget_currency_description)
     await callback.answer()
+    logger.info(f"user id={callback.from_user.id} resetting currency")
 
 
 @router.callback_query(
-    UpdateUser.budget_currency, F.data == "update_currency_confirm"
+    UpdateUser.budget_currency,
+    UpdateBudgetCurrencyCallbackData.filter(F.action == "confirm"),
 )
 async def confirm_updated_currency(
     callback: CallbackQuery,
@@ -167,10 +176,14 @@ async def confirm_updated_currency(
     )
     await state.clear()
     await callback.answer()
+    logger.info(
+        f"user id={callback.from_user.id} "
+        f"updated currency: {budget_currency}"
+    )
 
 
 @router.callback_query(
-    F.data == "activate_user", flags={"allow_anonymous": True}
+    F.data == shared.activate_user, flags={"allow_anonymous": True}
 )
 async def activate_user(
     callback: CallbackQuery, user: User, repository: UserRepository
@@ -178,3 +191,4 @@ async def activate_user(
     repository.update_user(user.id, is_active=True)
     await callback.message.answer(**ust.show_activation_summary)
     await callback.answer()
+    logger.info(f"user id={callback.from_user.id} activated")
