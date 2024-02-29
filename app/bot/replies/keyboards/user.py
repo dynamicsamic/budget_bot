@@ -1,5 +1,3 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
 from app.bot import shared
 
 from .base import button_menu, create_callback_buttons
@@ -29,7 +27,7 @@ user_profile_menu = button_menu(
 
 confirm_updated_currency_menu = create_callback_buttons(
     button_names={"Принять": "confirm", "Повторить ввод": "reset"},
-    callback_prefix="update_currency",
+    callback_prefix=shared.update_budget_currency,
     extra_buttons=[switch_to_main_menu, cancel_operation],
 )
 
@@ -54,14 +52,4 @@ finish_advanced_signup = create_callback_buttons(
     },
     callback_prefix=shared.signup_user,
     extra_buttons=[cancel_operation, switch_to_main_menu],
-)
-
-signup_to_proceed = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="Зарегистрироваться в один клик", callback_data="signup"
-            )
-        ]
-    ]
 )
