@@ -4,6 +4,7 @@ from aiogram import F, Router, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
+from app.bot import shared
 from app.bot.middlewares import UserRepositoryMiddleWare
 from app.bot.replies.keyboards.entry import cmd_report_kb
 from app.bot.replies.templates.common import (
@@ -16,8 +17,6 @@ from app.bot.replies.templates.common import (
 from app.bot.states import CreateUser
 from app.db.models import User
 from app.utils import aiogram_log_handler
-
-from . import shared
 
 logger = logging.getLogger(__name__)
 logger.addHandler(aiogram_log_handler)

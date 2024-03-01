@@ -4,19 +4,19 @@ import pytest
 from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Message, Update
 
-from app.bot.handlers.shared import (
-    cancel_callback,
-    cancel_command,
-    show_main_menu_callback,
-    show_main_menu_command,
-    start_command,
-)
 from app.bot.replies.templates.common import (
     cancel_operation,
     main_menu,
     start_message_active,
     start_message_anonymous,
     start_message_inactive,
+)
+from app.bot.shared import (
+    cancel_callback,
+    cancel_command,
+    show_main_menu_callback,
+    show_main_menu_command,
+    start_command,
 )
 from app.bot.states import CreateUser
 from app.db.repository import UserRepository
@@ -45,7 +45,7 @@ async def test_anonymous_user_start_command(create_test_tables, requester):
     assert message.reply_markup == start_message_anonymous["reply_markup"]
 
     state = await requester.get_fsm_state()
-    assert state == CreateUser.start
+    assert state == CreateUser.choose_signup_type
 
 
 @pytest.mark.asyncio
