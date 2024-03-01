@@ -442,10 +442,8 @@ class CommonRepository:
             )
             raise EmptyModelKwargs(f"{self.model.get_tablename()}")
 
-        model_fields = self.model.fields
-
         for arg, value in kwargs.items():
-            field = model_fields.get(arg)
+            field = self.model.fields.get(arg)
             if field is None:
                 logger.error(
                     "Invalid attribute for model "
@@ -454,7 +452,7 @@ class CommonRepository:
                 raise InvalidModelAttribute(model=self.model, invalid_arg=arg)
 
             if not hasattr(field, "type"):
-                continue  # protect from relationships; raise an error?
+                continue  # protect from relationships; need to raise error?
 
             value_type, field_type = type(value), field.type.python_type
             if not issubclass(value_type, field_type):
