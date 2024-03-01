@@ -5,30 +5,22 @@ from aiogram.enums import ChatType
 from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
-from app.bot.replies import keyboards, prompts, buttons
+from app.bot import shared
 from app.bot.callback_data import (
     CategoryItemActionData,
 )
+from app.bot.replies import keyboards, prompts
+from app.bot.replies.keyboards import buttons
+from app.bot.replies.templates import common as cot
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
-from app.db.repository import CategoryRepository
 from app.db.models import CategoryType
+from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator
-from app.bot.handlers import shared
+
 from ..test_utils import CATEGORY_SAMPLE, TARGET_CATEGORY_ID, TARGET_USER_ID
 from .conftest import chat, second_chat, second_user, user
 
-anonymous_user = User(
-    id=999, is_bot=False, first_name="anonymous", username="anonymous"
-)
-anonymous_chat = Chat(id=999, type=ChatType.PRIVATE)
-command_from_anonymous = Message(
-    message_id=1,
-    date=datetime.now(),
-    from_user=anonymous_user,
-    chat=anonymous_chat,
-    text="/create_category",
-)
 create_category_command = Message(
     message_id=1,
     date=datetime.now(),
@@ -80,7 +72,7 @@ show_next_categories_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{shared.shared.paginated_categories_page}:next",
+    data=f"{shared.paginated_categories_page}:next",
     message=Message(
         message_id=6,
         date=datetime.now(),
@@ -93,7 +85,7 @@ show_previous_categories_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{shared.shared.paginated_categories_page}:previous",
+    data=f"{shared.paginated_categories_page}:previous",
     message=Message(
         message_id=7,
         date=datetime.now(),
@@ -106,7 +98,7 @@ show_invalid_categories_page_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{shared.shared.paginated_categories_page}:invalid",
+    data=f"{shared.paginated_categories_page}:invalid",
     message=Message(
         message_id=7,
         date=datetime.now(),
@@ -149,20 +141,25 @@ delete_category_confirm = CallbackQuery(
 async def test_category_handlers_redirect_anonymous_user(
     create_test_data, requester
 ):
+    anonymous_user = User(
+        id=999, is_bot=False, first_name="anonymous", username="anonymous"
+    )
+    anonymous_chat = Chat(id=999, type=ChatType.PRIVATE)
+    msg = Message(
+        message_id=1,
+        date=datetime.now(),
+        from_user=anonymous_user,
+        chat=anonymous_chat,
+        text=f"/{shared.create_category_command}",
+    )
     await requester.make_request(
         SendMessage,
-        Update(update_id=1, message=command_from_anonymous),
+        Update(update_id=1, message=msg),
     )
+    text, markup = cot.redirect_anonymous.values()
     message = requester.read_last_sent_message()
-    expected_text = (
-        "Для работы с ботом, зарегистрируйтесь или активируйте Ваш аккаунт, "
-        "выбрав одну из кнопок ниже."
-    )
-    expected_markup = keyboards.button_menu(
-        buttons.signup_user, buttons.activate_user
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
 
 @pytest.mark.asyncio
@@ -180,7 +177,7 @@ async def test_create_category_command(create_test_data, requester):
         "Введите название новой категории.\n"
         f"{prompts.category_name_description}"
     )
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.cancel_operation, buttons.main_menu
     )
     assert message.text == expected_text
@@ -219,7 +216,7 @@ async def test_create_category_set_valid_name(create_test_data, requester):
 
     message = requester.read_last_sent_message()
     expected_text = "Выберите один из двух типов категорий"
-    expected_markup = keyboards.create_callback_buttons(
+    expected_markup = keyboards.base.create_callback_buttons(
         button_names={"Доходы": "income", "Расходы": "expenses"},
         callback_prefix=shared.select_category_type,
     )
@@ -299,7 +296,7 @@ async def test_create_category_set_existing_name(create_test_data, requester):
         f"{exception}. Придумайте новое значение и повторите попытку "
         "или прервите процедуру, нажав на кнопку отмены."
     )
-    expected_markup = keyboards.button_menu(buttons.cancel_operation)
+    expected_markup = keyboards.base.button_menu(buttons.cancel_operation)
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
@@ -341,7 +338,7 @@ async def test_create_category_set_valid_income_type_and_finish(
     expected_text = (
         f"Вы успешно создали новую категорию: {created_category.render()}"
     )
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
@@ -399,7 +396,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
     expected_text = (
         f"Вы успешно создали новую категорию: {created_category.render()}"
     )
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
@@ -500,7 +497,7 @@ async def test_create_category_callback(create_test_data, requester):
             date=datetime.now(),
             from_user=user,
             chat=chat,
-            text=buttons.create_new_category.text,
+            text=buttons.create_category.text,
         ),
     )
 
@@ -517,7 +514,7 @@ async def test_create_category_callback(create_test_data, requester):
         "Введите название новой категории.\n"
         f"{prompts.category_name_description}"
     )
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.cancel_operation, buttons.main_menu
     )
     assert message.text == expected_text
@@ -549,8 +546,8 @@ async def test_show_categories_command_with_zero_categories(
         "У вас пока нет созданных категорий.\n"
         "Создайте категорию, нажав на кнопку ниже."
     )
-    expected_markup = keyboards.button_menu(
-        buttons.create_new_category,
+    expected_markup = keyboards.base.button_menu(
+        buttons.create_category,
         buttons.main_menu,
     )
     assert message.text == expected_text
@@ -578,7 +575,7 @@ async def test_show_categories_command(
     )
     message = requester.read_last_sent_message()
     expected_text = prompts.category_choose_action
-    expected_markup = keyboards.paginated_category_item_list(
+    expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
     assert message.text == expected_text
@@ -629,7 +626,7 @@ async def test_show_categories_next_page(
 
     message = requester.read_last_sent_message()
     expected_text = prompts.category_choose_action
-    expected_markup = keyboards.paginated_category_item_list(
+    expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
     assert message.text == expected_text
@@ -691,7 +688,7 @@ async def test_show_categories_last_page(
 
     message = requester.read_last_sent_message()
     expected_text = prompts.category_choose_action
-    expected_markup = keyboards.paginated_category_item_list(
+    expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
     assert message.text == expected_text
@@ -753,7 +750,7 @@ async def test_show_categories_previous_page(
     )
     message = requester.read_last_sent_message()
     expected_text = prompts.category_choose_action
-    expected_markup = keyboards.paginated_category_item_list(
+    expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
     assert message.text == expected_text
@@ -832,7 +829,7 @@ async def test_show_categories_callback(
     )
     message = requester.read_last_sent_message()
     expected_text = prompts.category_choose_action
-    expected_markup = keyboards.paginated_category_item_list(
+    expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
     assert message.text == expected_text
@@ -883,7 +880,9 @@ async def test_show_category_control_options(create_test_data, requester):
 
     message = requester.read_last_sent_message()
     expected_text = "Выберите действие"
-    expected_markup = keyboards.category_item_choose_action(TARGET_CATEGORY_ID)
+    expected_markup = keyboards.applied.category_item_choose_action(
+        TARGET_CATEGORY_ID
+    )
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
@@ -958,7 +957,7 @@ async def test_delete_category_warn_user(
     )
     button_1 = buttons.switch_to_update_category(category.id)
     button_2 = buttons.confirm_delete_category(category.id)
-    expected_markup = keyboards.button_menu(button_1, button_2)
+    expected_markup = keyboards.base.button_menu(button_1, button_2)
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
@@ -1005,7 +1004,7 @@ async def test_category_delete_confirm(
 
     message = requester.read_last_sent_message()
     expected_text = prompts.confirm_category_deleted
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
@@ -1059,7 +1058,7 @@ async def test_category_delete_switch_to_update(
     assert current_entry_count == initial_entry_count
 
     message = requester.read_last_sent_message()
-    expected_markup = keyboards.category_update_options
+    expected_markup = keyboards.applied.category_update_options
     assert message.text == prompts.update_category_invite_user
     assert message.reply_markup == expected_markup
 
@@ -1098,7 +1097,7 @@ async def test_update_category_choose_attribute(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    expected_markup = keyboards.category_update_options
+    expected_markup = keyboards.applied.category_update_options
     assert message.text == prompts.update_category_invite_user
     assert message.reply_markup == expected_markup
 
@@ -1140,7 +1139,7 @@ async def test_update_category_request_name(create_test_data, requester):
         "Введите новое название категории"
         f"{prompts.category_name_description}"
     )
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.cancel_operation, buttons.main_menu
     )
     assert message.text == expected_text
@@ -1176,7 +1175,7 @@ async def test_update_category_set_name(
     expected_text = prompts.update_category_confirm_new_name.format(
         category_name=valid_name_message.text
     )
-    expected_markup = keyboards.category_update_options
+    expected_markup = keyboards.applied.category_update_options
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
@@ -1255,7 +1254,7 @@ async def test_update_category_request_type(create_test_data, requester):
 
     message = requester.read_last_sent_message()
     expected_text = "Выберите новый тип категории"
-    expected_markup = keyboards.create_callback_buttons(
+    expected_markup = keyboards.base.create_callback_buttons(
         button_names={"Доходы": "income", "Расходы": "expenses"},
         callback_prefix="select_category_type",
     )
@@ -1302,7 +1301,7 @@ async def test_update_category_set_income_type(
     expected_text = prompts.update_category_confirm_new_type.format(
         category_type=CategoryType.INCOME.description
     )
-    expected_markup = keyboards.category_update_options
+    expected_markup = keyboards.applied.category_update_options
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
@@ -1346,7 +1345,7 @@ async def test_update_category_set_expenses_type(
     expected_text = prompts.update_category_confirm_new_type.format(
         category_type=CategoryType.EXPENSES.description
     )
-    expected_markup = keyboards.category_update_options
+    expected_markup = keyboards.applied.category_update_options
     assert message.text == expected_text
     assert message.reply_markup == expected_markup
 
@@ -1388,7 +1387,7 @@ async def test_update_category_finish(
 
     message = requester.read_last_sent_message()
     expected_text = prompts.show_update_summary(category)
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
@@ -1428,7 +1427,7 @@ async def test_update_category_finish_without_changes(
 
     message = requester.read_last_sent_message()
     expected_text = prompts.update_without_changes
-    expected_markup = keyboards.button_menu(
+    expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
     assert message.text == expected_text
