@@ -6,8 +6,8 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot import shared
 from app.bot.callback_data import (
-    SignupUserCallbackData,
-    UpdateBudgetCurrencyCallbackData,
+    BudgetCurrencyUpdate,
+    UserSignup,
 )
 from app.bot.filters import BudgetCurrencyFilter
 from app.bot.middlewares import UserRepositoryMiddleWare
@@ -26,7 +26,7 @@ router.callback_query.middleware(UserRepositoryMiddleWare)
 
 @router.callback_query(
     CreateUser.choose_signup_type,
-    SignupUserCallbackData.filter(F.action == "start"),
+    UserSignup.filter(F.action == "start"),
     flags={"allow_anonymous": True},
 )
 async def choose_signup_type(
@@ -42,7 +42,7 @@ async def choose_signup_type(
 
 @router.callback_query(
     CreateUser.choose_signup_type,
-    SignupUserCallbackData.filter(F.action == "advanced"),
+    UserSignup.filter(F.action == "advanced"),
     flags={"allow_anonymous": True},
 )
 async def start_advanced_signup(callback: CallbackQuery, state: FSMContext):
@@ -54,7 +54,7 @@ async def start_advanced_signup(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(
     CreateUser.advanced_signup,
-    SignupUserCallbackData.filter(F.action == "get_currency"),
+    UserSignup.filter(F.action == "get_currency"),
     flags={"allow_anonymous": True},
 )
 async def request_currency(callback: CallbackQuery, state: FSMContext):
@@ -85,7 +85,7 @@ async def set_currency(
 
 @router.callback_query(
     CreateUser.choose_signup_type,
-    SignupUserCallbackData.filter(F.action == "basic"),
+    UserSignup.filter(F.action == "basic"),
     flags={"allow_anonymous": True},
 )
 async def finish_signup(
@@ -123,9 +123,7 @@ async def delete_user(
     logger.info(f"user id={callback.from_user.id} deactivated")
 
 
-@router.callback_query(
-    UpdateBudgetCurrencyCallbackData.filter(F.action == "start")
-)
+@router.callback_query(BudgetCurrencyUpdate.filter(F.action == "start"))
 async def update_budget_currency(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UpdateUser.budget_currency)
     await callback.message.answer(**ust.budget_currency_description)
@@ -149,7 +147,7 @@ async def set_updated_currency(
 
 @router.callback_query(
     UpdateUser.budget_currency,
-    UpdateBudgetCurrencyCallbackData.filter(F.action == "reset"),
+    BudgetCurrencyUpdate.filter(F.action == "reset"),
 )
 async def reset_updated_currency(callback: CallbackQuery, state: FSMContext):
     await state.update_data(budget_currency=None)
@@ -160,7 +158,7 @@ async def reset_updated_currency(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(
     UpdateUser.budget_currency,
-    UpdateBudgetCurrencyCallbackData.filter(F.action == "confirm"),
+    BudgetCurrencyUpdate.filter(F.action == "confirm"),
 )
 async def confirm_updated_currency(
     callback: CallbackQuery,

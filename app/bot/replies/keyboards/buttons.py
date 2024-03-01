@@ -2,9 +2,9 @@ from aiogram.types import InlineKeyboardButton
 
 from app.bot import shared
 from app.bot.callback_data import (
+    BudgetCurrencyUpdate,
     CategoryItemActionData,
-    SignupUserCallbackData,
-    UpdateBudgetCurrencyCallbackData,
+    UserSignup,
 )
 
 ##############
@@ -27,7 +27,7 @@ switch_to_main_menu = InlineKeyboardButton(
 
 signup_user = InlineKeyboardButton(
     text="Зарегистрировать аккаунт",
-    callback_data=SignupUserCallbackData(action="start").pack(),
+    callback_data=UserSignup(action="start").pack(),
 )
 
 activate_user = InlineKeyboardButton(
@@ -40,7 +40,7 @@ update_user = InlineKeyboardButton(
 
 update_budget_currency = InlineKeyboardButton(
     text="Изменить валюту",
-    callback_data=UpdateBudgetCurrencyCallbackData(action="start").pack(),
+    callback_data=BudgetCurrencyUpdate(action="start").pack(),
 )
 
 delete_user = InlineKeyboardButton(

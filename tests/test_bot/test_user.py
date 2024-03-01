@@ -6,8 +6,8 @@ from aiogram.types import CallbackQuery, Message, Update
 
 from app.bot import shared
 from app.bot.callback_data import (
-    SignupUserCallbackData,
-    UpdateBudgetCurrencyCallbackData,
+    BudgetCurrencyUpdate,
+    UserSignup,
 )
 from app.bot.replies.keyboards import buttons
 from app.bot.replies.templates import common as cot
@@ -59,7 +59,7 @@ async def test_start_advanced_signup(create_test_tables, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=SignupUserCallbackData(action="advanced").pack(),
+        data=UserSignup(action="advanced").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -89,7 +89,7 @@ async def test_request_currency(create_test_tables, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=SignupUserCallbackData(action="get_currency").pack(),
+        data=UserSignup(action="get_currency").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -183,7 +183,7 @@ async def test_finish_signup(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=SignupUserCallbackData(action="basic").pack(),
+        data=UserSignup(action="basic").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -224,7 +224,7 @@ async def test_finish_signup_basic(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=SignupUserCallbackData(action="basic").pack(),
+        data=UserSignup(action="basic").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -339,7 +339,7 @@ async def test_update_budget_currency(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=UpdateBudgetCurrencyCallbackData(action="start").pack(),
+        data=BudgetCurrencyUpdate(action="start").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -420,7 +420,7 @@ async def test_reset_currency(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=UpdateBudgetCurrencyCallbackData(action="reset").pack(),
+        data=BudgetCurrencyUpdate(action="reset").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -461,7 +461,7 @@ async def test_confirm_updated_currency(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=UpdateBudgetCurrencyCallbackData(action="confirm").pack(),
+        data=BudgetCurrencyUpdate(action="confirm").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
