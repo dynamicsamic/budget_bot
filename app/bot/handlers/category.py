@@ -1,9 +1,11 @@
 import logging
 
-from aiogram import F, Router, types
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
+from app.bot import shared
 from app.bot.callback_data import (
     CategoryItemActionData,
     UpdateCategoryChooseAttribute,
@@ -22,20 +24,17 @@ from app.bot.replies.keyboards.base import button_menu, create_callback_buttons
 from app.bot.replies.keyboards.category import (
     categories_paginated_list,
     category_choose_update_delete,
-    category_type_menu,
     category_update_options,
     create_category_menu,
     delete_category_warning,
     show_categories_menu,
 )
-from app.bot.replies.keyboards.common import switch_to_main_or_cancel
+from app.bot.replies.templates import category as cat
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator, aiogram_log_handler
-
-from . import shared
 
 logger = logging.getLogger(__name__)
 logger.addHandler(aiogram_log_handler)
@@ -48,22 +47,15 @@ router.callback_query.middleware(CategoryRepositoryMiddleWare)
 
 
 @router.message(Command(shared.create_category_command))
-async def cmd_create_category(
-    message: types.Message,
-    state: FSMContext,
-):
-    await message.answer(
-        "Введите название новой категории.\n"
-        f"{prompts.category_name_description}",
-        reply_markup=switch_to_main_or_cancel,
-    )
+async def cmd_create_category(message: Message, state: FSMContext):
     await state.set_state(CreateCategory.set_name)
-    logger.info("SUCCESS")
+    await message.answer(**cat.name_description)
+    logger.info(f"user id={message.from_user.id} started new category process")
 
 
 @router.message(CreateCategory.set_name, CategoryNameFilter)
 async def create_category_set_name(
-    message: types.Message,
+    message: Message,
     state: FSMContext,
     user: User,
     repository: CategoryRepository,
@@ -79,14 +71,13 @@ async def create_category_set_name(
             duplicate_arg_value=category_name,
         )
 
-    await message.answer(
-        "Выберите один из двух типов категорий",
-        reply_markup=category_type_menu,
-    )
-
-    await state.update_data(category_name=category_name)
     await state.set_state(CreateCategory.set_type)
-    logger.info("SUCCESS")
+    await state.update_data(category_name=category_name)
+    await message.answer(**cat.type_selection)
+    logger.info(
+        f"name `{category_name}` recieved "
+        f"for user id={message.from_user.id} new category"
+    )
 
 
 @router.callback_query(
@@ -94,7 +85,7 @@ async def create_category_set_name(
     CategoryTypeFilter,
 )
 async def create_category_set_type_and_finish(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     state: FSMContext,
     user: User,
     repository: CategoryRepository,
@@ -120,7 +111,7 @@ async def create_category_set_type_and_finish(
 
 @router.message(Command(shared.show_categories_command))
 async def cmd_show_categories(
-    message: types.Message,
+    message: Message,
     state: FSMContext,
     user: User,
     repository: CategoryRepository,
@@ -154,7 +145,7 @@ async def cmd_show_categories(
 
 @router.callback_query(ShowCategories.show_many, SelectCategoryPageFilter)
 async def show_categories_page(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     state: FSMContext,
     user: User,
     repository: CategoryRepository,
@@ -185,7 +176,7 @@ async def show_categories_page(
 
 @router.callback_query(ShowCategories.show_many, CategoryIdFIlter)
 async def show_category_control_options(
-    callback: types.CallbackQuery, state: FSMContext, category_id: int
+    callback: CallbackQuery, state: FSMContext, category_id: int
 ):
     await state.clear()  # remove paginator from state data
     await callback.message.answer(
@@ -202,7 +193,7 @@ async def show_category_control_options(
     CategoryItemActionData.filter(F.action == "delete"),
 )
 async def delete_category_warn_user(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     callback_data: CategoryItemActionData,
     repository: CategoryRepository,
 ):
@@ -223,7 +214,7 @@ async def delete_category_warn_user(
     CategoryDeleteConfirmFilter,
 )
 async def delete_category_confirm(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     state: FSMContext,
     repository: CategoryRepository,
     category_id: int,
@@ -244,7 +235,7 @@ async def delete_category_confirm(
     CategoryItemActionData.filter(F.action == "update"),
 )
 async def update_category_choose_attribute(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     callback_data: CategoryItemActionData,
     state: FSMContext,
 ):
@@ -266,13 +257,9 @@ async def update_category_choose_attribute(
     UpdateCategoryChooseAttribute.filter(F.attribute == "name"),
 )
 async def update_category_request_name(
-    callback: types.CallbackQuery, state: FSMContext
+    callback: CallbackQuery, state: FSMContext
 ):
-    await callback.message.answer(
-        "Введите новое название категории"
-        f"{prompts.category_name_description}",
-        reply_markup=switch_to_main_or_cancel,
-    )
+    await callback.message.answer(**cat.name_description)
     await state.set_state(UpdateCategory.update_name)
     logger.info("SUCCESS")
     await callback.answer()
@@ -280,7 +267,7 @@ async def update_category_request_name(
 
 @router.message(UpdateCategory.update_name, CategoryNameFilter)
 async def update_category_set_name(
-    message: types.Message,
+    message: Message,
     state: FSMContext,
     user: User,
     repository: CategoryRepository,
@@ -318,7 +305,7 @@ async def update_category_set_name(
     UpdateCategoryChooseAttribute.filter(F.attribute == "type"),
 )
 async def update_category_request_type(
-    callback: types.CallbackQuery, state: FSMContext
+    callback: CallbackQuery, state: FSMContext
 ):
     await callback.message.answer(
         "Выберите новый тип категории",
@@ -334,7 +321,7 @@ async def update_category_request_type(
 
 @router.callback_query(UpdateCategory.update_type, CategoryTypeFilter)
 async def update_category_set_type(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     state: FSMContext,
     repository: CategoryRepository,
     category_type: CategoryType,
@@ -362,7 +349,7 @@ async def update_category_set_type(
     UpdateCategoryChooseAttribute.filter(F.attribute == "finish"),
 )
 async def update_category_finish(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     state: FSMContext,
     repository: CategoryRepository,
 ):
@@ -392,14 +379,14 @@ async def update_category_finish(
 
 
 @router.callback_query(F.data == shared.create_category_callback)
-async def create_category(callback: types.CallbackQuery, state: FSMContext):
+async def create_category(callback: CallbackQuery, state: FSMContext):
     await cmd_create_category(callback.message, state)
     await callback.answer()
 
 
 @router.callback_query(F.data == shared.show_categories_callback)
 async def show_categories(
-    callback: types.CallbackQuery,
+    callback: CallbackQuery,
     state: FSMContext,
     user: User,
     repository: CategoryRepository,
