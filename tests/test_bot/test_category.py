@@ -11,7 +11,9 @@ from app.bot.callback_data import (
 )
 from app.bot.replies import keyboards, prompts
 from app.bot.replies.keyboards import buttons
+from app.bot.replies.templates import category as cat
 from app.bot.replies.templates import common as cot
+from app.bot.replies.templates import error as ert
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.db.models import CategoryType
 from app.db.repository import CategoryRepository
@@ -26,7 +28,7 @@ create_category_command = Message(
     date=datetime.now(),
     from_user=user,
     chat=chat,
-    text="/create_category",
+    text=f"/{shared.create_category_command}",
 )
 press_cancel_callback = CallbackQuery(
     id="12345678",
@@ -66,7 +68,7 @@ show_categories_command = Message(
     date=datetime.now(),
     from_user=user,
     chat=chat,
-    text="/show_categories",
+    text=f"/{shared.show_categories_command}",
 )
 show_next_categories_callback = CallbackQuery(
     id="12345678",
@@ -142,15 +144,11 @@ async def test_category_handlers_redirect_anonymous_user(
     create_test_data, requester
 ):
     anonymous_user = User(
-        id=999, is_bot=False, first_name="anonymous", username="anonymous"
+        id=999, is_bot=False, first_name="anon", username="anon"
     )
     anonymous_chat = Chat(id=999, type=ChatType.PRIVATE)
-    msg = Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=anonymous_user,
-        chat=anonymous_chat,
-        text=f"/{shared.create_category_command}",
+    msg = create_category_command.model_copy(
+        update={"from_user": anonymous_user, "chat": anonymous_chat}
     )
     await requester.make_request(
         SendMessage,
@@ -173,15 +171,9 @@ async def test_create_category_command(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    expected_text = (
-        "Введите название новой категории.\n"
-        f"{prompts.category_name_description}"
-    )
-    expected_markup = keyboards.base.button_menu(
-        buttons.cancel_operation, buttons.main_menu
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    text, markup = cat.name_description.values()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_name
@@ -214,14 +206,10 @@ async def test_create_category_set_valid_name(create_test_data, requester):
         ),
     )
 
+    text, markup = cat.type_selection.values()
     message = requester.read_last_sent_message()
-    expected_text = "Выберите один из двух типов категорий"
-    expected_markup = keyboards.base.create_callback_buttons(
-        button_names={"Доходы": "income", "Расходы": "expenses"},
-        callback_prefix=shared.select_category_type,
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_type
@@ -252,15 +240,16 @@ async def test_create_category_set_invalid_name(create_test_data, requester):
         ),
     )
 
+    text, markup = ert.invalid_category_name.values()
     message = requester.read_last_sent_message()
-    expected_text = (
-        "Недопустимое название категории."
-        f"{prompts.category_name_description}"
-    )
-    assert message.text == expected_text
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_name
+
+    state_data = await requester.get_fsm_state_data()
+    assert "category_name" not in state_data
 
 
 @pytest.mark.asyncio
@@ -285,23 +274,22 @@ async def test_create_category_set_existing_name(create_test_data, requester):
         ),
     )
 
-    message = requester.read_last_sent_message()
     exception = ModelInstanceDuplicateAttempt(
         user_tg_id=user.id,
         model_name="Категория",
         duplicate_arg_name="Название",
         duplicate_arg_value=existing_category_name.text,
     )
-    expected_text = (
-        f"{exception}. Придумайте новое значение и повторите попытку "
-        "или прервите процедуру, нажав на кнопку отмены."
-    )
-    expected_markup = keyboards.base.button_menu(buttons.cancel_operation)
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    text, markup = ert.instance_duplicate_attempt(exception).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_name
+
+    state_data = await requester.get_fsm_state_data()
+    assert "category_name" not in state_data
 
 
 @pytest.mark.asyncio
@@ -334,15 +322,10 @@ async def test_create_category_set_valid_income_type_and_finish(
     assert created_category.type.description == "Доходы"
     assert created_category.user_id == TARGET_USER_ID
 
+    text, markup = cat.create_summary(created_category).values()
     message = requester.read_last_sent_message()
-    expected_text = (
-        f"Вы успешно создали новую категорию: {created_category.render()}"
-    )
-    expected_markup = keyboards.base.button_menu(
-        buttons.show_categories, buttons.main_menu
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -362,7 +345,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
     repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
 
-    expenses_type_callback = CallbackQuery(
+    callback = CallbackQuery(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
@@ -380,7 +363,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
         AnswerCallbackQuery,
         Update(
             update_id=1,
-            callback_query=expenses_type_callback,
+            callback_query=callback,
         ),
     )
 
@@ -392,15 +375,10 @@ async def test_create_category_set_valid_expenses_type_and_finish(
     assert created_category.type.description == "Расходы"
     assert created_category.user_id == TARGET_USER_ID
 
+    text, markup = cat.create_summary(created_category).values()
     message = requester.read_last_sent_message()
-    expected_text = (
-        f"Вы успешно создали новую категорию: {created_category.render()}"
-    )
-    expected_markup = keyboards.base.button_menu(
-        buttons.show_categories, buttons.main_menu
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -445,9 +423,10 @@ async def test_create_category_set_invalid_type_and_finish(
     current_category_count = repository.count_user_categories(TARGET_USER_ID)
     assert current_category_count == initial_category_count
 
+    text, markup = ert.serverside_error.values()
     message = requester.read_last_sent_message()
-    assert message.text == prompts.serverside_error_response
-    assert message.reply_markup is None
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -477,9 +456,10 @@ async def test_create_category_set_type_finish_invalid_name(
     current_category_count = repository.count_user_categories(TARGET_USER_ID)
     assert current_category_count == initial_category_count
 
+    text, markup = ert.serverside_error.values()
     message = requester.read_last_sent_message()
-    assert message.text == prompts.serverside_error_response
-    assert message.reply_markup is None
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -487,7 +467,7 @@ async def test_create_category_set_type_finish_invalid_name(
 
 @pytest.mark.asyncio
 async def test_create_category_callback(create_test_data, requester):
-    create_category_callback = CallbackQuery(
+    callback = CallbackQuery(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
@@ -503,22 +483,13 @@ async def test_create_category_callback(create_test_data, requester):
 
     await requester.make_request(
         AnswerCallbackQuery,
-        Update(
-            update_id=1,
-            callback_query=create_category_callback,
-        ),
+        Update(update_id=1, callback_query=callback),
     )
 
+    text, markup = cat.name_description.values()
     message = requester.read_last_sent_message()
-    expected_text = (
-        "Введите название новой категории.\n"
-        f"{prompts.category_name_description}"
-    )
-    expected_markup = keyboards.base.button_menu(
-        buttons.cancel_operation, buttons.main_menu
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_name
@@ -528,30 +499,18 @@ async def test_create_category_callback(create_test_data, requester):
 async def test_show_categories_command_with_zero_categories(
     create_test_data, requester
 ):
-    second_user_show_categories_command = Message(
-        message_id=5,
-        date=datetime.now(),
-        from_user=second_user,
-        chat=second_chat,
-        text="/show_categories",
+    msg = show_categories_command.model_copy(
+        update={"from_user": second_user, "chat": second_chat}
     )
-
     await requester.make_request(
         SendMessage,
-        Update(update_id=1, message=second_user_show_categories_command),
+        Update(update_id=1, message=msg),
     )
 
+    text, markup = cat.zero_category.values()
     message = requester.read_last_sent_message()
-    expected_text = (
-        "У вас пока нет созданных категорий.\n"
-        "Создайте категорию, нажав на кнопку ниже."
-    )
-    expected_markup = keyboards.base.button_menu(
-        buttons.create_category,
-        buttons.main_menu,
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
