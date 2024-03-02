@@ -10,3 +10,14 @@ name_description = Template(
 type_selection = Template(
     prompts.choose_category_type, catkbd.category_type_menu
 )
+
+zero_category = Template(
+    prompts.zero_category_note, catkbd.create_category_menu
+)
+
+
+def create_summary(category) -> Template:
+    return Template(
+        prompts.show_new_category_summary(category),
+        catkbd.show_categories_menu,
+    )

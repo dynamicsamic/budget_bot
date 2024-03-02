@@ -1,7 +1,7 @@
 from typing import Any
 
 from app.custom_types import _BaseModel
-from app.db.models import User
+from app.db.models import Category, User
 from app.exceptions import ModelInstanceDuplicateAttempt
 
 cancel_operation_note = "Действие отменено"
@@ -121,6 +121,16 @@ invalid_category_name = (
 )
 
 choose_category_type = "Выберите один из двух типов категорий"
+
+
+def show_new_category_summary(category: Category) -> str:
+    return f"Вы успешно создали новую категорию: {category.render()}"
+
+
+zero_category_note = (
+    "У вас пока нет созданных категорий.\n"
+    "Создайте категорию, нажав на кнопку ниже."
+)
 
 invalid_budget_currency = (
     f"Недопустимый формат валюты. Повторите ввод, следуя требованиям."
