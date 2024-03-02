@@ -25,7 +25,6 @@ from app.bot.replies.keyboards.category import (
     categories_paginated_list,
     category_choose_update_delete,
     category_update_options,
-    create_category_menu,
     delete_category_warning,
     show_categories_menu,
 )
@@ -100,13 +99,12 @@ async def create_category_set_type_and_finish(
         type=category_type,
     )
 
-    await callback.message.answer(
-        f"Вы успешно создали новую категорию: {created.render()}",
-        reply_markup=show_categories_menu,
-    )
     await state.clear()
+    await callback.message.answer(**cat.create_summary(created))
     await callback.answer()
-    logger.info(f"SUCCESS, new category created: {created}")
+    logger.info(
+        f"user id={callback.from_user.id} created new category: {created}"
+    )
 
 
 @router.message(Command(shared.show_categories_command))
@@ -118,13 +116,10 @@ async def cmd_show_categories(
 ):
     categories = repository.get_user_categories(user.id)
     if categories.is_empty:
-        await message.answer(
-            "У вас пока нет созданных категорий.\n"
-            "Создайте категорию, нажав на кнопку ниже.",
-            reply_markup=create_category_menu,
-        )
+        await message.answer(**cat.zero_category)
         logger.info(
-            "FAILURE, no categories to show, redirect to create_category"
+            f"user id={message.from_user.id} has no categories yet; "
+            "redirect to create_category"
         )
 
     else:
