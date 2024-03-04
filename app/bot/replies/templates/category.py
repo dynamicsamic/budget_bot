@@ -1,6 +1,10 @@
+from typing import Iterable
+
 from app.bot.replies import prompts
 from app.bot.replies.keyboards import category as catkbd
 from app.bot.replies.keyboards import common as comkbd
+from app.db.models import Category
+from app.utils import OffsetPaginator
 
 from . import Template
 
@@ -20,4 +24,13 @@ def create_summary(category) -> Template:
     return Template(
         prompts.show_new_category_summary(category),
         catkbd.show_categories_menu,
+    )
+
+
+def show_paginated_categories(
+    categories: Iterable[Category], paginator: OffsetPaginator
+) -> Template:
+    return Template(
+        prompts.category_choose_action,
+        catkbd.categories_paginated_list(categories, paginator),
     )
