@@ -127,15 +127,15 @@ async def cmd_show_categories(
         paginator = OffsetPaginator(
             shared.paginated_categories_page, category_count, 5
         )
-        await message.answer(
-            prompts.category_choose_action,
-            reply_markup=categories_paginated_list(
-                categories.result, paginator
-            ),
-        )
-        await state.update_data(paginator=paginator)
         await state.set_state(ShowCategories.show_many)
-        logger.info(f"SUCCESS, show first {paginator.page_limit} categories")
+        await state.update_data(paginator=paginator)
+        await message.answer(
+            **cat.show_paginated_categories(categories.result, paginator)
+        )
+        logger.info(
+            f"show first {paginator.page_limit} categories "
+            f"for user id={message.from_user.id}"
+        )
 
 
 @router.callback_query(ShowCategories.show_many, SelectCategoryPageFilter)
