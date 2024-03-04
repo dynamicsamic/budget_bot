@@ -50,7 +50,7 @@ def create_entry_show_budgets(
     budgets: list,
 ) -> InlineKeyboardBuilder:
     return interactive_item_list(
-        budgets, "entry_budget_item", [switch_to_main_menu]
+        "entry_budget_item", budgets, extra_buttons=[switch_to_main_menu]
     )
 
 
@@ -58,17 +58,17 @@ def create_entry_show_categories(
     categories: list[models.Category],
 ) -> InlineKeyboardBuilder:
     return interactive_item_list(
-        categories,
         "entry_category_item",
-        [switch_to_main_menu],
+        categories,
+        extra_buttons=[switch_to_main_menu],
     )
 
 
 def entry_item_list_interactive(entries: list[models.Entry]):
     return interactive_item_list(
-        entries,
         "entry_id",
-        [create_entry, switch_to_main_menu],
+        entries,
+        extra_buttons=[create_entry, switch_to_main_menu],
     )
 
 
