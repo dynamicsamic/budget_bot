@@ -532,13 +532,13 @@ async def test_show_categories_command(
     categories = CategoryRepository(persistent_db_session).get_user_categories(
         TARGET_USER_ID
     )
-    message = requester.read_last_sent_message()
-    expected_text = prompts.category_choose_action
-    expected_markup = keyboards.base.paginated_category_item_list(
+
+    text, markup = cat.show_paginated_categories(
         categories.result, paginator
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    ).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == ShowCategories.show_many
