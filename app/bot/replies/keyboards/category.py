@@ -8,12 +8,12 @@ from app.bot.callback_data import (
     CategoryItemActionData,
 )
 from app.db import models
+from app.utils import OffsetPaginator
 
 from .base import (
     button_menu,
     create_callback_buttons,
     interactive_item_list,
-    paginated_item_list,
 )
 from .buttons import (
     cancel_operation,
@@ -56,21 +56,13 @@ def delete_category_warning(category_id: int) -> ReplyKeyboardMarkup:
 
 
 def categories_paginated_list(
-    categories: Iterable[models.Category], paginator
-):
-    return paginated_item_list(
-        categories,
-        shared.category_id,
-        paginator,
-        [create_category, switch_to_main_menu],
-    )
-
-
-def categories_interactive_list(categories: Iterable[models.Category]):
+    categories: Iterable[models.Category], paginator: OffsetPaginator
+) -> ReplyKeyboardMarkup:
     return interactive_item_list(
+        shared.category_id,
         categories,
-        "category_item",
-        [create_category, switch_to_main_menu],
+        paginator=paginator,
+        extra_buttons=[create_category, switch_to_main_menu],
     )
 
 
