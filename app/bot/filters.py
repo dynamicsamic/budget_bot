@@ -3,10 +3,11 @@ from datetime import datetime
 from typing import Any, Callable, Type, Union
 
 from aiogram.filters import BaseFilter, Filter
+from aiogram.filters.callback_data import CallbackData
 from aiogram.types import CallbackQuery, Message
 
 from app import settings
-from app.bot import shared
+from app.bot import string_constants as sc
 from app.db.models import CategoryType
 from app.exceptions import (
     InvalidBudgetCurrency,
@@ -96,14 +97,14 @@ CategoryNameFilter = PatternMatchMessageFilter(
     exception_type=InvalidCategoryName,
 )
 CategoryTypeFilter = CallbackQueryFilter(
-    shared.select_category_type, get_category_type
+    sc.SELECT_CATEGORY_TYPE, get_category_type
 )
-CategoryIdFIlter = CallbackQueryFilter(shared.category_id, get_category_id)
+CategoryIdFIlter = CallbackQueryFilter(sc.CATEGORY_ID, get_category_id)
 SelectCategoryPageFilter = CallbackQueryFilter(
-    shared.paginated_categories_page, get_next_category_page
+    sc.PAGINATED_CATEGORIES_PAGE, get_next_category_page
 )
 CategoryDeleteConfirmFilter = CallbackQueryFilter(
-    shared.delete_category, get_category_id
+    sc.DELETE_CATEGORY, get_category_id
 )
 
 
@@ -162,3 +163,30 @@ class EntryDateFilter(BaseFilter):
             "transaction_date": transaction_date,
             "error_message": error_message,
         }
+
+
+class UserSignupData(CallbackData, prefix=sc.SIGNUP_USER):
+    action: str
+
+
+class CurrencyUpdateData(CallbackData, prefix=sc.UPDATE_CURRENCY):
+    action: str
+
+
+class ReportTypeData(CallbackData, prefix="report"):
+    type: str
+    period: str
+
+
+class CategoryItemActionData(CallbackData, prefix="category_action"):
+    action: str
+    category_id: int
+
+
+class UpdateCategoryChooseAttrData(CallbackData, prefix=sc.UPDATE_CATEGORY):
+    attribute: str
+
+
+class EntryItemActionData(CallbackData, prefix="action_entry_item"):
+    entry_id: str
+    action: str
