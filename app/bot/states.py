@@ -34,7 +34,7 @@ class CreateEntry(StatesGroup):
     budget = State()
     category = State()
     sum = State()
-    transcation_date = State()
+    transaction_date = State()
     description = State()
 
 
