@@ -1,10 +1,10 @@
 from aiogram.types import InlineKeyboardButton
 
-from app.bot import shared
-from app.bot.callback_data import (
-    BudgetCurrencyUpdate,
+from app.bot import string_constants as sc
+from app.bot.filters import (
     CategoryItemActionData,
-    UserSignup,
+    CurrencyUpdateData,
+    UserSignupData,
 )
 
 ##############
@@ -12,12 +12,12 @@ from app.bot.callback_data import (
 ##############
 
 cancel_operation = InlineKeyboardButton(
-    text="Отменить действие", callback_data=shared.cancel_callback
+    text="Отменить действие", callback_data=sc.CANCEL_CALL
 )
 
 switch_to_main_menu = InlineKeyboardButton(
     text="🔙 Вернуться в главное меню",
-    callback_data=shared.show_main_menu_callback,
+    callback_data=sc.SHOW_MAIN_MENU_CALL,
 )
 
 
@@ -27,28 +27,28 @@ switch_to_main_menu = InlineKeyboardButton(
 
 signup_user = InlineKeyboardButton(
     text="Зарегистрировать аккаунт",
-    callback_data=UserSignup(action="start").pack(),
+    callback_data=UserSignupData(action="start").pack(),
 )
 
 activate_user = InlineKeyboardButton(
-    text="Активировать аккаунт", callback_data=shared.activate_user
+    text="Активировать аккаунт", callback_data=sc.ACTIVATE_USER
 )
 
 update_user = InlineKeyboardButton(
-    text="Изменить данные аккаунта", callback_data=shared.update_user
+    text="Изменить данные аккаунта", callback_data=sc.UPDATE_USER
 )
 
 update_budget_currency = InlineKeyboardButton(
     text="Изменить валюту",
-    callback_data=BudgetCurrencyUpdate(action="start").pack(),
+    callback_data=CurrencyUpdateData(action="start").pack(),
 )
 
 delete_user = InlineKeyboardButton(
-    text="Удалить аккаунт", callback_data=shared.delete_user
+    text="Удалить аккаунт", callback_data=sc.DELETE_USER
 )
 
 show_user_profile = InlineKeyboardButton(
-    text="Мой аккаунт", callback_data=shared.show_user_profile
+    text="Мой аккаунт", callback_data=sc.SHOW_USER_PROFILE
 )
 
 
@@ -80,7 +80,7 @@ def switch_to_update_category(category_id: int):
 def confirm_delete_category(category_id: int):
     return InlineKeyboardButton(
         text="Все-таки удалить",
-        callback_data=f"{shared.delete_category}:{category_id}",
+        callback_data=f"{sc.DELETE_CATEGORY}:{category_id}",
     )
 
 
