@@ -8,7 +8,7 @@ from aiogram.dispatcher.flags import get_flag
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app import settings
-from app.bot.replies.templates.common import (
+from app.bot.templates.const import (
     redirect_anonymous,
     redirect_inactive,
 )

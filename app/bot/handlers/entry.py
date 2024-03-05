@@ -7,15 +7,15 @@ from sqlalchemy.orm import Session, scoped_session
 
 from app import settings
 from app.bot import filters, states
-from app.bot.replies import keyboards
 from app.bot.middlewares import EntryRepositoryMiddleWare
+from app.bot.templates import keyboards
 from app.db.models import User
 from app.db.repository import CategoryRepository, EntryRepository
 
 router = Router()
 
-router.message.middleware(EntryRepositoryMiddleWare())
-router.callback_query.middleware(EntryRepositoryMiddleWare())
+router.message.middleware(EntryRepositoryMiddleWare)
+router.callback_query.middleware(EntryRepositoryMiddleWare)
 
 
 @router.message(Command("entry_create"))
@@ -107,10 +107,10 @@ async def create_entry_receive_sum(
         "Отправьте точку `.`, если транзакция выполнена сегодня.\n"
         "Допустимые форматы: дд мм гггг, дд-мм-гггг, ддммгггг."
     )
-    await state.set_state(states.CreateEntry.transcation_date)
+    await state.set_state(states.CreateEntry.transaction_date)
 
 
-@router.message(states.CreateEntry.transcation_date, filters.EntryDateFilter())
+@router.message(states.CreateEntry.transaction_date, filters.EntryDateFilter())
 async def create_entry_receive_transaction_date(
     message: types.Message,
     state: FSMContext,
@@ -278,7 +278,7 @@ async def entry_delete_confirm(
     callback: types.CallbackQuery,
     state: FSMContext,
     entry_id: int,
-    en_repository: EntryRepositoryMiddleWare,
+    en_repository: EntryRepository,
 ):
     deleted = en_repository.delete_entry(entry_id)
     msg = (

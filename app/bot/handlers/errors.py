@@ -5,7 +5,7 @@ from aiogram.filters import ExceptionTypeFilter
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.bot.replies.templates import error as ert
+from app.bot.templates import const, func
 from app.exceptions import (
     EmptyModelKwargs,
     InvalidBudgetCurrency,
@@ -57,19 +57,19 @@ async def serverside_error(
     elif update.callback_query is not None:
         message = update.callback_query.message
 
-    await message.answer(**ert.serverside_error)
+    await message.answer(**const.serverside_error)
     await state.clear()
 
 
 @router.errors(ExceptionTypeFilter(InvalidBudgetCurrency))
 async def invalid_budget_currency(error_event: types.ErrorEvent):
-    await error_event.update.message.answer(**ert.invalid_budget_currency)
+    await error_event.update.message.answer(**const.invalid_budget_currency)
     logger.info(f"Invalid user input triggered {error_event.exception}")
 
 
 @router.errors(ExceptionTypeFilter(InvalidCategoryName))
 async def invalid_category_name(error_event: types.ErrorEvent):
-    await error_event.update.message.answer(**ert.invalid_category_name)
+    await error_event.update.message.answer(**const.invalid_category_name)
     logger.info(f"Invalid user input triggered {error_event.exception}")
 
 
@@ -77,7 +77,7 @@ async def invalid_category_name(error_event: types.ErrorEvent):
 async def instance_duplicate_attempt(error_event: types.ErrorEvent):
     exception: ModelInstanceDuplicateAttempt = error_event.exception
     await error_event.update.message.answer(
-        **ert.instance_duplicate_attempt(exception)
+        **func.instance_duplicate_attempt(exception)
     )
     logger.info(
         f"User {exception.user_tg_id} triggered exception: {repr(exception)}"
