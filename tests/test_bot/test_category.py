@@ -5,16 +5,10 @@ from aiogram.enums import ChatType
 from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
-from app.bot import shared
-from app.bot.callback_data import (
-    CategoryItemActionData,
-)
-from app.bot.replies import keyboards, prompts
-from app.bot.replies.keyboards import buttons
-from app.bot.replies.templates import category as cat
-from app.bot.replies.templates import common as cot
-from app.bot.replies.templates import error as ert
+from app.bot import string_constants as sc
+from app.bot.filters import CategoryItemActionData
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
+from app.bot.templates import buttons, const, func, keyboards, texts
 from app.db.models import CategoryType
 from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
@@ -28,7 +22,7 @@ create_category_command = Message(
     date=datetime.now(),
     from_user=user,
     chat=chat,
-    text=f"/{shared.create_category_command}",
+    text=f"/{sc.CREATE_CATEGORY_COMMAND}",
 )
 press_cancel_callback = CallbackQuery(
     id="12345678",
@@ -54,7 +48,7 @@ valid_income_category_type = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{shared.select_category_type}:income",
+    data=f"{sc.SELECT_CATEGORY_TYPE}:income",
     message=Message(
         message_id=4,
         date=datetime.now(),
@@ -68,13 +62,13 @@ show_categories_command = Message(
     date=datetime.now(),
     from_user=user,
     chat=chat,
-    text=f"/{shared.show_categories_command}",
+    text=f"/{sc.SHOW_CATEGORIES_COMMAND}",
 )
 show_next_categories_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{shared.paginated_categories_page}:next",
+    data=f"{sc.PAGINATED_CATEGORIES_PAGE}:next",
     message=Message(
         message_id=6,
         date=datetime.now(),
@@ -87,7 +81,7 @@ show_previous_categories_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{shared.paginated_categories_page}:previous",
+    data=f"{sc.PAGINATED_CATEGORIES_PAGE}:previous",
     message=Message(
         message_id=7,
         date=datetime.now(),
@@ -100,7 +94,7 @@ show_invalid_categories_page_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=f"{shared.paginated_categories_page}:invalid",
+    data=f"{sc.PAGINATED_CATEGORIES_PAGE}:invalid",
     message=Message(
         message_id=7,
         date=datetime.now(),
@@ -154,7 +148,7 @@ async def test_category_handlers_redirect_anonymous_user(
         SendMessage,
         Update(update_id=1, message=msg),
     )
-    text, markup = cot.redirect_anonymous.values()
+    text, markup = const.redirect_anonymous.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -171,7 +165,7 @@ async def test_create_category_command(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    text, markup = cat.name_description.values()
+    text, markup = const.category_name_description.values()
     assert message.text == text
     assert message.reply_markup == markup
 
@@ -206,7 +200,7 @@ async def test_create_category_set_valid_name(create_test_data, requester):
         ),
     )
 
-    text, markup = cat.type_selection.values()
+    text, markup = const.category_type_selection.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -240,7 +234,7 @@ async def test_create_category_set_invalid_name(create_test_data, requester):
         ),
     )
 
-    text, markup = ert.invalid_category_name.values()
+    text, markup = const.invalid_category_name.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -280,7 +274,7 @@ async def test_create_category_set_existing_name(create_test_data, requester):
         duplicate_arg_name="Название",
         duplicate_arg_value=existing_category_name.text,
     )
-    text, markup = ert.instance_duplicate_attempt(exception).values()
+    text, markup = const.instance_duplicate_attempt(exception).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -322,7 +316,7 @@ async def test_create_category_set_valid_income_type_and_finish(
     assert created_category.type.description == "Доходы"
     assert created_category.user_id == TARGET_USER_ID
 
-    text, markup = cat.create_summary(created_category).values()
+    text, markup = func.show_category_create_summary(created_category).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -349,7 +343,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.select_category_type}:expenses",
+        data=f"{sc.SELECT_CATEGORY_TYPE}:expenses",
         message=Message(
             message_id=4,
             date=datetime.now(),
@@ -375,7 +369,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
     assert created_category.type.description == "Расходы"
     assert created_category.user_id == TARGET_USER_ID
 
-    text, markup = cat.create_summary(created_category).values()
+    text, markup = func.show_category_create_summary(created_category).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -402,7 +396,7 @@ async def test_create_category_set_invalid_type_and_finish(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.select_category_type}:invalid",
+        data=f"{sc.SELECT_CATEGORY_TYPE}:invalid",
         message=Message(
             message_id=4,
             date=datetime.now(),
@@ -423,7 +417,7 @@ async def test_create_category_set_invalid_type_and_finish(
     current_category_count = repository.count_user_categories(TARGET_USER_ID)
     assert current_category_count == initial_category_count
 
-    text, markup = ert.serverside_error.values()
+    text, markup = const.serverside_error.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -456,7 +450,7 @@ async def test_create_category_set_type_finish_invalid_name(
     current_category_count = repository.count_user_categories(TARGET_USER_ID)
     assert current_category_count == initial_category_count
 
-    text, markup = ert.serverside_error.values()
+    text, markup = const.serverside_error.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -486,7 +480,7 @@ async def test_create_category_callback(create_test_data, requester):
         Update(update_id=1, callback_query=callback),
     )
 
-    text, markup = cat.name_description.values()
+    text, markup = const.category_name_description.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -507,7 +501,7 @@ async def test_show_categories_command_with_zero_categories(
         Update(update_id=1, message=msg),
     )
 
-    text, markup = cat.zero_category.values()
+    text, markup = const.zero_category.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -527,13 +521,13 @@ async def test_show_categories_command(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
     categories = CategoryRepository(persistent_db_session).get_user_categories(
         TARGET_USER_ID
     )
 
-    text, markup = cat.show_paginated_categories(
+    text, markup = func.show_paginated_categories(
         categories.result, paginator
     ).values()
     message = requester.read_last_sent_message()
@@ -576,7 +570,7 @@ async def test_show_categories_next_page(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
     paginator.switch_next()
     categories = CategoryRepository(persistent_db_session).get_user_categories(
@@ -584,7 +578,7 @@ async def test_show_categories_next_page(
     )
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.category_choose_action
+    expected_text = texts.category_choose_action
     expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
@@ -637,7 +631,7 @@ async def test_show_categories_last_page(
     )
     page_limit = 5
     paginator = OffsetPaginator(
-        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
     paginator.switch_next()
     paginator.switch_next()
@@ -646,7 +640,7 @@ async def test_show_categories_last_page(
     )
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.category_choose_action
+    expected_text = texts.category_choose_action
     expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
@@ -702,13 +696,13 @@ async def test_show_categories_previous_page(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
     categories = CategoryRepository(persistent_db_session).get_user_categories(
         TARGET_USER_ID
     )
     message = requester.read_last_sent_message()
-    expected_text = prompts.category_choose_action
+    expected_text = texts.category_choose_action
     expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
@@ -750,7 +744,7 @@ async def test_show_categories_invalid_page(create_test_data, requester):
     )
 
     message = requester.read_last_sent_message()
-    assert message.text == prompts.serverside_error_response
+    assert message.text == texts.serverside_error_response
     assert message.reply_markup is None
 
     state = await requester.get_fsm_state()
@@ -781,13 +775,13 @@ async def test_show_categories_callback(
 
     page_limit = 5
     paginator = OffsetPaginator(
-        shared.paginated_categories_page, CATEGORY_SAMPLE, page_limit
+        sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
     categories = CategoryRepository(persistent_db_session).get_user_categories(
         TARGET_USER_ID
     )
     message = requester.read_last_sent_message()
-    expected_text = prompts.category_choose_action
+    expected_text = texts.category_choose_action
     expected_markup = keyboards.base.paginated_category_item_list(
         categories.result, paginator
     )
@@ -822,7 +816,7 @@ async def test_show_category_control_options(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.category_id}:{TARGET_CATEGORY_ID}",
+        data=f"{sc.CATEGORY_ID}:{TARGET_CATEGORY_ID}",
         message=Message(
             message_id=9,
             date=datetime.now(),
@@ -868,7 +862,7 @@ async def test_show_category_control_options_invalid_type_id(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.category_id}:invalid",
+        data=f"{sc.CATEGORY_ID}:invalid",
         message=Message(
             message_id=9,
             date=datetime.now(),
@@ -886,7 +880,7 @@ async def test_show_category_control_options_invalid_type_id(
         ),
     )
     message = requester.read_last_sent_message()
-    assert message.text == prompts.serverside_error_response
+    assert message.text == texts.serverside_error_response
     assert message.reply_markup is None
 
     state = await requester.get_fsm_state()
@@ -911,7 +905,7 @@ async def test_delete_category_warn_user(
     entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.show_delete_category_warning(
+    expected_text = texts.show_delete_category_warning(
         category.name, entry_count
     )
     button_1 = buttons.switch_to_update_category(category.id)
@@ -962,7 +956,7 @@ async def test_category_delete_confirm(
     assert current_entry_count == 0
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.confirm_category_deleted
+    expected_text = texts.confirm_category_deleted
     expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
@@ -1018,7 +1012,7 @@ async def test_category_delete_switch_to_update(
 
     message = requester.read_last_sent_message()
     expected_markup = keyboards.applied.category_update_options
-    assert message.text == prompts.update_category_invite_user
+    assert message.text == texts.update_category_invite_user
     assert message.reply_markup == expected_markup
 
     state = await requester.get_fsm_state()
@@ -1057,7 +1051,7 @@ async def test_update_category_choose_attribute(create_test_data, requester):
 
     message = requester.read_last_sent_message()
     expected_markup = keyboards.applied.category_update_options
-    assert message.text == prompts.update_category_invite_user
+    assert message.text == texts.update_category_invite_user
     assert message.reply_markup == expected_markup
 
     state = await requester.get_fsm_state()
@@ -1078,7 +1072,7 @@ async def test_update_category_request_name(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.update_category}:name",
+        data=f"{sc.UPDATE_CATEGORY}:name",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1095,8 +1089,7 @@ async def test_update_category_request_name(create_test_data, requester):
 
     message = requester.read_last_sent_message()
     expected_text = (
-        "Введите новое название категории"
-        f"{prompts.category_name_description}"
+        "Введите новое название категории" f"{texts.category_name_description}"
     )
     expected_markup = keyboards.base.button_menu(
         buttons.cancel_operation, buttons.main_menu
@@ -1131,7 +1124,7 @@ async def test_update_category_set_name(
     )
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.update_category_confirm_new_name.format(
+    expected_text = texts.update_category_confirm_new_name.format(
         category_name=valid_name_message.text
     )
     expected_markup = keyboards.applied.category_update_options
@@ -1173,8 +1166,7 @@ async def test_update_category_set_invalid_name(
 
     message = requester.read_last_sent_message()
     expected_text = (
-        "Недопустимое название категории."
-        f"{prompts.category_name_description}"
+        "Недопустимое название категории." f"{texts.category_name_description}"
     )
     assert message.text == expected_text
 
@@ -1196,7 +1188,7 @@ async def test_update_category_request_type(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.update_category}:type",
+        data=f"{sc.UPDATE_CATEGORY}:type",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1237,7 +1229,7 @@ async def test_update_category_set_income_type(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.select_category_type}:income",
+        data=f"{sc.SELECT_CATEGORY_TYPE}:income",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1257,7 +1249,7 @@ async def test_update_category_set_income_type(
     assert updated_category_type == CategoryType.INCOME
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.update_category_confirm_new_type.format(
+    expected_text = texts.update_category_confirm_new_type.format(
         category_type=CategoryType.INCOME.description
     )
     expected_markup = keyboards.applied.category_update_options
@@ -1281,7 +1273,7 @@ async def test_update_category_set_expenses_type(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.select_category_type}:expenses",
+        data=f"{sc.SELECT_CATEGORY_TYPE}:expenses",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1301,7 +1293,7 @@ async def test_update_category_set_expenses_type(
     assert updated_category_type == CategoryType.EXPENSES
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.update_category_confirm_new_type.format(
+    expected_text = texts.update_category_confirm_new_type.format(
         category_type=CategoryType.EXPENSES.description
     )
     expected_markup = keyboards.applied.category_update_options
@@ -1326,7 +1318,7 @@ async def test_update_category_finish(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.update_category}:finish",
+        data=f"{sc.UPDATE_CATEGORY}:finish",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1345,7 +1337,7 @@ async def test_update_category_finish(
     category = repository.get_category(TARGET_CATEGORY_ID)
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.show_update_summary(category)
+    expected_text = texts.show_update_summary(category)
     expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
@@ -1369,7 +1361,7 @@ async def test_update_category_finish_without_changes(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=f"{shared.update_category}:finish",
+        data=f"{sc.UPDATE_CATEGORY}:finish",
         message=Message(
             message_id=13,
             date=datetime.now(),
@@ -1385,7 +1377,7 @@ async def test_update_category_finish_without_changes(
     )
 
     message = requester.read_last_sent_message()
-    expected_text = prompts.update_without_changes
+    expected_text = texts.update_without_changes
     expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )

@@ -4,21 +4,21 @@ import pytest
 from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Message, Update
 
-from app.bot.replies.templates.common import (
+from app.bot.states import CreateUser
+from app.bot.string_constants import (
+    CANCEL_CALL,
+    CANCEL_COMMAND,
+    SHOW_MAIN_MENU_CALL,
+    SHOW_MAIN_MENU_COMMAND,
+    START_COMMAND,
+)
+from app.bot.templates.const import (
     cancel_operation,
     main_menu,
     start_message_active,
     start_message_anonymous,
     start_message_inactive,
 )
-from app.bot.shared import (
-    cancel_callback,
-    cancel_command,
-    show_main_menu_callback,
-    show_main_menu_command,
-    start_command,
-)
-from app.bot.states import CreateUser
 from app.db.repository import UserRepository
 
 from ..test_utils import TARGET_USER_ID
@@ -29,7 +29,7 @@ start_message = Message(
     date=datetime.now(),
     from_user=user,
     chat=chat,
-    text=f"/{start_command}",
+    text=f"/{START_COMMAND}",
 )
 
 
@@ -88,7 +88,7 @@ async def test_cancel_command(create_test_data, requester):
         date=datetime.now(),
         from_user=user,
         chat=chat,
-        text=f"/{cancel_command}",
+        text=f"/{CANCEL_COMMAND}",
     )
 
     await requester.make_request(
@@ -109,13 +109,13 @@ async def test_cancel_callback(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=cancel_callback,
+        data=CANCEL_CALL,
         message=Message(
             message_id=2,
             date=datetime.now(),
             from_user=user,
             chat=chat,
-            text=cancel_callback,
+            text=CANCEL_CALL,
         ),
     )
 
@@ -139,7 +139,7 @@ async def test_show_main_menu_command(create_test_data, requester):
         date=datetime.now(),
         from_user=user,
         chat=chat,
-        text=f"/{show_main_menu_command}",
+        text=f"/{SHOW_MAIN_MENU_COMMAND}",
     )
 
     await requester.make_request(
@@ -157,13 +157,13 @@ async def test_show_main_menu_callback(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=show_main_menu_callback,
+        data=SHOW_MAIN_MENU_CALL,
         message=Message(
             message_id=2,
             date=datetime.now(),
             from_user=user,
             chat=chat,
-            text=show_main_menu_callback,
+            text=SHOW_MAIN_MENU_CALL,
         ),
     )
 

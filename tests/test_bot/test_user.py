@@ -4,16 +4,13 @@ import pytest
 from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Message, Update
 
-from app.bot import shared
-from app.bot.callback_data import (
-    BudgetCurrencyUpdate,
-    UserSignup,
+from app.bot import string_constants as sc
+from app.bot.filters import (
+    CurrencyUpdateData,
+    UserSignupData,
 )
-from app.bot.replies.keyboards import buttons
-from app.bot.replies.templates import common as cot
-from app.bot.replies.templates import error as ert
-from app.bot.replies.templates import user as ust
 from app.bot.states import CreateUser, UpdateUser
+from app.bot.templates import buttons, const, func
 from app.db.repository import UserRepository
 
 from ..test_utils import TARGET_USER_ID
@@ -40,7 +37,7 @@ async def test_signup_new_user(create_test_tables, requester):
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
 
-    text, reply_markup = ust.choose_signup_type.values()
+    text, reply_markup = const.choose_signup_type.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == reply_markup
@@ -59,7 +56,7 @@ async def test_start_advanced_signup(create_test_tables, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=UserSignup(action="advanced").pack(),
+        data=UserSignupData(action="advanced").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -72,7 +69,7 @@ async def test_start_advanced_signup(create_test_tables, requester):
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
 
-    text, reply_markup = ust.advanced_signup_menu.values()
+    text, reply_markup = const.advanced_signup_menu.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == reply_markup
@@ -89,7 +86,7 @@ async def test_request_currency(create_test_tables, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=UserSignup(action="get_currency").pack(),
+        data=UserSignupData(action="get_currency").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -102,11 +99,10 @@ async def test_request_currency(create_test_tables, requester):
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
 
+    text, markup = const.budget_currency_description.values()
     message = requester.read_last_sent_message()
-    assert message.text == ust.budget_currency_description["text"]
-    assert (
-        message.reply_markup == ust.budget_currency_description["reply_markup"]
-    )
+    assert message.text == text
+    assert message.reply_markup == markup
     assert message.reply_markup is None
 
     state = await requester.get_fsm_state()
@@ -127,7 +123,7 @@ async def test_set_valid_currency(create_test_tables, requester):
     )
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = ust.show_currency(valid_currency).values()
+    text, markup = func.show_currency(valid_currency).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -153,7 +149,7 @@ async def test_set_invalid_currency(create_test_tables, requester):
     )
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = ert.invalid_budget_currency.values()
+    text, markup = const.invalid_budget_currency.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -183,7 +179,7 @@ async def test_finish_signup(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=UserSignup(action="basic").pack(),
+        data=UserSignupData(action="basic").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -200,7 +196,7 @@ async def test_finish_signup(
     assert current_user_count == initial_user_count + 1
 
     created_user = repository.get_user(tg_id=user.id)
-    text, markup = ust.show_signup_summary(created_user).values()
+    text, markup = func.show_signup_summary(created_user).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -224,7 +220,7 @@ async def test_finish_signup_basic(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=UserSignup(action="basic").pack(),
+        data=UserSignupData(action="basic").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -241,7 +237,7 @@ async def test_finish_signup_basic(
     assert current_user_count == initial_user_count + 1
 
     created_user = repository.get_user(tg_id=user.id)
-    text, markup = ust.show_signup_summary(created_user).values()
+    text, markup = func.show_signup_summary(created_user).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -257,7 +253,7 @@ async def test_show_user_profile(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=shared.show_user_profile,
+        data=sc.SHOW_USER_PROFILE,
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -270,7 +266,7 @@ async def test_show_user_profile(create_test_data, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = ust.show_profile.values()
+    text, markup = const.user_profile.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -282,7 +278,7 @@ async def test_show_anonymous_user_profile(create_test_tables, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=shared.show_user_profile,
+        data=sc.SHOW_USER_PROFILE,
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -295,7 +291,7 @@ async def test_show_anonymous_user_profile(create_test_tables, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = cot.redirect_anonymous.values()
+    text, markup = const.redirect_anonymous.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -311,7 +307,7 @@ async def test_delete_user(create_test_data, persistent_db_session, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=shared.delete_user,
+        data=sc.DELETE_USER,
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -324,7 +320,7 @@ async def test_delete_user(create_test_data, persistent_db_session, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = ust.show_delete_summary.values()
+    text, markup = const.user_delete_summary.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -339,7 +335,7 @@ async def test_update_budget_currency(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=BudgetCurrencyUpdate(action="start").pack(),
+        data=CurrencyUpdateData(action="start").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -352,7 +348,7 @@ async def test_update_budget_currency(create_test_data, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = ust.budget_currency_description.values()
+    text, markup = const.budget_currency_description.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -376,7 +372,7 @@ async def test_set_updated_currency(create_test_data, requester):
 
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = ust.confirm_updated_currency(valid_currency).values()
+    text, markup = func.confirm_updated_currency(valid_currency).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -400,7 +396,7 @@ async def test_set_invalid_updated_currency(create_test_data, requester):
 
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = ert.invalid_budget_currency.values()
+    text, markup = const.invalid_budget_currency.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -420,7 +416,7 @@ async def test_reset_currency(create_test_data, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=BudgetCurrencyUpdate(action="reset").pack(),
+        data=CurrencyUpdateData(action="reset").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -433,7 +429,7 @@ async def test_reset_currency(create_test_data, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = ust.budget_currency_description.values()
+    text, markup = const.budget_currency_description.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -461,7 +457,7 @@ async def test_confirm_updated_currency(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=BudgetCurrencyUpdate(action="confirm").pack(),
+        data=CurrencyUpdateData(action="confirm").pack(),
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -474,7 +470,7 @@ async def test_confirm_updated_currency(
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = ust.show_currency_update_summary(valid_currency).values()
+    text, markup = func.show_currency_update_summary(valid_currency).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
@@ -501,7 +497,7 @@ async def test_activate_user(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=shared.activate_user,
+        data=sc.ACTIVATE_USER,
         message=Message(
             message_id=1,
             date=datetime.now(),
@@ -514,7 +510,7 @@ async def test_activate_user(
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = ust.show_activation_summary.values()
+    text, markup = const.user_activation_summary.values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup
