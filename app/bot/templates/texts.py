@@ -6,6 +6,7 @@ from app.exceptions import ModelInstanceDuplicateAttempt
 
 cancel_operation_note = "Действие отменено"
 main_menu_note = "Основное меню"
+choose_action = "Выберите действие"
 
 budget_currency_description = (
     "Наименование валюты должно содержать от 3-х до 10-ти букв "

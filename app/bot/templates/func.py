@@ -70,6 +70,12 @@ def show_paginated_categories(
     )
 
 
+def show_category_control_options(category_id: int) -> Template:
+    return Template(
+        texts.choose_action, kbd.category_choose_update_delete(category_id)
+    )
+
+
 ###########
 #  Entry  #
 ###########
