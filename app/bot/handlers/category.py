@@ -20,8 +20,6 @@ from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.bot.templates import buttons, const, func, texts
 from app.bot.templates.base import button_menu, create_callback_buttons
 from app.bot.templates.keyboards import (
-    categories_paginated_list,
-    category_choose_update_delete,
     category_update_options,
     delete_category_warning,
     show_categories_menu,
@@ -129,8 +127,8 @@ async def cmd_show_categories(
             **func.show_paginated_categories(categories.result, paginator)
         )
         logger.info(
-            f"show first {paginator.page_limit} categories "
-            f"for user id={message.from_user.id}"
+            f"user id={message.from_user.id} GET "
+            f"first {paginator.page_limit} categories"
         )
 
 
@@ -154,14 +152,13 @@ async def show_categories_page(
     categories = repository.get_user_categories(
         user.id, offset=paginator.current_offset
     )
-    await callback.message.answer(
-        texts.category_choose_action,
-        reply_markup=categories_paginated_list(categories.result, paginator),
-    )
     await state.update_data(paginator=paginator)
+    await callback.message.answer(
+        **func.show_paginated_categories(categories, paginator)
+    )
     logger.info(
-        f"SUCCESS, show {paginator.page_limit} categories "
-        f"starting from {paginator.current_offset + 1}"
+        f"user id={callback.from_user.id} GET {paginator.page_limit} "
+        f"categories starting from {paginator.current_offset + 1}"
     )
 
 
@@ -171,12 +168,13 @@ async def show_category_control_options(
 ):
     await state.clear()  # remove paginator from state data
     await callback.message.answer(
-        "Выберите действие",
-        reply_markup=category_choose_update_delete(category_id),
+        **func.show_category_control_options(category_id)
     )
     await state.set_state(ShowCategories.show_one)
-    logger.info("SUCCESS")
     await callback.answer()
+    logger.info(
+        f"user id={callback.from_user.id} GET update or delete category select"
+    )
 
 
 @router.callback_query(
