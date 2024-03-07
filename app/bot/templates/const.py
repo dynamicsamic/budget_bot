@@ -30,12 +30,10 @@ invalid_budget_currency = Template(
     texts.invalid_budget_currency,
     kbd.switch_to_main_or_cancel,
 )
-
 invalid_category_name = Template(
     texts.invalid_category_name,
     kbd.switch_to_main_or_cancel,
 )
-
 serverside_error = Template(
     texts.serverside_error_response, kbd.switch_to_main
 )
@@ -44,20 +42,15 @@ serverside_error = Template(
 #  User  #
 ##########
 choose_signup_type = Template(texts.choose_signup_type, kbd.choose_signup_type)
-
 advanced_signup_menu = Template(
     texts.advanced_signup_description, kbd.get_budget_currency_menu
 )
-
 budget_currency_description = Template(texts.budget_currency_description)
-
 user_activation_summary = Template(
-    texts.user_activation_success, kbd.switch_to_main
+    texts.user_activation_summary, kbd.switch_to_main
 )
-
 user_profile = Template(texts.user_profile_description, kbd.user_profile_menu)
-
-user_delete_summary = Template(texts.user_delete_success, kbd.activation_menu)
+user_delete_summary = Template(texts.user_delete_summary, kbd.activation_menu)
 
 
 ############
@@ -69,10 +62,13 @@ category_name_description = Template(
 category_type_selection = Template(
     texts.choose_category_type, kbd.category_type_menu
 )
-
 zero_category = Template(texts.zero_category_note, kbd.create_category_menu)
-
-
+category_delete_summary = Template(
+    texts.category_delete_summary, kbd.show_categories_menu
+)
+category_update_start = Template(
+    texts.update_category_invite_user, kbd.category_update_options
+)
 ###########
 #  Entry  #
 ###########
