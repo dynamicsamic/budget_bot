@@ -1,7 +1,7 @@
 from typing import Iterable
 
 from app.bot.templates import texts
-from app.db.models import Category, User
+from app.db.models import Category, CategoryType, User
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator
 
@@ -26,20 +26,25 @@ def instance_duplicate_attempt(
 ##########
 def show_signup_summary(user: User) -> Template:
     return Template(
-        texts.user_signup_success(user), kbd.switch_to_user_profile
+        texts.user_signup_summary.format(user_data=user.render()),
+        kbd.switch_to_user_profile,
     )
 
 
 def confirm_updated_currency(budget_currency: str) -> Template:
     return Template(
-        texts.budget_currency_update_note(budget_currency),
+        texts.budget_currency_update_warning.format(
+            budget_currency=budget_currency
+        ),
         kbd.confirm_updated_currency_menu,
     )
 
 
-def show_currency(budget_currency: str) -> Template:
+def show_signup_currency(budget_currency: str) -> Template:
     return Template(
-        texts.signup_user_show_currency_and_finish(budget_currency),
+        texts.user_signup_currency_note.format(
+            budget_currency=budget_currency
+        ),
         kbd.finish_advanced_signup,
     )
 
@@ -73,6 +78,33 @@ def show_paginated_categories(
 def show_category_control_options(category_id: int) -> Template:
     return Template(
         texts.choose_action, kbd.category_choose_update_delete(category_id)
+    )
+
+
+def show_delete_category_warning(category: Category) -> Template:
+    return Template(
+        texts.delete_category_warning.format(
+            category_name=category.name, num_entries=category.num_entries
+        ),
+        kbd.delete_category_warning(category.id),
+    )
+
+
+def show_updated_category_name(category_name: str) -> Template:
+    text = texts.category_update_name_summary.format(
+        category_name=category_name
+    )
+    return Template(
+        f"{text}{texts.category_update_note}", kbd.category_update_options
+    )
+
+
+def show_updated_category_type(category_type: CategoryType) -> Template:
+    text = texts.category_update_type_summary.format(
+        category_type=category_type
+    )
+    return Template(
+        f"{text}{texts.category_update_note}", kbd.category_update_options
     )
 
 
