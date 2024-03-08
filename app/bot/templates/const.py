@@ -69,6 +69,9 @@ category_delete_summary = Template(
 category_update_start = Template(
     texts.update_category_invite_user, kbd.category_update_options
 )
+category_empty_update = Template(
+    texts.update_without_changes, kbd.show_categories_menu
+)
 ###########
 #  Entry  #
 ###########

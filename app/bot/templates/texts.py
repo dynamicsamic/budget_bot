@@ -27,7 +27,7 @@ activate_to_proceed = (
 signup_to_proceed = (
     "Для работы с ботом, зарегистрируйтесь, нажав на кнопку ниже."
 )
-
+update_without_changes = "Обновление завершено без изменений."
 
 ##########
 #  User  #
@@ -174,9 +174,6 @@ def show_update_summary(obj: _BaseModel) -> str:
 
 def show_lite_update_summary(name: str, value: Any) -> str:
     return f"Установлено новое значение атрибута {name} - `{value}`."
-
-
-update_without_changes = "Обновление завершено без изменений"
 
 
 def show_instance_duplicate_attempt_prompt(
