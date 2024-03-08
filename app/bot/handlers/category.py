@@ -18,12 +18,7 @@ from app.bot.filters import (
 from app.bot.middlewares import CategoryRepositoryMiddleWare
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
 from app.bot.templates import buttons, const, func, texts
-from app.bot.templates.base import button_menu, create_callback_buttons
-from app.bot.templates.keyboards import (
-    category_update_options,
-    delete_category_warning,
-    show_categories_menu,
-)
+from app.bot.templates.base import button_menu
 from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
@@ -188,14 +183,12 @@ async def delete_category_warn_user(
 ):
     category_id = callback_data.category_id
     category = repository.get_category(category_id)
-    entry_count = repository.count_category_entries(category_id)
 
     await callback.message.answer(
-        texts.show_delete_category_warning(category.name, entry_count),
-        reply_markup=delete_category_warning(category_id),
+        **func.show_delete_category_warning(category)
     )
-    logger.info("SUCCESS")
     await callback.answer()
+    logger.info(f"show delete warning for user id={callback.from_user.id}")
 
 
 @router.callback_query(
@@ -209,14 +202,13 @@ async def delete_category_confirm(
     category_id: int,
 ):
     repository.delete_category(category_id)
-    await callback.message.answer(
-        texts.confirm_category_deleted,
-        reply_markup=show_categories_menu,
-    )
-
     await state.clear()
-    logger.info(f"SUCCESS, category id {category_id} deleted")
+    await callback.message.answer(**const.category_delete_summary)
     await callback.answer()
+    logger.info(
+        f"user id={callback.from_user.id} "
+        f"deleted category id={category_id}"
+    )
 
 
 @router.callback_query(
@@ -228,17 +220,15 @@ async def update_category_choose_attribute(
     callback_data: CategoryItemActionData,
     state: FSMContext,
 ):
-    await state.clear()  # clear show state to start update state
-
-    await callback.message.answer(
-        texts.update_category_invite_user,
-        reply_markup=category_update_options,
-    )
-
+    await state.clear()  # clear previous state
     await state.set_state(UpdateCategory.choose_attribute)
     await state.set_data({"category_id": callback_data.category_id})
-    logger.info("SUCCESS")
+    await callback.message.answer(**const.category_update_start)
     await callback.answer()
+    logger.info(
+        f"user id={callback.from_user.id} start update "
+        f"for category id={callback_data.category_id}"
+    )
 
 
 @router.callback_query(
@@ -248,10 +238,13 @@ async def update_category_choose_attribute(
 async def update_category_request_name(
     callback: CallbackQuery, state: FSMContext
 ):
-    await callback.message.answer(**const.category_name_description)
     await state.set_state(UpdateCategory.update_name)
-    logger.info("SUCCESS")
+    await callback.message.answer(**const.category_name_description)
     await callback.answer()
+    logger.info(
+        "waiting for updated category name "
+        f"from user id={callback.from_user.id}..."
+    )
 
 
 @router.message(UpdateCategory.update_name, CategoryNameFilter)
@@ -272,20 +265,12 @@ async def update_category_set_name(
             duplicate_arg_value=category_name,
         )
 
-    state_data = await state.get_data()
-    category_id = state_data.get("category_id")
-    repository.update_category(category_id, name=category_name)
-
-    await message.answer(
-        texts.update_category_confirm_new_name.format(
-            category_name=category_name
-        ),
-        reply_markup=category_update_options,
-    )
-    await state.update_data(category_name=category_name)
+    await state.update_data(name=category_name)
     await state.set_state(UpdateCategory.choose_attribute)
+    await message.answer(**func.show_updated_category_name(category_name))
     logger.info(
-        f"SUCCESS, category id {category_id} name updated to {category_name}"
+        f"recieved new category name `{category_name}` "
+        f"from user id={message.from_user.id}"
     )
 
 
@@ -296,41 +281,31 @@ async def update_category_set_name(
 async def update_category_request_type(
     callback: CallbackQuery, state: FSMContext
 ):
-    await callback.message.answer(
-        "Выберите новый тип категории",
-        reply_markup=create_callback_buttons(
-            button_names={"Доходы": "income", "Расходы": "expenses"},
-            callback_prefix=sc.SELECT_CATEGORY_TYPE,
-        ),
-    )
     await state.set_state(UpdateCategory.update_type)
-    logger.info("SUCCESS")
+    await callback.message.answer(**const.category_type_selection)
     await callback.answer()
+    logger.info(
+        "waiting for updated category type "
+        f"from user id={callback.from_user.id}..."
+    )
 
 
 @router.callback_query(UpdateCategory.update_type, CategoryTypeFilter)
 async def update_category_set_type(
     callback: CallbackQuery,
     state: FSMContext,
-    repository: CategoryRepository,
     category_type: CategoryType,
 ):
-    state_data = await state.get_data()
-    category_id = state_data.get("category_id")
-    repository.update_category(category_id, type=category_type)
-
-    await callback.message.answer(
-        texts.update_category_confirm_new_type.format(
-            category_type=category_type.description
-        ),
-        reply_markup=category_update_options,
-    )
-    await state.update_data(category_type=category_type)
+    await state.update_data(type=category_type)
     await state.set_state(UpdateCategory.choose_attribute)
-    logger.info(
-        f"SUCCESS, category id {category_id} type updated to {category_type.value}"
+    await callback.message.answer(
+        **func.show_updated_category_type(category_type)
     )
     await callback.answer()
+    logger.info(
+        f"recieved new category type `{category_type}` "
+        f"from user id={callback.from_user.id}"
+    )
 
 
 @router.callback_query(
@@ -344,16 +319,12 @@ async def update_category_finish(
 ):
     state_data = await state.get_data()
     category_id = state_data.pop("category_id", None)
-    if state_data == {}:
-        await callback.message.answer(
-            texts.update_without_changes,
-            reply_markup=button_menu(
-                buttons.show_categories, buttons.main_menu
-            ),
-        )
-        logger.info("Category update finished without changes.")
+    if not state_data or not category_id:
+        await callback.message.answer(**const.category_empty_update)
+        logger.info(f"category id={category_id} recieved empty update.")
 
     else:
+        repository.update_category(category_id, **state_data)
         category = repository.get_category(category_id)
         await callback.message.answer(
             texts.show_update_summary(category),
