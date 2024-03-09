@@ -130,7 +130,7 @@ class CommonRepository:
         self,
         id: int,
         update_kwargs: dict[_DMLColumnArgument, Any],
-    ) -> bool:
+    ) -> _BaseModel:
         """Update model instance with given kwargs.
 
         Args:
@@ -139,7 +139,7 @@ class CommonRepository:
             to new values.
 
         Returns:
-            True if model instance was updated, False otherwise.
+            The updated model instance.
 
         Raises:
             - Validation errors if `update_kwargs` are invalid
@@ -152,10 +152,13 @@ class CommonRepository:
         self._validate_model_kwargs(update_kwargs)
 
         update_query = (
-            update(self.model).where(self.model.id == id).values(update_kwargs)
+            update(self.model)
+            .where(self.model.id == id)
+            .values(update_kwargs)
+            .returning(self.model)
         )
         try:
-            updated = bool(self.session.execute(update_query).rowcount)
+            updated = self.session.execute(update_query).scalar_one_or_none()
         except Exception as e:
             if isinstance(e, SQLAlchemyError):
                 logger.error(
@@ -170,13 +173,7 @@ class CommonRepository:
                 )
                 raise UnknownDataBaseException from e
 
-        if updated:
-            self.session.commit()
-            logger.info(
-                f"{self.model.get_tablename()} instance "
-                f"with id `{id}` updated"
-            )
-        else:
+        if not updated:
             logger.info(
                 f"{self.model.get_tablename()} instance"
                 f"with id `{id}` not found."
@@ -184,6 +181,11 @@ class CommonRepository:
             raise ModelInstanceNotFound(
                 f"Model {self.model.get_tablename()}, id {id}"
             )
+
+        self.session.commit()
+        logger.info(
+            f"{self.model.get_tablename()} instance " f"with id `{id}` updated"
+        )
         return updated
 
     def _delete(
@@ -499,7 +501,7 @@ class UserRepository(CommonRepository):
         *,
         budget_currency: str = None,
         is_active: bool = None,
-    ) -> bool:
+    ) -> User:
         return self._update(user_id, get_locals(locals(), ("self", "user_id")))
 
     def delete_user(
@@ -577,7 +579,7 @@ class CategoryRepository(CommonRepository):
         type: CategoryType = None,
         last_used: datetime = None,
         num_entries: int = None,
-    ) -> bool:
+    ) -> Category:
         return self._update(
             category_id, get_locals(locals(), ("self", "category_id"))
         )
@@ -669,7 +671,7 @@ class EntryRepository(CommonRepository):
         transaction_date: datetime = None,
         description: str = None,
         category_id: int = None,
-    ) -> bool:
+    ) -> Entry:
         return self._update(
             entry_id, get_locals(locals(), ("self", "entry_id"))
         )
