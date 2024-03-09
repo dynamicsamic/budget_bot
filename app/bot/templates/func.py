@@ -1,7 +1,7 @@
 from typing import Iterable
 
 from app.bot.templates import texts
-from app.db.models import Category, CategoryType, User
+from app.db.models import AbstractBaseModel, Category, CategoryType, User
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator
 
@@ -106,6 +106,13 @@ def show_updated_category_type(category_type: CategoryType) -> Template:
     return Template(
         f"{text}{texts.category_update_note}", kbd.category_update_options
     )
+
+
+def show_category_update_summary(obj: AbstractBaseModel) -> Template:
+    text = texts.update_summary.format(
+        obj_name=obj._public_name, obj_data=obj.render()
+    )
+    return Template(text, kbd.show_categories_menu)
 
 
 ###########
