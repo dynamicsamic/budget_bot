@@ -17,8 +17,7 @@ from app.bot.filters import (
 )
 from app.bot.middlewares import CategoryRepositoryMiddleWare
 from app.bot.states import CreateCategory, ShowCategories, UpdateCategory
-from app.bot.templates import buttons, const, func, texts
-from app.bot.templates.base import button_menu
+from app.bot.templates import const, func
 from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository
 from app.exceptions import ModelInstanceDuplicateAttempt
@@ -324,15 +323,13 @@ async def update_category_finish(
         logger.info(f"category id={category_id} recieved empty update.")
 
     else:
-        repository.update_category(category_id, **state_data)
-        category = repository.get_category(category_id)
+        category = repository.update_category(category_id, **state_data)
         await callback.message.answer(
-            texts.show_update_summary(category),
-            reply_markup=button_menu(
-                buttons.show_categories, buttons.main_menu
-            ),
+            **func.show_category_update_summary(category)
         )
-        logger.info(f"SUCCESS, category id {category_id} update finished.")
+        logger.info(
+            f"user id={callback.from_user.id} updated category id={category_id}."
+        )
 
     await state.clear()
     await callback.answer()
