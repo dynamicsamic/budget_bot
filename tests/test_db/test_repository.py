@@ -6,6 +6,7 @@ from app.db.repository import CommonRepository
 from app.exceptions import (
     EmptyModelKwargs,
     InvalidModelArgType,
+    ModelInstanceNotFound,
     RepositoryValidationError,
 )
 from app.utils import epoch_start, now, pretty_datetime
@@ -151,25 +152,27 @@ def test_get_unexisting_user(usrrep, create_inmemory_users):
 
 
 def test_update_user(usrrep, create_inmemory_users):
-    assert (
-        usrrep.update_user(
-            TARGET_USER_ID, budget_currency="USD", is_active=True
-        )
-        is True
+    budget_currency, is_active = "USD", True
+    updated = usrrep.update_user(
+        TARGET_USER_ID, budget_currency=budget_currency, is_active=is_active
     )
+    assert isinstance(updated, User)
+    assert updated.budget_currency == budget_currency
+    assert updated.is_active == is_active
+
+    from_db = usrrep.get_user(user_id=TARGET_USER_ID)
+    assert from_db == updated
 
 
+@pytest.mark.xfail(raises=ModelInstanceNotFound, strict=True)
 def test_update_unexisting_user(usrrep, create_inmemory_users):
-    assert (
-        usrrep.update_user(
-            UNEXISTING_ID, budget_currency="USD", is_active=True
-        )
-        is False
-    )
+    usrrep.update_user(UNEXISTING_ID, budget_currency="USD", is_active=True)
 
 
 def test_update_user_without_is_active_kwarg(usrrep, create_inmemory_users):
-    assert usrrep.update_user(TARGET_USER_ID, budget_currency="USD") is True
+    updated = usrrep.update_user(TARGET_USER_ID, budget_currency="USD")
+    assert isinstance(updated, User)
+    assert updated.id == TARGET_USER_ID
 
 
 @pytest.mark.xfail(raises=InvalidModelArgType, strict=True)
@@ -204,8 +207,9 @@ def test_delete_user(usrrep, create_inmemory_users):
     assert usrrep.get_user(user_id=TARGET_USER_ID) is None
 
 
+@pytest.mark.xfail(raises=ModelInstanceNotFound, strict=True)
 def test_delete_unexisting_user(usrrep, create_inmemory_users):
-    assert usrrep.delete_user(UNEXISTING_ID) is False
+    usrrep.delete_user(UNEXISTING_ID)
 
 
 @pytest.mark.xfail(raises=SQLAlchemyError, strict=True)
@@ -265,13 +269,6 @@ def test_count_unexisting_user_categories(catrep, create_inmemory_categories):
 
 
 def test_update_category(catrep, create_inmemory_categories):
-    original_category = catrep.get_category(TARGET_CATEGORY_ID)
-    original_type = original_category.type
-    original_id = original_category.id
-    original_created_at = original_category.created_at
-    original_last_updated = original_category.last_updated
-    original_user_id = original_category.user_id
-
     valid_kwargs = {
         "name": "valid",
         "last_used": now(),
@@ -279,20 +276,14 @@ def test_update_category(catrep, create_inmemory_categories):
     }
 
     updated = catrep.update_category(TARGET_CATEGORY_ID, **valid_kwargs)
-    assert updated is True
-
-    updated_category = catrep.get_category(TARGET_CATEGORY_ID)
-    assert updated_category.name == valid_kwargs["name"]
-    assert updated_category.num_entries == valid_kwargs["num_entries"]
-    assert pretty_datetime(updated_category.last_used) == pretty_datetime(
+    assert isinstance(updated, Category)
+    from_db = catrep.get_category(TARGET_CATEGORY_ID)
+    assert updated.name == valid_kwargs["name"]
+    assert updated.num_entries == valid_kwargs["num_entries"]
+    assert pretty_datetime(updated.last_used) == pretty_datetime(
         valid_kwargs["last_used"]
     )
-
-    assert updated_category.type == original_type
-    assert updated_category.id == original_id
-    assert updated_category.created_at == original_created_at
-    assert updated_category.last_updated != original_last_updated
-    assert updated_category.user_id == original_user_id
+    assert updated == from_db
 
 
 @pytest.mark.xfail(raises=InvalidModelArgType, strict=True)
@@ -314,7 +305,7 @@ def test_update_category_invalid_arg_name(catrep, create_inmemory_categories):
 
 @pytest.mark.xfail(raises=EmptyModelKwargs, strict=True)
 def test_update_category_without_kwargs(catrep, create_inmemory_categories):
-    catrep.update_category(TARGET_CATEGORY_ID).astuple()
+    catrep.update_category(TARGET_CATEGORY_ID)
 
 
 @pytest.mark.xfail(raises=TypeError, strict=True)
@@ -328,8 +319,9 @@ def test_delete_category(catrep, create_inmemory_categories):
     assert catrep.delete_category(TARGET_CATEGORY_ID) is True
 
 
+@pytest.mark.xfail(raises=ModelInstanceNotFound, strict=True)
 def test_delete_unexisting_category(catrep, create_inmemory_categories):
-    assert catrep.delete_category(UNEXISTING_ID) is False
+    catrep.delete_category(UNEXISTING_ID)
 
 
 @pytest.mark.xfail(raises=SQLAlchemyError, strict=True)
@@ -583,33 +575,19 @@ def test_count_entries_positional_args(entrep, create_inmemory_entries):
 
 
 def test_update_entry(entrep, create_inmemory_entries):
-    original_entry = entrep.get_entry(TARGET_ENTRY_ID)
-    original_description = original_entry.description
-    original_id = original_entry.id
-    original_created_at = original_entry.created_at
-    original_last_updated = original_entry.last_updated
-    original_user_id = original_entry.user_id
-    original_category_id = original_entry.category_id
-
     valid_kwargs = {
         "sum": 1000,
         "transaction_date": now(),
     }
 
-    assert entrep.update_entry(TARGET_ENTRY_ID, **valid_kwargs) is True
-
-    updated_entry = entrep.get_entry(TARGET_ENTRY_ID)
-    assert updated_entry.sum == valid_kwargs["sum"]
-    assert pretty_datetime(updated_entry.transaction_date) == pretty_datetime(
+    updated = entrep.update_entry(TARGET_ENTRY_ID, **valid_kwargs)
+    assert isinstance(updated, Entry)
+    assert updated.sum == valid_kwargs["sum"]
+    assert pretty_datetime(updated.transaction_date) == pretty_datetime(
         valid_kwargs["transaction_date"]
     )
-
-    assert updated_entry.description == original_description
-    assert updated_entry.id == original_id
-    assert updated_entry.created_at == original_created_at
-    assert updated_entry.last_updated != original_last_updated
-    assert updated_entry.user_id == original_user_id
-    assert updated_entry.category_id == original_category_id
+    from_db = entrep.get_entry(TARGET_ENTRY_ID)
+    assert updated == from_db
 
 
 def test_update_entry_assign_to_another_category(
@@ -618,10 +596,8 @@ def test_update_entry_assign_to_another_category(
     initial_entry_count = entrep.count_entries(category_id=TARGET_CATEGORY_ID)
     original_category_id = entrep.get_entry(TARGET_ENTRY_ID).category_id
 
-    assert entrep.update_entry(TARGET_ENTRY_ID, category_id=2) is True
-
-    updated_entry = entrep.get_entry(TARGET_ENTRY_ID)
-    assert updated_entry.category_id != original_category_id
+    updated = entrep.update_entry(TARGET_ENTRY_ID, category_id=2)
+    assert updated.category_id != original_category_id
     assert (
         entrep.count_entries(category_id=TARGET_CATEGORY_ID)
         == initial_entry_count - 1
@@ -652,16 +628,18 @@ def test_update_entry_positional_args(entrep, create_inmemory_entries):
     entrep.update_entry(TARGET_ENTRY_ID, 22000, "description")
 
 
+@pytest.mark.xfail(raises=ModelInstanceNotFound, strict=True)
 def test_update_unexisting_entry(entrep, create_inmemory_entries):
-    assert entrep.update_entry(UNEXISTING_ID, sum=100) is False
+    assert entrep.update_entry(UNEXISTING_ID, sum=100)
 
 
 def test_delete_entry(entrep, create_inmemory_entries):
     assert entrep.delete_entry(TARGET_ENTRY_ID) is True
 
 
+@pytest.mark.xfail(raises=ModelInstanceNotFound, strict=True)
 def test_delete_unexisting_entry(entrep, create_inmemory_entries):
-    assert entrep.delete_entry(UNEXISTING_ID) is False
+    assert entrep.delete_entry(UNEXISTING_ID)
 
 
 @pytest.mark.xfail(raises=SQLAlchemyError, strict=True)
