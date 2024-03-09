@@ -1,6 +1,5 @@
 from typing import Any
 
-from app.custom_types import _BaseModel
 from app.db.models import Category
 from app.exceptions import ModelInstanceDuplicateAttempt
 
@@ -28,6 +27,24 @@ signup_to_proceed = (
     "Для работы с ботом, зарегистрируйтесь, нажав на кнопку ниже."
 )
 update_without_changes = "Обновление завершено без изменений."
+update_summary = (
+    "Редактирование объекта {obj_name} завершено. "
+    "Проверьте внесенные изменения: {obj_data}"
+)
+
+
+def show_lite_update_summary(name: str, value: Any) -> str:
+    return f"Установлено новое значение атрибута {name} - `{value}`."
+
+
+def show_instance_duplicate_attempt_prompt(
+    exception: ModelInstanceDuplicateAttempt,
+) -> str:
+    return (
+        f"{exception}. Придумайте новое значение и повторите попытку "
+        "или прервите процедуру, нажав на кнопку отмены."
+    )
+
 
 ##########
 #  User  #
@@ -163,23 +180,3 @@ category_update_name_summary = (
 category_update_type_summary = (
     "Вы поменяли тип категории на `{category_type}`."
 )
-
-
-def show_update_summary(obj: _BaseModel) -> str:
-    return (
-        f"Редактирование объекта {obj._public_name} завершено. "
-        f"Проверьте внесенные изменения: {obj.render()}"
-    )
-
-
-def show_lite_update_summary(name: str, value: Any) -> str:
-    return f"Установлено новое значение атрибута {name} - `{value}`."
-
-
-def show_instance_duplicate_attempt_prompt(
-    exception: ModelInstanceDuplicateAttempt,
-) -> str:
-    return (
-        f"{exception}. Придумайте новое значение и повторите попытку "
-        "или прервите процедуру, нажав на кнопку отмены."
-    )
