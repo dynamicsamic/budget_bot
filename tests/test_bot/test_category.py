@@ -17,6 +17,12 @@ from app.utils import OffsetPaginator
 from ..test_utils import CATEGORY_SAMPLE, TARGET_CATEGORY_ID, TARGET_USER_ID
 from .conftest import chat, second_chat, second_user, user
 
+
+@pytest.fixture
+def repository(persistent_db_session):
+    return CategoryRepository(persistent_db_session)
+
+
 create_category_command = Message(
     message_id=1,
     date=datetime.now(),
@@ -28,7 +34,7 @@ press_cancel_callback = CallbackQuery(
     id="12345678",
     from_user=user,
     chat_instance="AABBCC",
-    data=buttons.cancel_operation.callback_data,
+    data=sc.CANCEL_CALL,
     message=Message(
         message_id=2,
         date=datetime.now(),
@@ -288,7 +294,7 @@ async def test_create_category_set_existing_name(create_test_data, requester):
 
 @pytest.mark.asyncio
 async def test_create_category_set_valid_income_type_and_finish(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.update_fsm_state_data(
@@ -297,9 +303,7 @@ async def test_create_category_set_valid_income_type_and_finish(
     await requester.set_fsm_state(CreateCategory.set_type)
     ##############################################
 
-    repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
-
     await requester.make_request(
         AnswerCallbackQuery,
         Update(
@@ -327,7 +331,7 @@ async def test_create_category_set_valid_income_type_and_finish(
 
 @pytest.mark.asyncio
 async def test_create_category_set_valid_expenses_type_and_finish(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.update_fsm_state_data(
@@ -336,9 +340,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
     await requester.set_fsm_state(CreateCategory.set_type)
     ##############################################
 
-    repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
-
     callback = CallbackQuery(
         id="12345678",
         from_user=user,
@@ -380,7 +382,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
 
 @pytest.mark.asyncio
 async def test_create_category_set_invalid_type_and_finish(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.update_fsm_state_data(
@@ -389,9 +391,7 @@ async def test_create_category_set_invalid_type_and_finish(
     await requester.set_fsm_state(CreateCategory.set_type)
     ##############################################
 
-    repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
-
     invalid_type_callback = CallbackQuery(
         id="12345678",
         from_user=user,
@@ -428,7 +428,7 @@ async def test_create_category_set_invalid_type_and_finish(
 
 @pytest.mark.asyncio
 async def test_create_category_set_type_finish_invalid_name(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     # intentionally inject a bug, category_name must be a valid str
@@ -436,9 +436,7 @@ async def test_create_category_set_type_finish_invalid_name(
     await requester.set_fsm_state(CreateCategory.set_type)
     ##############################################
 
-    repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
-
     await requester.make_request(
         AnswerCallbackQuery,
         Update(
@@ -512,7 +510,7 @@ async def test_show_categories_command_with_zero_categories(
 
 @pytest.mark.asyncio
 async def test_show_categories_command(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     await requester.make_request(
         SendMessage,
@@ -523,9 +521,7 @@ async def test_show_categories_command(
     paginator = OffsetPaginator(
         sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
-    categories = CategoryRepository(persistent_db_session).get_user_categories(
-        TARGET_USER_ID
-    )
+    categories = repository.get_user_categories(TARGET_USER_ID)
 
     text, markup = func.show_paginated_categories(
         categories.result, paginator
@@ -542,7 +538,7 @@ async def test_show_categories_command(
 
     kb = message.reply_markup.model_dump().get("inline_keyboard")
     for button, i in zip(kb, range(1, page_limit + 1)):
-        assert button[0]["callback_data"] == f"category_id:{i}"
+        assert button[0]["callback_data"] == f"{sc.CATEGORY_ID}:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
@@ -557,7 +553,7 @@ async def test_show_categories_command(
 
 @pytest.mark.asyncio
 async def test_show_categories_next_page(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     await requester.make_request(
         SendMessage,
@@ -573,17 +569,16 @@ async def test_show_categories_next_page(
         sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
     paginator.switch_next()
-    categories = CategoryRepository(persistent_db_session).get_user_categories(
+    categories = repository.get_user_categories(
         TARGET_USER_ID, offset=paginator.current_offset
     )
 
-    message = requester.read_last_sent_message()
-    expected_text = texts.category_choose_action
-    expected_markup = keyboards.base.paginated_category_item_list(
+    text, markup = func.show_paginated_categories(
         categories.result, paginator
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    ).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == ShowCategories.show_many
@@ -599,7 +594,7 @@ async def test_show_categories_next_page(
             paginator.current_offset + page_limit + 1,
         ),
     ):
-        assert button[0]["callback_data"] == f"category_id:{i}"
+        assert button[0]["callback_data"] == f"{sc.CATEGORY_ID}:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
@@ -615,7 +610,7 @@ async def test_show_categories_next_page(
 
 @pytest.mark.asyncio
 async def test_show_categories_last_page(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     await requester.make_request(
         SendMessage,
@@ -635,17 +630,16 @@ async def test_show_categories_last_page(
     )
     paginator.switch_next()
     paginator.switch_next()
-    categories = CategoryRepository(persistent_db_session).get_user_categories(
+    categories = repository.get_user_categories(
         TARGET_USER_ID, offset=paginator.current_offset
     )
 
-    message = requester.read_last_sent_message()
-    expected_text = texts.category_choose_action
-    expected_markup = keyboards.base.paginated_category_item_list(
+    text, markup = func.show_paginated_categories(
         categories.result, paginator
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    ).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == ShowCategories.show_many
@@ -661,7 +655,7 @@ async def test_show_categories_last_page(
             paginator.current_offset + page_limit + 1,
         ),
     ):
-        assert button[0]["callback_data"] == f"category_id:{i}"
+        assert button[0]["callback_data"] == f"{sc.CATEGORY_ID}:{i}"
 
     previous_button = kb[-1][0]
     assert previous_button["text"] == "Предыдущие"
@@ -679,7 +673,7 @@ async def test_show_categories_last_page(
 
 @pytest.mark.asyncio
 async def test_show_categories_previous_page(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     await requester.make_request(
         SendMessage,
@@ -698,16 +692,14 @@ async def test_show_categories_previous_page(
     paginator = OffsetPaginator(
         sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
-    categories = CategoryRepository(persistent_db_session).get_user_categories(
-        TARGET_USER_ID
-    )
-    message = requester.read_last_sent_message()
-    expected_text = texts.category_choose_action
-    expected_markup = keyboards.base.paginated_category_item_list(
+    categories = repository.get_user_categories(TARGET_USER_ID)
+
+    text, markup = func.show_paginated_categories(
         categories.result, paginator
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    ).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == ShowCategories.show_many
@@ -717,7 +709,7 @@ async def test_show_categories_previous_page(
 
     kb = message.reply_markup.model_dump().get("inline_keyboard")
     for button, i in zip(kb, range(1, page_limit + 1)):
-        assert button[0]["callback_data"] == f"category_id:{i}"
+        assert button[0]["callback_data"] == f"{sc.CATEGORY_ID}:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
@@ -743,9 +735,10 @@ async def test_show_categories_invalid_page(create_test_data, requester):
         ),
     )
 
+    text, markup = const.serverside_error.values()
     message = requester.read_last_sent_message()
-    assert message.text == texts.serverside_error_response
-    assert message.reply_markup is None
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -753,13 +746,13 @@ async def test_show_categories_invalid_page(create_test_data, requester):
 
 @pytest.mark.asyncio
 async def test_show_categories_callback(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
     show_categories_callback = CallbackQuery(
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data="show_categories",
+        data=sc.SHOW_CATEGORIES_CALL,
         message=Message(
             message_id=8,
             date=datetime.now(),
@@ -777,16 +770,13 @@ async def test_show_categories_callback(
     paginator = OffsetPaginator(
         sc.PAGINATED_CATEGORIES_PAGE, CATEGORY_SAMPLE, page_limit
     )
-    categories = CategoryRepository(persistent_db_session).get_user_categories(
-        TARGET_USER_ID
-    )
-    message = requester.read_last_sent_message()
-    expected_text = texts.category_choose_action
-    expected_markup = keyboards.base.paginated_category_item_list(
+    categories = repository.get_user_categories(TARGET_USER_ID)
+    text, markup = func.show_paginated_categories(
         categories.result, paginator
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    ).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == ShowCategories.show_many
@@ -796,7 +786,7 @@ async def test_show_categories_callback(
 
     kb = message.reply_markup.model_dump().get("inline_keyboard")
     for button, i in zip(kb, range(1, page_limit + 1)):
-        assert button[0]["callback_data"] == f"category_id:{i}"
+        assert button[0]["callback_data"] == f"{sc.CATEGORY_ID}:{i}"
 
     next_button = kb[-1][0]
     assert next_button["text"] == "Следующие"
@@ -831,13 +821,12 @@ async def test_show_category_control_options(create_test_data, requester):
         Update(update_id=1, callback_query=control_options_callback),
     )
 
-    message = requester.read_last_sent_message()
-    expected_text = "Выберите действие"
-    expected_markup = keyboards.applied.category_item_choose_action(
+    text, markup = func.show_category_control_options(
         TARGET_CATEGORY_ID
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    ).values()
+    message = requester.read_last_sent_message()
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == ShowCategories.show_one
@@ -879,9 +868,11 @@ async def test_show_category_control_options_invalid_type_id(
             callback_query=invalid_type_id_callback,
         ),
     )
+
+    text, markup = const.serverside_error.values()
     message = requester.read_last_sent_message()
-    assert message.text == texts.serverside_error_response
-    assert message.reply_markup is None
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -889,7 +880,7 @@ async def test_show_category_control_options_invalid_type_id(
 
 @pytest.mark.asyncio
 async def test_delete_category_warn_user(
-    persistent_db_session, create_test_data, requester
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.set_fsm_state(ShowCategories.show_one)
@@ -899,20 +890,21 @@ async def test_delete_category_warn_user(
         AnswerCallbackQuery,
         Update(update_id=2, callback_query=delete_category),
     )
-
-    repository = CategoryRepository(persistent_db_session)
     category = repository.get_category(TARGET_CATEGORY_ID)
-    entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
+    # entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
 
+    text, markup = func.show_delete_category_warning(category).values()
     message = requester.read_last_sent_message()
-    expected_text = texts.show_delete_category_warning(
-        category.name, entry_count
-    )
-    button_1 = buttons.switch_to_update_category(category.id)
-    button_2 = buttons.confirm_delete_category(category.id)
-    expected_markup = keyboards.base.button_menu(button_1, button_2)
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
+    # expected_text = texts.show_delete_category_warning(
+    #     category.name, entry_count
+    # )
+    # button_1 = buttons.switch_to_update_category(category.id)
+    # button_2 = buttons.confirm_delete_category(category.id)
+    # expected_markup = keyboards.base.button_menu(button_1, button_2)
+    # assert message.text == expected_text
+    # assert message.reply_markup == expected_markup
 
     state = await requester.get_fsm_state()
     assert state == ShowCategories.show_one
@@ -923,19 +915,18 @@ async def test_delete_category_warn_user(
     kb = message.reply_markup.model_dump().get("inline_keyboard")
 
     cancel_button = kb[0][0]
-    assert cancel_button["text"] == button_1.text
-    assert cancel_button["callback_data"] == button_1.callback_data
+    assert cancel_button["text"] == markup[0][0]["text"]
+    assert cancel_button["callback_data"] == markup[0][0]["callback_data"]
 
     confirm_button = kb[1][0]
-    assert confirm_button["text"] == button_2.text
-    assert confirm_button["callback_data"] == button_2.callback_data
+    assert confirm_button["text"] == markup[1][0]["text"]
+    assert confirm_button["callback_data"] == markup[1][0]["callback_data"]
 
 
 @pytest.mark.asyncio
 async def test_category_delete_confirm(
-    create_test_data, requester, persistent_db_session
+    create_test_data, requester, repository
 ):
-    repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
     initial_entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
     assert initial_entry_count > 0
@@ -955,13 +946,10 @@ async def test_category_delete_confirm(
     assert current_category_count == initial_category_count - 1
     assert current_entry_count == 0
 
+    text, markup = const.category_delete_summary.values()
     message = requester.read_last_sent_message()
-    expected_text = texts.confirm_category_deleted
-    expected_markup = keyboards.base.button_menu(
-        buttons.show_categories, buttons.main_menu
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -972,9 +960,8 @@ async def test_category_delete_confirm(
 
 @pytest.mark.asyncio
 async def test_category_delete_switch_to_update(
-    persistent_db_session, create_test_data, requester
+    create_test_data, requester, repository
 ):
-    repository = CategoryRepository(persistent_db_session)
     initial_category_count = repository.count_user_categories(TARGET_USER_ID)
     initial_entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
     assert initial_entry_count > 0
@@ -1010,10 +997,10 @@ async def test_category_delete_switch_to_update(
     assert current_category_count == initial_category_count
     assert current_entry_count == initial_entry_count
 
+    text, markup = const.category_update_start.values()
     message = requester.read_last_sent_message()
-    expected_markup = keyboards.applied.category_update_options
-    assert message.text == texts.update_category_invite_user
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
@@ -1100,16 +1087,14 @@ async def test_update_category_request_name(create_test_data, requester):
 
 @pytest.mark.asyncio
 async def test_update_category_set_name(
-    persistent_db_session, create_test_data, requester
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_name)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
     ##############################################
 
-    repository = CategoryRepository(persistent_db_session)
     initial_category_name = repository.get_category(TARGET_CATEGORY_ID).name
-
     valid_name_message = Message(
         message_id=13,
         date=datetime.now(),
@@ -1124,7 +1109,7 @@ async def test_update_category_set_name(
     )
 
     message = requester.read_last_sent_message()
-    expected_text = texts.update_category_confirm_new_name.format(
+    expected_text = texts.category_update_name_summary.format(
         category_name=valid_name_message.text
     )
     expected_markup = keyboards.applied.category_update_options
@@ -1141,16 +1126,14 @@ async def test_update_category_set_name(
 
 @pytest.mark.asyncio
 async def test_update_category_set_invalid_name(
-    persistent_db_session, create_test_data, requester
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_name)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
     ##############################################
 
-    repository = CategoryRepository(persistent_db_session)
     initial_category_name = repository.get_category(TARGET_CATEGORY_ID).name
-
     invalid_name_message = Message(
         message_id=13,
         date=datetime.now(),
@@ -1218,7 +1201,7 @@ async def test_update_category_request_type(create_test_data, requester):
 
 @pytest.mark.asyncio
 async def test_update_category_set_income_type(
-    persistent_db_session, create_test_data, requester
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_type)
@@ -1243,13 +1226,11 @@ async def test_update_category_set_income_type(
         AnswerCallbackQuery,
         Update(update_id=1, callback_query=set_income_type_callback),
     )
-
-    repository = CategoryRepository(persistent_db_session)
     updated_category_type = repository.get_category(TARGET_CATEGORY_ID).type
     assert updated_category_type == CategoryType.INCOME
 
     message = requester.read_last_sent_message()
-    expected_text = texts.update_category_confirm_new_type.format(
+    expected_text = texts.category_update_type_summary.format(
         category_type=CategoryType.INCOME.description
     )
     expected_markup = keyboards.applied.category_update_options
@@ -1262,7 +1243,7 @@ async def test_update_category_set_income_type(
 
 @pytest.mark.asyncio
 async def test_update_category_set_expenses_type(
-    persistent_db_session, create_test_data, requester
+    create_test_data, requester, repository
 ):
     ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.update_type)
@@ -1288,12 +1269,11 @@ async def test_update_category_set_expenses_type(
         Update(update_id=1, callback_query=set_expenses_type_callback),
     )
 
-    repository = CategoryRepository(persistent_db_session)
     updated_category_type = repository.get_category(TARGET_CATEGORY_ID).type
     assert updated_category_type == CategoryType.EXPENSES
 
     message = requester.read_last_sent_message()
-    expected_text = texts.update_category_confirm_new_type.format(
+    expected_text = texts.category_update_type_summary.format(
         category_type=CategoryType.EXPENSES.description
     )
     expected_markup = keyboards.applied.category_update_options
@@ -1305,9 +1285,7 @@ async def test_update_category_set_expenses_type(
 
 
 @pytest.mark.asyncio
-async def test_update_category_finish(
-    persistent_db_session, create_test_data, requester
-):
+async def test_update_category_finish(create_test_data, requester, repository):
     ################ test setup ##################
     await requester.set_fsm_state(UpdateCategory.choose_attribute)
     await requester.update_fsm_state_data(category_id=TARGET_CATEGORY_ID)
@@ -1332,12 +1310,10 @@ async def test_update_category_finish(
         AnswerCallbackQuery,
         Update(update_id=1, callback_query=finish_category_update_callback),
     )
-
-    repository = CategoryRepository(persistent_db_session)
     category = repository.get_category(TARGET_CATEGORY_ID)
 
     message = requester.read_last_sent_message()
-    expected_text = texts.show_update_summary(category)
+    expected_text = texts.update_summary(category)
     expected_markup = keyboards.base.button_menu(
         buttons.show_categories, buttons.main_menu
     )
