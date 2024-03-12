@@ -1036,10 +1036,10 @@ async def test_update_category_choose_attribute(create_test_data, requester):
         Update(update_id=1, callback_query=choose_attribute_callback),
     )
 
+    text, markup = const.category_update_start.values()
     message = requester.read_last_sent_message()
-    expected_markup = keyboards.applied.category_update_options
-    assert message.text == texts.update_category_invite_user
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
@@ -1074,15 +1074,10 @@ async def test_update_category_request_name(create_test_data, requester):
         Update(update_id=1, callback_query=request_name_callback),
     )
 
+    text, markup = const.category_name_description.values()
     message = requester.read_last_sent_message()
-    expected_text = (
-        "Введите новое название категории" f"{texts.category_name_description}"
-    )
-    expected_markup = keyboards.base.button_menu(
-        buttons.cancel_operation, buttons.main_menu
-    )
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
 
 @pytest.mark.asyncio
@@ -1108,13 +1103,12 @@ async def test_update_category_set_name(
         Update(update_id=1, message=valid_name_message),
     )
 
+    text, markup = func.show_updated_category_name(
+        valid_name_message.text
+    ).values()
     message = requester.read_last_sent_message()
-    expected_text = texts.category_update_name_summary.format(
-        category_name=valid_name_message.text
-    )
-    expected_markup = keyboards.applied.category_update_options
-    assert message.text == expected_text
-    assert message.reply_markup == expected_markup
+    assert message.text == text
+    assert message.reply_markup == markup
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
