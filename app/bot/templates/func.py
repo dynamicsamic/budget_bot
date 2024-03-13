@@ -1,7 +1,7 @@
 from typing import Iterable
 
 from app.bot.templates import texts
-from app.db.models import AbstractBaseModel, Category, CategoryType, User
+from app.db.models import Category, CategoryType, User
 from app.exceptions import ModelInstanceDuplicateAttempt
 from app.utils import OffsetPaginator
 
@@ -59,7 +59,7 @@ def show_currency_update_summary(budget_currency: str) -> Template:
 ############
 # Category #
 ############
-def show_category_create_summary(category) -> Template:
+def show_category_create_summary(category: Category) -> Template:
     return Template(
         texts.show_new_category_summary(category),
         kbd.show_categories_menu,
@@ -108,9 +108,9 @@ def show_updated_category_type(category_type: CategoryType) -> Template:
     )
 
 
-def show_category_update_summary(obj: AbstractBaseModel) -> Template:
+def show_category_update_summary(category: Category) -> Template:
     text = texts.update_summary.format(
-        obj_name=obj._public_name, obj_data=obj.render()
+        obj_name=category._public_name, obj_data=category.render()
     )
     return Template(text, kbd.show_categories_menu)
 
