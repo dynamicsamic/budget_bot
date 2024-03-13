@@ -22,6 +22,7 @@ from aiogram.types import User as AiogramUser
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 
+from app.bot.templates.base import Template
 from app.db.models import Category, CategoryType, Entry, User
 
 USER_SAMPLE = 5
@@ -275,3 +276,17 @@ class MockedBot(Bot):
 
     def get_request(self) -> TelegramMethod[TelegramType]:
         return self.session.get_request()
+
+
+def uses_template(
+    answer: SendMessage, template: Template, **kwargs: Any
+) -> bool:
+    """Assert that a bot answer uses particular template."""
+    if kwargs:
+        template = template(**kwargs)
+
+    for attr, val in template._properties.items():
+        if getattr(answer, attr, None) != val:
+            return False
+
+    return True
