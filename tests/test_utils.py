@@ -278,7 +278,7 @@ class MockedBot(Bot):
         return self.session.get_request()
 
 
-def uses_template(
+def assert_uses_template(
     answer: SendMessage, template: Template, **kwargs: Any
 ) -> bool:
     """Assert that a bot answer uses particular template."""
@@ -286,7 +286,4 @@ def uses_template(
         template = template(**kwargs)
 
     for attr, val in template._properties.items():
-        if getattr(answer, attr, None) != val:
-            return False
-
-    return True
+        assert getattr(answer, attr, None) == val
