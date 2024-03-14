@@ -123,7 +123,7 @@ async def test_set_valid_currency(create_test_tables, requester):
     )
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = func.show_currency(valid_currency).values()
+    text, markup = func.show_signup_currency(valid_currency).values()
     message = requester.read_last_sent_message()
     assert message.text == text
     assert message.reply_markup == markup

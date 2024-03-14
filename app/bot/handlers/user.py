@@ -76,7 +76,7 @@ async def set_currency(
 ):
     await state.set_state(CreateUser.choose_signup_type)
     await state.update_data(budget_currency=budget_currency)
-    await message.answer(**func.show_currency(budget_currency))
+    await message.answer(**func.show_signup_currency(budget_currency))
     logger.info(
         f"new user id={message.from_user.id} "
         f"submitted valid currency: {budget_currency}."
