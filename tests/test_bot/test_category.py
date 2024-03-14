@@ -19,7 +19,7 @@ from ..test_utils import (
     EXPENSES_SAMPLE,
     TARGET_CATEGORY_ID,
     TARGET_USER_ID,
-    uses_template,
+    assert_uses_template,
 )
 from .conftest import chat, second_chat, second_user, user
 
@@ -162,7 +162,7 @@ async def test_category_handlers_redirect_anonymous_user(
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.redirect_anonymous)
+    assert_uses_template(answer, const.redirect_anonymous)
 
 
 @pytest.mark.asyncio
@@ -176,7 +176,7 @@ async def test_create_category_command(create_test_data, requester):
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.category_name_description)
+    assert_uses_template(answer, const.category_name_description)
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_name
@@ -210,7 +210,7 @@ async def test_create_category_set_valid_name(create_test_data, requester):
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.category_type_selection)
+    assert_uses_template(answer, const.category_type_selection)
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_type
@@ -241,10 +241,8 @@ async def test_create_category_set_invalid_name(create_test_data, requester):
         ),
     )
 
-    text, markup = const.invalid_category_name.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.invalid_category_name)
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_name
@@ -282,7 +280,7 @@ async def test_create_category_set_existing_name(create_test_data, requester):
         duplicate_arg_name="Название",
         duplicate_arg_value=existing_category_name.text,
     )
-    assert uses_template(
+    assert_uses_template(
         answer, func.instance_duplicate_attempt, exception=exception
     )
 
@@ -322,7 +320,7 @@ async def test_create_category_set_valid_income_type_and_finish(
     assert created_category.user_id == TARGET_USER_ID
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer, func.show_category_create_summary, category=created_category
     )
 
@@ -373,7 +371,7 @@ async def test_create_category_set_valid_expenses_type_and_finish(
     assert created_category.user_id == TARGET_USER_ID
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer, func.show_category_create_summary, category=created_category
     )
 
@@ -419,7 +417,7 @@ async def test_create_category_set_invalid_type_and_finish(
     assert current_category_count == initial_category_count
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.serverside_error)
+    assert_uses_template(answer, const.serverside_error)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -448,7 +446,7 @@ async def test_create_category_set_type_finish_invalid_name(
     assert current_category_count == initial_category_count
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.serverside_error)
+    assert_uses_template(answer, const.serverside_error)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -476,7 +474,7 @@ async def test_create_category_callback(create_test_data, requester):
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.category_name_description)
+    assert_uses_template(answer, const.category_name_description)
 
     state = await requester.get_fsm_state()
     assert state == CreateCategory.set_name
@@ -495,7 +493,7 @@ async def test_show_categories_command_with_zero_categories(
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.zero_category)
+    assert_uses_template(answer, const.zero_category)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -517,7 +515,7 @@ async def test_show_categories_command(
     categories = repository.get_user_categories(TARGET_USER_ID)
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer,
         func.show_paginated_categories,
         categories=categories.result,
@@ -568,7 +566,7 @@ async def test_show_categories_next_page(
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer,
         func.show_paginated_categories,
         categories=categories.result,
@@ -630,7 +628,7 @@ async def test_show_categories_last_page(
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer,
         func.show_paginated_categories,
         categories=categories.result,
@@ -691,7 +689,7 @@ async def test_show_categories_previous_page(
     categories = repository.get_user_categories(TARGET_USER_ID)
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer,
         func.show_paginated_categories,
         categories=categories.result,
@@ -733,7 +731,7 @@ async def test_show_categories_invalid_page(create_test_data, requester):
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.serverside_error)
+    assert_uses_template(answer, const.serverside_error)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -767,7 +765,7 @@ async def test_show_categories_callback(
     )
     categories = repository.get_user_categories(TARGET_USER_ID)
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer,
         func.show_paginated_categories,
         categories=categories.result,
@@ -818,7 +816,7 @@ async def test_show_category_control_options(create_test_data, requester):
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer,
         func.show_category_control_options,
         category_id=TARGET_CATEGORY_ID,
@@ -866,7 +864,7 @@ async def test_show_category_control_options_invalid_type_id(
     )
 
     answer = requester.read_last_sent_message()
-    assert uses_template(answer, const.serverside_error)
+    assert_uses_template(answer, const.serverside_error)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -888,7 +886,7 @@ async def test_delete_category_warn_user(
     # entry_count = repository.count_category_entries(TARGET_CATEGORY_ID)
 
     answer = requester.read_last_sent_message()
-    assert uses_template(
+    assert_uses_template(
         answer, func.show_delete_category_warning, category=category
     )
 
@@ -932,10 +930,8 @@ async def test_category_delete_confirm(
     assert current_category_count == initial_category_count - 1
     assert current_entry_count == 0
 
-    text, markup = const.category_delete_summary.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.category_delete_summary)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -983,10 +979,8 @@ async def test_category_delete_switch_to_update(
     assert current_category_count == initial_category_count
     assert current_entry_count == initial_entry_count
 
-    text, markup = const.category_update_start.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.category_update_start)
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
@@ -1022,10 +1016,8 @@ async def test_update_category_choose_attribute(create_test_data, requester):
         Update(update_id=1, callback_query=callback),
     )
 
-    text, markup = const.category_update_start.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.category_update_start)
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
@@ -1060,10 +1052,8 @@ async def test_update_category_request_name(create_test_data, requester):
         Update(update_id=1, callback_query=callback),
     )
 
-    text, markup = const.category_name_description.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.category_name_description)
 
 
 @pytest.mark.asyncio
@@ -1096,16 +1086,16 @@ async def test_update_category_set_name(
     persistent_db_session.refresh(category)
     assert category.name != new_name  # no update should be made
 
-    text, markup = func.show_updated_category_name(new_name).values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(
+        answer, func.show_updated_category_name, category_name=new_name
+    )
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
 
     state_data = await requester.get_fsm_state_data()
-    assert state_data.get("category_name") == new_name
+    assert state_data.get("name") == new_name
 
 
 @pytest.mark.asyncio
@@ -1131,10 +1121,8 @@ async def test_update_category_set_invalid_name(
         Update(update_id=1, message=msg),
     )
 
-    text, markup = const.invalid_category_name.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.invalid_category_name)
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.update_name
@@ -1169,10 +1157,8 @@ async def test_update_category_request_type(create_test_data, requester):
         Update(update_id=1, callback_query=callback),
     )
 
-    text, markup = const.category_type_selection.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.category_type_selection)
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.update_type
@@ -1214,18 +1200,18 @@ async def test_update_category_set_income_type(
     persistent_db_session.refresh(category)
     assert category.type != new_type  # no update made
 
-    text, markup = func.show_updated_category_type(
-        CategoryType.INCOME
-    ).values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(
+        answer,
+        func.show_updated_category_type,
+        category_type=CategoryType.INCOME,
+    )
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
 
     state_data = await requester.get_fsm_state_data()
-    assert state_data.get("category_type") == new_type
+    assert state_data.get("type") == new_type
 
 
 @pytest.mark.asyncio
@@ -1264,18 +1250,18 @@ async def test_update_category_set_expenses_type(
     persistent_db_session.refresh(category)
     assert category.type != new_type  # no update made
 
-    text, markup = func.show_updated_category_type(
-        CategoryType.EXPENSES
-    ).values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(
+        answer,
+        func.show_updated_category_type,
+        category_type=CategoryType.EXPENSES,
+    )
 
     state = await requester.get_fsm_state()
     assert state == UpdateCategory.choose_attribute
 
     state_data = await requester.get_fsm_state_data()
-    assert state_data.get("category_type") == new_type
+    assert state_data.get("type") == new_type
 
 
 @pytest.mark.asyncio
@@ -1288,8 +1274,8 @@ async def test_update_category_finish(
     await requester.set_fsm_state(UpdateCategory.choose_attribute)
     await requester.update_fsm_state_data(
         category_id=TARGET_CATEGORY_ID,
-        category_name=new_name,
-        category_type=new_type,
+        name=new_name,
+        type=new_type,
     )
     ##############################################
 
@@ -1322,10 +1308,10 @@ async def test_update_category_finish(
     assert category.type == new_type
     assert category.created_at != category.last_updated
 
-    text, markup = func.show_category_update_summary(category).values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(
+        answer, func.show_category_update_summary, category=category
+    )
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -1359,10 +1345,8 @@ async def test_update_category_finish_without_changes(
         Update(update_id=1, callback_query=callback),
     )
 
-    text, markup = const.category_empty_update.values()
     answer = requester.read_last_sent_message()
-    assert answer.text == text
-    assert answer.reply_markup == markup
+    assert_uses_template(answer, const.category_empty_update)
 
     state = await requester.get_fsm_state()
     assert state is None
