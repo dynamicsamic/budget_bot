@@ -148,7 +148,7 @@ async def show_categories_page(
     )
     await state.update_data(paginator=paginator)
     await callback.message.answer(
-        **func.show_paginated_categories(categories, paginator)
+        **func.show_paginated_categories(categories.result, paginator)
     )
     logger.info(
         f"user id={callback.from_user.id} GET {paginator.page_limit} "
