@@ -10,11 +10,16 @@ from app.bot.filters import (
     UserSignupData,
 )
 from app.bot.states import CreateUser, UpdateUser
-from app.bot.templates import buttons, const, func
+from app.bot.templates import const, func
 from app.db.repository import UserRepository
 
-from ..test_utils import TARGET_USER_ID
+from ..test_utils import TARGET_USER_ID, assert_uses_template
 from .conftest import chat, user
+
+
+@pytest.fixture
+def repository(persistent_db_session):
+    return UserRepository(persistent_db_session)
 
 
 @pytest.mark.asyncio
@@ -24,7 +29,7 @@ async def test_signup_new_user(create_test_tables, requester):
         id="12345678",
         from_user=user,
         chat_instance="AABBCC",
-        data=buttons.signup_user.callback_data,
+        data=f"{sc.SIGNUP_USER}:start",
         message=Message(
             message_id=2,
             date=datetime.now(),
@@ -37,10 +42,8 @@ async def test_signup_new_user(create_test_tables, requester):
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
 
-    text, reply_markup = const.choose_signup_type.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == reply_markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.choose_signup_type)
 
     state = await requester.get_fsm_state()
     assert state == CreateUser.choose_signup_type
@@ -69,10 +72,8 @@ async def test_start_advanced_signup(create_test_tables, requester):
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
 
-    text, reply_markup = const.advanced_signup_menu.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == reply_markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.advanced_signup_menu)
 
     state = await requester.get_fsm_state()
     assert state == CreateUser.advanced_signup
@@ -99,11 +100,8 @@ async def test_request_currency(create_test_tables, requester):
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
 
-    text, markup = const.budget_currency_description.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
-    assert message.reply_markup is None
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.budget_currency_description)
 
     state = await requester.get_fsm_state()
     assert state == CreateUser.get_budget_currency
@@ -123,10 +121,10 @@ async def test_set_valid_currency(create_test_tables, requester):
     )
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = func.show_signup_currency(valid_currency).values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(
+        answer, func.show_signup_currency, budget_currency=valid_currency
+    )
 
     state = await requester.get_fsm_state()
     assert state == CreateUser.choose_signup_type
@@ -149,10 +147,8 @@ async def test_set_invalid_currency(create_test_tables, requester):
     )
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = const.invalid_budget_currency.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.invalid_budget_currency)
 
     state = await requester.get_fsm_state()
     assert state == CreateUser.get_budget_currency
@@ -162,10 +158,7 @@ async def test_set_invalid_currency(create_test_tables, requester):
 
 
 @pytest.mark.asyncio
-async def test_finish_signup(
-    create_test_tables, requester, persistent_db_session
-):
-    repository = UserRepository(persistent_db_session)
+async def test_finish_signup(create_test_tables, requester, repository):
     initial_user_count = repository.count_users()
     assert initial_user_count == 0
 
@@ -196,20 +189,15 @@ async def test_finish_signup(
     assert current_user_count == initial_user_count + 1
 
     created_user = repository.get_user(tg_id=user.id)
-    text, markup = func.show_signup_summary(created_user).values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, func.show_signup_summary, user=created_user)
 
     state = await requester.get_fsm_state()
     assert state is None
 
 
 @pytest.mark.asyncio
-async def test_finish_signup_basic(
-    create_test_tables, requester, persistent_db_session
-):
-    repository = UserRepository(persistent_db_session)
+async def test_finish_signup_basic(create_test_tables, requester, repository):
     initial_user_count = repository.count_users()
     assert initial_user_count == 0
 
@@ -237,10 +225,8 @@ async def test_finish_signup_basic(
     assert current_user_count == initial_user_count + 1
 
     created_user = repository.get_user(tg_id=user.id)
-    text, markup = func.show_signup_summary(created_user).values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, func.show_signup_summary, user=created_user)
     assert created_user.budget_currency == "RUB"
 
     state = await requester.get_fsm_state()
@@ -266,10 +252,8 @@ async def test_show_user_profile(create_test_data, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = const.user_profile.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.user_profile)
 
 
 @pytest.mark.asyncio
@@ -291,16 +275,14 @@ async def test_show_anonymous_user_profile(create_test_tables, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = const.redirect_anonymous.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.redirect_anonymous)
 
 
 @pytest.mark.asyncio
 async def test_delete_user(create_test_data, persistent_db_session, requester):
-    repository = UserRepository(persistent_db_session)
-    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    repo = UserRepository(persistent_db_session)
+    db_user = repo.get_user(user_id=TARGET_USER_ID)
     assert db_user.is_active is True
 
     callback = CallbackQuery(
@@ -320,10 +302,8 @@ async def test_delete_user(create_test_data, persistent_db_session, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = const.user_delete_summary.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.user_delete_summary)
 
     persistent_db_session.refresh(db_user)
     assert db_user.is_active is False
@@ -348,10 +328,8 @@ async def test_update_budget_currency(create_test_data, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = const.budget_currency_description.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.budget_currency_description)
 
     state = await requester.get_fsm_state()
     assert state == UpdateUser.budget_currency
@@ -372,10 +350,10 @@ async def test_set_updated_currency(create_test_data, requester):
 
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = func.confirm_updated_currency(valid_currency).values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(
+        answer, func.confirm_updated_currency, budget_currency=valid_currency
+    )
 
     data = await requester.get_fsm_state_data()
     assert data.get("budget_currency") == valid_currency
@@ -396,10 +374,8 @@ async def test_set_invalid_updated_currency(create_test_data, requester):
 
     await requester.make_request(SendMessage, Update(update_id=1, message=msg))
 
-    text, markup = const.invalid_budget_currency.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.invalid_budget_currency)
 
     state = await requester.get_fsm_state()
     assert state == UpdateUser.budget_currency
@@ -429,10 +405,8 @@ async def test_reset_currency(create_test_data, requester):
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = const.budget_currency_description.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.budget_currency_description)
 
     state = await requester.get_fsm_state()
     assert state == UpdateUser.budget_currency
@@ -446,8 +420,8 @@ async def test_confirm_updated_currency(
     create_test_data, requester, persistent_db_session
 ):
     valid_currency = "valid"
-    repository = UserRepository(persistent_db_session)
-    db_user = repository.get_user(user_id=TARGET_USER_ID)
+    repo = UserRepository(persistent_db_session)
+    db_user = repo.get_user(user_id=TARGET_USER_ID)
     assert db_user.budget_currency != valid_currency
 
     await requester.set_fsm_state(UpdateUser.budget_currency)
@@ -470,10 +444,12 @@ async def test_confirm_updated_currency(
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = func.show_currency_update_summary(valid_currency).values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(
+        answer,
+        func.show_currency_update_summary,
+        budget_currency=valid_currency,
+    )
 
     persistent_db_session.refresh(db_user)
     assert db_user.budget_currency == valid_currency
@@ -483,10 +459,7 @@ async def test_confirm_updated_currency(
 
 
 @pytest.mark.asyncio
-async def test_activate_user(
-    create_test_data, requester, persistent_db_session
-):
-    repository = UserRepository(persistent_db_session)
+async def test_activate_user(create_test_data, requester, repository):
     db_user = repository.get_user(user_id=TARGET_USER_ID)
     assert db_user.is_active is True
     del db_user
@@ -510,10 +483,8 @@ async def test_activate_user(
     await requester.make_request(
         AnswerCallbackQuery, Update(update_id=1, callback_query=callback)
     )
-    text, markup = const.user_activation_summary.values()
-    message = requester.read_last_sent_message()
-    assert message.text == text
-    assert message.reply_markup == markup
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, const.user_activation_summary)
 
     db_user = repository.get_user(user_id=TARGET_USER_ID)
     assert db_user.is_active is True
