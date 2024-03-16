@@ -21,7 +21,7 @@ from app.bot.templates.const import (
 )
 from app.db.repository import UserRepository
 
-from ..test_utils import TARGET_USER_ID
+from ..test_utils import TARGET_USER_ID, assert_uses_template
 from .conftest import chat, user
 
 start_message = Message(
@@ -35,14 +35,12 @@ start_message = Message(
 
 @pytest.mark.asyncio
 async def test_anonymous_user_start_command(create_test_tables, requester):
-
     await requester.make_request(
         SendMessage, Update(update_id=1, message=start_message)
     )
 
-    message = requester.read_last_sent_message()
-    assert message.text == start_message_anonymous["text"]
-    assert message.reply_markup == start_message_anonymous["reply_markup"]
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, start_message_anonymous)
 
     state = await requester.get_fsm_state()
     assert state == CreateUser.choose_signup_type
@@ -54,9 +52,8 @@ async def test_active_user_start_command(create_test_data, requester):
         SendMessage, Update(update_id=1, message=start_message)
     )
 
-    message = requester.read_last_sent_message()
-    assert message.text == start_message_active["text"]
-    assert message.reply_markup == start_message_active["reply_markup"]
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, start_message_active)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -73,9 +70,8 @@ async def test_inactive_user_start_command(
         SendMessage, Update(update_id=1, message=start_message)
     )
 
-    message = requester.read_last_sent_message()
-    assert message.text == start_message_inactive["text"]
-    assert message.reply_markup == start_message_inactive["reply_markup"]
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, start_message_inactive)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -95,9 +91,8 @@ async def test_cancel_command(create_test_data, requester):
         SendMessage, Update(update_id=1, message=cancel_message)
     )
 
-    message = requester.read_last_sent_message()
-    assert message.text == cancel_operation["text"]
-    assert message.reply_markup == cancel_operation["reply_markup"]
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, cancel_operation)
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -124,9 +119,9 @@ async def test_cancel_callback(create_test_data, requester):
         Update(update_id=1, callback_query=callback),
     )
 
-    message = requester.read_last_sent_message()
-    assert message.text == cancel_operation["text"]
-    assert message.reply_markup == cancel_operation["reply_markup"]
+    answer = requester.read_last_sent_message()
+    assert answer.text == cancel_operation["text"]
+    assert answer.reply_markup == cancel_operation["reply_markup"]
 
     state = await requester.get_fsm_state()
     assert state is None
@@ -146,9 +141,8 @@ async def test_show_main_menu_command(create_test_data, requester):
         SendMessage, Update(update_id=1, message=main_menu_command)
     )
 
-    message = requester.read_last_sent_message()
-    assert message.text == main_menu["text"]
-    assert message.reply_markup == main_menu["reply_markup"]
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, main_menu)
 
 
 @pytest.mark.asyncio
@@ -172,9 +166,8 @@ async def test_show_main_menu_callback(create_test_data, requester):
         Update(update_id=1, callback_query=callback),
     )
 
-    message = requester.read_last_sent_message()
-    assert message.text == main_menu["text"]
-    assert message.reply_markup == main_menu["reply_markup"]
+    answer = requester.read_last_sent_message()
+    assert_uses_template(answer, main_menu)
 
     state = await requester.get_fsm_state()
     assert state is None
