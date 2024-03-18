@@ -547,14 +547,24 @@ class CategoryRepository(CommonRepository):
 
     @attributed_result
     def get_user_categories(
-        self, user_id: int, *, offset: int = 0, limit: int = 5
+        self,
+        user_id: int,
+        *,
+        offset: int = 0,
+        limit: int = 5,
+        category_type: CategoryType | None = None,
     ) -> GeneratorResult:
+        filters = [self.model.user_id == user_id]
+
+        if category_type:
+            filters.append(self.model.type == category_type)
+
         return self._get_many(
             order_by=[
                 self.model.last_used.desc(),
                 self.model.created_at.desc(),
             ],
-            filters=[self.model.user_id == user_id],
+            filters=filters,
             offset=offset,
             limit=limit,
         )
