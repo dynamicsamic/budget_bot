@@ -370,6 +370,18 @@ def test_get_user_categories(
     assert len(list(categories.result)) == 0
 
 
+def test_user_income_and_expenses(catrep, create_inmemory_categories):
+    expenses = catrep.get_user_categories(
+        TARGET_USER_ID, limit=100, category_type=CategoryType.EXPENSES
+    )
+    assert len(list(expenses.result)) == EXPENSES_SAMPLE
+
+    income = catrep.get_user_categories(
+        TARGET_USER_ID, limit=100, category_type=CategoryType.INCOME
+    )
+    assert len(list(income.result)) == INCOME_SAMPLE
+
+
 def test_get_unexisting_user_categories(catrep, create_inmemory_categories):
     categories = catrep.get_user_categories(UNEXISTING_ID)
     assert categories.is_empty is True
