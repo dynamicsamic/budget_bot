@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 
 from aiogram import F, Router, types
 from aiogram.filters.command import Command
@@ -7,10 +8,16 @@ from sqlalchemy.orm import Session, scoped_session
 
 from app import settings
 from app.bot import filters, states
+from app.bot import string_constants as sc
 from app.bot.middlewares import EntryRepositoryMiddleWare
-from app.bot.templates import keyboards
-from app.db.models import User
+from app.bot.templates import const, func, keyboards
+from app.db.models import CategoryType, User
 from app.db.repository import CategoryRepository, EntryRepository
+from app.utils import OffsetPaginator, aiogram_log_handler
+
+logger = logging.getLogger(__name__)
+logger.addHandler(aiogram_log_handler)
+
 
 router = Router()
 
@@ -18,20 +25,41 @@ router.message.middleware(EntryRepositoryMiddleWare)
 router.callback_query.middleware(EntryRepositoryMiddleWare)
 
 
-@router.message(Command("entry_create"))
-async def cmd_create_entry(
+@router.message(Command(sc.CREATE_INCOME_COMMAND))
+async def cmd_create_income(
     message: types.Message,
     state: FSMContext,
     user: User,
-    db_session: Session | scoped_session,
+    category_repo: CategoryRepository,
 ):
-    await message.answer(
-        "Создаем новую транзакцию.\nВыберите бюджет",
-        reply_markup=keyboards.create_entry_show_budgets(
-            # get_user_budgets(db_session, user.id)
-        ),
+    categories = category_repo.get_user_categories(
+        user.id, category_type=CategoryType.INCOME
     )
-    await state.set_state(states.CreateEntry.budget)
+
+    if categories.is_empty:
+        await message.answer(**const.zero_category)
+        logger.info(
+            f"user id={message.from_user.id} has no categories yet; "
+            "redirect to create_category"
+        )
+    else:
+        income_count = category_repo.count_user_categories(
+            user.id, category_type=CategoryType.INCOME
+        )
+        paginator = OffsetPaginator(
+            sc.ENTRY_INCOME_CATEGORY_PAGE, income_count, 5
+        )
+        await state.set_state(states.CreateEntry.category)
+        await state.update_data(
+            type=CategoryType.EXPENSES, paginator=paginator
+        )
+        await message.answer(
+            **func.show_paginated_income(categories.result, paginator)
+        )
+        logger.info(
+            f"user id={message.from_user.id} GET "
+            f"first {paginator.page_limit} categories"
+        )
 
 
 @router.callback_query(
@@ -175,26 +203,8 @@ async def create_entry_receive_description(
 
 @router.callback_query(F.data == "entry_create")
 async def entry_create(callback: types.CallbackQuery, state: FSMContext):
-    await cmd_create_entry(callback.message, state)
+    await cmd_create_income(callback.message, state)
     await callback.answer()
-
-
-@router.message(
-    Command("manage_entries"),
-)
-async def cmd_manage_entries(
-    message: types.Message,
-    state: FSMContext,
-    user: User,
-    db_session: Session | scoped_session,
-):
-    # budgets = get_user_budgets(db_session, user.id)
-    budgets = True
-    await message.answer(
-        "Для просмотра транзакций выберите бюджет",
-        reply_markup=keyboards.create_entry_show_budgets(budgets),
-    )
-    await state.set_state(states.PreProcessEntry.choose_budget)
 
 
 @router.callback_query(
@@ -307,5 +317,5 @@ async def show_entries(
     user: User,
     db_session: Session | scoped_session,
 ):
-    await cmd_manage_entries(callback.message, state, user, db_session)
+    # await cmd_manage_entries(callback.message, state, user, db_session)
     await callback.answer()
