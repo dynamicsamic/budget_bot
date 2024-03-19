@@ -118,3 +118,10 @@ def show_category_update_summary(category: Category) -> Template:
 ###########
 #  Entry  #
 ###########
+def show_paginated_income(
+    categories: Iterable[Category], paginator: OffsetPaginator
+) -> Template:
+    return Template(
+        texts.create_income,
+        kbd.show_entry_categories(categories, paginator),
+    )

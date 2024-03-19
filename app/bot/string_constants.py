@@ -20,3 +20,7 @@ PAGINATED_CATEGORIES_PAGE = "show_categories_page"
 SELECT_CATEGORY_TYPE = "select_category_type"
 DELETE_CATEGORY = "delete_category"
 UPDATE_CATEGORY = "update_category"
+
+CREATE_INCOME_COMMAND = "create_income"
+ENTRY_CATEGORY_ID = "entry_category_id"
+ENTRY_INCOME_CATEGORY_PAGE = "income_categories_page"

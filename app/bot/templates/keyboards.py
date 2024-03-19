@@ -188,11 +188,15 @@ def entry_item_choose_action2():
     return builder.as_markup()
 
 
-def create_entry_show_budgets(
-    budgets: list,
-) -> InlineKeyboardBuilder:
+def show_entry_categories(
+    categories: Iterable[models.Category], paginator: OffsetPaginator
+) -> ReplyKeyboardMarkup:
     return interactive_item_list(
-        "entry_budget_item", budgets, extra_buttons=[btn.switch_to_main_menu]
+        sc.ENTRY_CATEGORY_ID,
+        categories,
+        adjust=3,
+        paginator=paginator,
+        extra_buttons=[btn.switch_to_main_menu, btn.cancel_operation],
     )
 
 

@@ -180,3 +180,10 @@ category_update_name_summary = (
 category_update_type_summary = (
     "Вы поменяли тип категории на `{category_type}`."
 )
+
+
+#############
+#   Entry   #
+#############
+choose_category = "Выберите категорию."
+create_income = f"Создание нового дохода. {choose_category}"
