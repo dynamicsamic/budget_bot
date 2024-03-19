@@ -600,8 +600,17 @@ class CategoryRepository(CommonRepository):
     ) -> bool:
         return self._delete(category_id)
 
-    def count_user_categories(self, user_id: int) -> int:
-        return self._count([self.model.user_id == user_id])
+    def count_user_categories(
+        self,
+        user_id: int,
+        category_type: CategoryType | None = None,
+    ) -> int:
+        filters = [self.model.user_id == user_id]
+
+        if category_type:
+            filters.append(self.model.type == category_type)
+
+        return self._count(filters=filters)
 
     def category_exists(
         self,
