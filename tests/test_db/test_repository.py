@@ -259,6 +259,16 @@ def test_count_user_categories(catrep, create_inmemory_categories):
     initial_count = catrep.count_user_categories(TARGET_USER_ID)
     assert initial_count == TOTAL_USER_CATEGORIES
 
+    income_count = catrep.count_user_categories(
+        TARGET_USER_ID, category_type=CategoryType.INCOME
+    )
+    assert income_count == INCOME_SAMPLE
+
+    expenses_count = catrep.count_user_categories(
+        TARGET_USER_ID, category_type=CategoryType.EXPENSES
+    )
+    assert expenses_count == EXPENSES_SAMPLE
+
     catrep.create_category(TARGET_USER_ID, "test_name", CategoryType.EXPENSES)
     current_count = catrep.count_user_categories(TARGET_USER_ID)
     assert current_count == initial_count + 1
