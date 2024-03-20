@@ -46,13 +46,9 @@ async def cmd_create_income(
         income_count = category_repo.count_user_categories(
             user.id, category_type=CategoryType.INCOME
         )
-        paginator = OffsetPaginator(
-            sc.ENTRY_INCOME_CATEGORY_PAGE, income_count, 5
-        )
+        paginator = OffsetPaginator(sc.ENTRY_CATEGORY_PAGE, income_count, 5)
         await state.set_state(states.CreateEntry.category)
-        await state.update_data(
-            type=CategoryType.EXPENSES, paginator=paginator
-        )
+        await state.update_data(type=CategoryType.INCOME, paginator=paginator)
         await message.answer(
             **func.show_paginated_income(categories.result, paginator)
         )
@@ -62,24 +58,39 @@ async def cmd_create_income(
         )
 
 
-@router.callback_query(
-    states.CreateEntry.budget,
-    filters.EntryBudgetIdFilter(),
-)
-async def create_entry_receive_category(
-    callback: types.CallbackQuery,
+@router.message(Command(sc.CREATE_EXPENSE_COMMAND))
+async def cmd_create_expense(
+    message: types.Message,
     state: FSMContext,
     user: User,
-    ca_repository: CategoryRepository,
+    category_repo: CategoryRepository,
 ):
-    await callback.message.answer(
-        "Выберите категорию",
-        reply_markup=keyboards.create_entry_show_categories(
-            ca_repository.get_user_categories(user.id)
-        ),
+    categories = category_repo.get_user_categories(
+        user.id, category_type=CategoryType.EXPENSES
     )
-    await state.set_state(states.CreateEntry.category)
-    await callback.answer()
+
+    if categories.is_empty:
+        await message.answer(**const.zero_category)
+        logger.info(
+            f"user id={message.from_user.id} has no categories yet; "
+            "redirect to create_category"
+        )
+    else:
+        expenses_count = category_repo.count_user_categories(
+            user.id, category_type=CategoryType.EXPENSES
+        )
+        paginator = OffsetPaginator(sc.ENTRY_CATEGORY_PAGE, expenses_count, 5)
+        await state.set_state(states.CreateEntry.category)
+        await state.update_data(
+            type=CategoryType.EXPENSES, paginator=paginator
+        )
+        await message.answer(
+            **func.show_paginated_expenses(categories.result, paginator)
+        )
+        logger.info(
+            f"user id={message.from_user.id} GET "
+            f"first {paginator.page_limit} categories"
+        )
 
 
 @router.callback_query(
