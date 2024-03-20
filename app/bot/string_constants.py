@@ -22,5 +22,6 @@ DELETE_CATEGORY = "delete_category"
 UPDATE_CATEGORY = "update_category"
 
 CREATE_INCOME_COMMAND = "create_income"
+CREATE_EXPENSE_COMMAND = "create_expense"
 ENTRY_CATEGORY_ID = "entry_category_id"
-ENTRY_INCOME_CATEGORY_PAGE = "income_categories_page"
+ENTRY_CATEGORY_PAGE = "entry_categories_page"
