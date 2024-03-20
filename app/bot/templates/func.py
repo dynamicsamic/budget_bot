@@ -125,3 +125,12 @@ def show_paginated_income(
         texts.create_income,
         kbd.show_entry_categories(categories, paginator),
     )
+
+
+def show_paginated_expenses(
+    categories: Iterable[Category], paginator: OffsetPaginator
+) -> Template:
+    return Template(
+        texts.create_expense,
+        kbd.show_entry_categories(categories, paginator),
+    )

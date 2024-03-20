@@ -187,3 +187,4 @@ category_update_type_summary = (
 #############
 choose_category = "Выберите категорию."
 create_income = f"Создание нового дохода. {choose_category}"
+create_expense = f"Создание нового расхода. {choose_category}"
