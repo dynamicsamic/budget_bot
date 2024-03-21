@@ -75,3 +75,6 @@ category_empty_update = Template(
 ###########
 #  Entry  #
 ###########
+entry_sum_description = Template(
+    texts.entry_sum_description, kbd.switch_to_main_or_cancel
+)

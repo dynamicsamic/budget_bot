@@ -188,3 +188,7 @@ category_update_type_summary = (
 choose_category = "Выберите категорию."
 create_income = f"Создание нового дохода. {choose_category}"
 create_expense = f"Создание нового расхода. {choose_category}"
+entry_sum_description = (
+    "Введите сумму транзакции.\n"
+    "Допустимые виды записи: 1521; 100,91; 934.2; 1 445.67"
+)
