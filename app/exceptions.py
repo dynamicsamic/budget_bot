@@ -120,3 +120,7 @@ class InvalidCategoryName(BotException):
 
 class InvalidBudgetCurrency(BotException):
     pass
+
+
+class InvalidEntrySum(BotException):
+    pass
