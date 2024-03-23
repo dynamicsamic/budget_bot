@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Generator, Tuple, TypeVar
+from typing import Any, Generator, Tuple, TypedDict, TypeVar
 
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import UnaryExpression
@@ -14,6 +14,11 @@ _ModelWithDatefield = TypeVar("_ModelWithDatefield", bound=AbstractBaseModel)
 _ModelWithCashflowfield = TypeVar(
     "_ModelWithCashflowfield", bound=AbstractBaseModel
 )
+
+
+class _MatchFnReturnDict(TypedDict):
+    context: dict[str, Any]
+    err_msg: str | None
 
 
 @dataclass
