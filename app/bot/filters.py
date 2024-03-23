@@ -8,13 +8,16 @@ from aiogram.types import CallbackQuery, Message
 
 from app import settings
 from app.bot import string_constants as sc
+from app.custom_types import _MatchFnReturnDict
 from app.db.models import CategoryType
 from app.exceptions import (
+    BotException,
     InvalidBudgetCurrency,
     InvalidCallbackData,
     InvalidCategoryName,
+    InvalidEntrySum,
 )
-from app.utils import validate_entry_date, validate_entry_sum
+from app.utils import validate_entry_date
 
 
 def get_suffix(string: str) -> str:
@@ -49,9 +52,28 @@ class CallbackQueryFilter(Filter):
         return suffix
 
 
+class MatchMessageFilter(Filter):
+    def __init__(
+        self,
+        match_fn: Callable[[str], _MatchFnReturnDict],
+        exc_type: Type[BotException],
+    ) -> None:
+        self.match_fn = match_fn
+        self.exc_type = exc_type
+
+    async def __call__(self, message: Message) -> dict[str, Any]:
+        context, err_msg = self.match_fn(message.text).values()
+        if err_msg:
+            raise self.exc_type(err_msg)
+        return context
+
+
 class PatternMatchMessageFilter(Filter):
     def __init__(
-        self, pattern, return_argname: str, exception_type: Type[Exception]
+        self,
+        pattern: str,
+        return_argname: str,
+        exception_type: Type[Exception],
     ):
         self.pattern = pattern
         self.return_argname = return_argname
@@ -85,6 +107,22 @@ def get_category_id(category_id: str) -> dict[str, int] | None:
     return
 
 
+def match_entry_sum(entry_sum: str) -> _MatchFnReturnDict:
+    result = {"context": None, "error": None}
+    pattern = "[0-9]{1,18}[.]?[0-9]{0,2}"
+
+    if re.fullmatch(pattern, entry_sum):
+        candidate = int(round(float(entry_sum), 2) * 100)
+        if candidate == 0:
+            result["error"] = "Entry sum must be > 0!"
+        else:
+            result["context"] = {"entry_sum": candidate}
+    else:
+        result["error"] = f"Entry sum should follow pattern: {pattern}"
+
+    return result
+
+
 BudgetCurrencyFilter = PatternMatchMessageFilter(
     pattern=r"^[A-Za-zА-Яа-я]{3,10}$",
     return_argname="budget_currency",
@@ -106,6 +144,13 @@ SelectCategoryPageFilter = CallbackQueryFilter(
 CategoryDeleteConfirmFilter = CallbackQueryFilter(
     sc.DELETE_CATEGORY, get_category_id
 )
+EntryCategoryIdFilter = CallbackQueryFilter(
+    sc.ENTRY_CATEGORY_ID, get_category_id
+)
+EntryCategoryPageFilter = CallbackQueryFilter(
+    sc.ENTRY_CATEGORY_PAGE, get_next_category_page
+)
+EntrySumFilter = MatchMessageFilter(match_entry_sum, InvalidEntrySum)
 
 
 class GetEntryId(BaseFilter):
@@ -126,25 +171,6 @@ class EntryBudgetIdFilter(BaseFilter):
             budget_id = get_suffix(callback.data)
             return {"budget_id": int(budget_id)}
         return False
-
-
-class EntryCategoryIdFilter(BaseFilter):
-    async def __call__(
-        self, callback: CallbackQuery
-    ) -> Union[dict[str, int], bool]:
-        if callback.data.startswith("entry_category_item"):
-            *_, category_id = callback.data.rsplit("_", maxsplit=1)
-            return {"category_id": int(category_id)}
-        return False
-
-
-class EntrySumFilter(BaseFilter):
-    async def __call__(self, message: Message) -> dict[str, Union[int, str]]:
-        transaction_sum, error_message = validate_entry_sum(message.text)
-        return {
-            "transaction_sum": transaction_sum,
-            "error_message": error_message,
-        }
 
 
 class EntryDateFilter(BaseFilter):
