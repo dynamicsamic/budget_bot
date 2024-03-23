@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, Message
 from app.bot.filters import (
     CategoryIdFIlter,
     CategoryTypeFilter,
+    EntrySumFilter,
     SelectCategoryPageFilter,
 )
 from app.db.models import CategoryType
@@ -191,3 +192,27 @@ async def test_select_category_page_filter():
     )
 
     assert await SelectCategoryPageFilter(callback_data_mismatch) is False
+
+
+@pytest.mark.asyncio
+async def test_entry_sum():
+    from functools import partial
+
+    msg = partial(
+        Message, message_id=1, date=datetime.now(), from_user=user, chat=chat
+    )
+    valid_sums = {
+        "12": 1200,
+        "100.00": 10000,
+        "1.00": 100,
+        "0.1": 10,
+        "0.01": 1,
+        "10000.1": 1000010,
+        "388184.9": 38818490,
+    }
+    assert all(
+        [
+            await EntrySumFilter(msg(text=text)) == {"entry_sum": res}
+            for text, res in valid_sums.items()
+        ]
+    )
