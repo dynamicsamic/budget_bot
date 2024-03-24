@@ -1,4 +1,6 @@
+import re
 from datetime import datetime
+from functools import partial
 
 import pytest
 from aiogram.types import CallbackQuery, Message
@@ -8,9 +10,10 @@ from app.bot.filters import (
     CategoryTypeFilter,
     EntrySumFilter,
     SelectCategoryPageFilter,
+    entry_sum_pattern,
 )
 from app.db.models import CategoryType
-from app.exceptions import InvalidCallbackData
+from app.exceptions import InvalidCallbackData, InvalidEntrySum
 
 from .conftest import chat, user
 
@@ -131,6 +134,9 @@ callback_data_mismatch = CallbackQuery(
         text="Invalid",
     ),
 )
+msg = partial(
+    Message, message_id=1, date=datetime.now(), from_user=user, chat=chat
+)
 
 
 @pytest.mark.asyncio
@@ -194,25 +200,56 @@ async def test_select_category_page_filter():
     assert await SelectCategoryPageFilter(callback_data_mismatch) is False
 
 
+@pytest.mark.parametrize(
+    "input_num, output_num",
+    [
+        ("12", 1200),
+        ("100.00", 10000),
+        ("1.00", 100),
+        ("0.1", 10),
+        ("0.01", 1),
+        ("10000.1", 1000010),
+        ("388184.9", 38818490),
+    ],
+)
 @pytest.mark.asyncio
-async def test_entry_sum():
-    from functools import partial
-
-    msg = partial(
-        Message, message_id=1, date=datetime.now(), from_user=user, chat=chat
-    )
-    valid_sums = {
-        "12": 1200,
-        "100.00": 10000,
-        "1.00": 100,
-        "0.1": 10,
-        "0.01": 1,
-        "10000.1": 1000010,
-        "388184.9": 38818490,
+async def test_valid_entry_sum(input_num, output_num):
+    assert await EntrySumFilter(msg(text=input_num)) == {
+        "entry_sum": output_num
     }
-    assert all(
-        [
-            await EntrySumFilter(msg(text=text)) == {"entry_sum": res}
-            for text, res in valid_sums.items()
-        ]
+
+
+@pytest.mark.parametrize(
+    "invalid_num",
+    (
+        "12,10",
+        "0,1",
+        "1231231231231994844342312312313",
+        "11323.O",
+        "forty_two",
+        "3775.23938",
+    ),
+)
+@pytest.mark.asyncio
+async def test_invalid_entry_sum(invalid_num):
+    err_msg = (
+        f"Entry sum should follow pattern: {re.escape(entry_sum_pattern)}"
     )
+    with pytest.raises(InvalidEntrySum, match=err_msg):
+        await EntrySumFilter(msg(text=invalid_num))
+
+
+@pytest.mark.parametrize(
+    "zero",
+    (
+        "0",
+        "00",
+        "0.0",
+        "0.00",
+    ),
+)
+@pytest.mark.asyncio
+async def test_zero_entry_sum(zero):
+    err_msg = "Entry sum must be > 0!"
+    with pytest.raises(InvalidEntrySum, match=err_msg):
+        await EntrySumFilter(msg(text=zero))
