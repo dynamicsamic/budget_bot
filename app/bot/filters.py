@@ -19,6 +19,8 @@ from app.exceptions import (
 )
 from app.utils import validate_entry_date
 
+entry_sum_pattern = "[0-9]{1,18}[.]?[0-9]{0,2}"
+
 
 def get_suffix(string: str) -> str:
     *_, suffix = string.rsplit("_", maxsplit=1)
@@ -109,16 +111,17 @@ def get_category_id(category_id: str) -> dict[str, int] | None:
 
 def match_entry_sum(entry_sum: str) -> _MatchFnReturnDict:
     result = {"context": None, "error": None}
-    pattern = "[0-9]{1,18}[.]?[0-9]{0,2}"
 
-    if re.fullmatch(pattern, entry_sum):
+    if re.fullmatch(entry_sum_pattern, entry_sum):
         candidate = int(round(float(entry_sum), 2) * 100)
         if candidate == 0:
             result["error"] = "Entry sum must be > 0!"
         else:
             result["context"] = {"entry_sum": candidate}
     else:
-        result["error"] = f"Entry sum should follow pattern: {pattern}"
+        result["error"] = (
+            f"Entry sum should follow pattern: {entry_sum_pattern}"
+        )
 
     return result
 
