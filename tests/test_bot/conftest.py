@@ -1,7 +1,10 @@
+from datetime import datetime
+from functools import partial
+
 import pytest
 import pytest_asyncio
 from aiogram.enums import ChatType
-from aiogram.types import Chat, User
+from aiogram.types import Chat, Message, User
 
 from app.bot import dp
 from app.bot.handlers import router
@@ -14,6 +17,9 @@ second_user = User(
     id=102, is_bot=False, first_name="Second", username="second_user"
 )
 second_chat = Chat(id=2, type=ChatType.PRIVATE)
+generic_message = partial(
+    Message, message_id=1, date=datetime.now(), from_user=user, chat=chat
+)
 
 
 @pytest.fixture

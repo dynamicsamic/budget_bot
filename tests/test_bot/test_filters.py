@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-from functools import partial
 
 import pytest
 from aiogram.types import CallbackQuery, Message
@@ -16,6 +15,7 @@ from app.db.models import CategoryType
 from app.exceptions import InvalidCallbackData, InvalidEntrySum
 
 from .conftest import chat, user
+from .conftest import generic_message as msg
 
 select_expenses_category_type = CallbackQuery(
     id="12345678",
@@ -133,9 +133,6 @@ callback_data_mismatch = CallbackQuery(
         chat=chat,
         text="Invalid",
     ),
-)
-msg = partial(
-    Message, message_id=1, date=datetime.now(), from_user=user, chat=chat
 )
 
 

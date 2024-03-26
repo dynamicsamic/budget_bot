@@ -1,8 +1,6 @@
-from datetime import datetime
-
 import pytest
 from aiogram.methods import SendMessage
-from aiogram.types import Message, Update
+from aiogram.types import Update
 
 from app.bot import string_constants as sc
 from app.bot.states import CreateEntry
@@ -17,7 +15,7 @@ from ..test_utils import (
     TARGET_USER_ID,
     assert_uses_template,
 )
-from .conftest import chat, user
+from .conftest import generic_message as msg
 
 
 @pytest.fixture
@@ -27,19 +25,11 @@ def category_repo(persistent_db_session):
 
 @pytest.mark.asyncio
 async def test_create_income(create_test_data, category_repo, requester):
-    msg = Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text=f"/{sc.CREATE_INCOME_COMMAND}",
-    )
-
     await requester.make_request(
         SendMessage,
         Update(
             update_id=1,
-            message=msg,
+            message=msg(text=f"/{sc.CREATE_INCOME_COMMAND}"),
         ),
     )
 
@@ -60,24 +50,23 @@ async def test_create_income(create_test_data, category_repo, requester):
     )
 
     state = await requester.get_fsm_state()
-    assert state == CreateEntry.category
+    assert state == CreateEntry.choose_category
+
+    state_data = await requester.get_fsm_state_data()
+    assert state_data == {
+        "user_id": TARGET_USER_ID,
+        "category_type": CategoryType.INCOME,
+        "paginator": paginator,
+    }
 
 
 @pytest.mark.asyncio
 async def test_create_expense(create_test_data, category_repo, requester):
-    msg = Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text=f"/{sc.CREATE_EXPENSE_COMMAND}",
-    )
-
     await requester.make_request(
         SendMessage,
         Update(
             update_id=1,
-            message=msg,
+            message=msg(text=f"/{sc.CREATE_EXPENSE_COMMAND}"),
         ),
     )
 
@@ -98,4 +87,11 @@ async def test_create_expense(create_test_data, category_repo, requester):
     )
 
     state = await requester.get_fsm_state()
-    assert state == CreateEntry.category
+    assert state == CreateEntry.choose_category
+
+    state_data = await requester.get_fsm_state_data()
+    assert state_data == {
+        "user_id": TARGET_USER_ID,
+        "category_type": CategoryType.EXPENSES,
+        "paginator": paginator,
+    }
