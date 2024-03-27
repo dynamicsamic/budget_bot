@@ -4,7 +4,7 @@ from functools import partial
 import pytest
 import pytest_asyncio
 from aiogram.enums import ChatType
-from aiogram.types import Chat, Message, User
+from aiogram.types import CallbackQuery, Chat, Message, User
 
 from app.bot import dp
 from app.bot.handlers import router
@@ -19,6 +19,15 @@ second_user = User(
 second_chat = Chat(id=2, type=ChatType.PRIVATE)
 generic_message = partial(
     Message, message_id=1, date=datetime.now(), from_user=user, chat=chat
+)
+generic_callback_query = partial(
+    CallbackQuery,
+    id="12345678",
+    from_user=user,
+    chat_instance="AABBCC",
+    message=generic_message(
+        text="text",
+    ),
 )
 
 
