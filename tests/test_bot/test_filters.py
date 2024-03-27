@@ -1,9 +1,8 @@
 import re
-from datetime import datetime
 
 import pytest
-from aiogram.types import CallbackQuery, Message
 
+from app.bot import string_constants as sc
 from app.bot.filters import (
     CategoryIdFIlter,
     CategoryTypeFilter,
@@ -14,143 +13,29 @@ from app.bot.filters import (
 from app.db.models import CategoryType
 from app.exceptions import InvalidCallbackData, InvalidEntrySum
 
-from .conftest import chat, user
+from .conftest import generic_callback_query as callback
 from .conftest import generic_message as msg
 
-select_expenses_category_type = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="select_category_type_expenses",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="Расходы",
-    ),
-)
-select_income_category_type = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="select_category_type_income",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="Доходы",
-    ),
-)
-select_invalid_category_type = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="select_category_type_invalid",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="Invalid",
-    ),
-)
-valid_category_id = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="category_id_11",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="message",
-    ),
-)
-invalid_category_id = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="category_id_eleven",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="message",
-    ),
-)
-select_next_category_page = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="show_categories_page_next",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="message",
-    ),
-)
-select_previous_category_page = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="show_categories_page_previous",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="message",
-    ),
-)
-select_invalid_category_page = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="show_categories_page_invalid",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="message",
-    ),
-)
-callback_data_mismatch = CallbackQuery(
-    id="12345678",
-    from_user=user,
-    chat_instance="AABBCC",
-    data="callback_mismatch",
-    message=Message(
-        message_id=1,
-        date=datetime.now(),
-        from_user=user,
-        chat=chat,
-        text="Invalid",
-    ),
-)
+callback_data_mismatch = callback(data="callback_mismatch")
 
 
 @pytest.mark.asyncio
 async def test_category_type_filter():
-    context = await CategoryTypeFilter(select_expenses_category_type)
+    expenses = callback(data=f"{sc.SELECT_CATEGORY_TYPE}:expenses")
+    income = callback(data=f"{sc.SELECT_CATEGORY_TYPE}:income")
+    invalid = callback(data=f"{sc.SELECT_CATEGORY_TYPE}:invalid")
+
+    context = await CategoryTypeFilter(expenses)
     assert context == {"category_type": CategoryType.EXPENSES}
 
-    context = await CategoryTypeFilter(select_income_category_type)
+    context = await CategoryTypeFilter(income)
     assert context == {"category_type": CategoryType.INCOME}
 
     with pytest.raises(InvalidCallbackData) as exc_info:
-        context = await CategoryTypeFilter(select_invalid_category_type)
+        context = await CategoryTypeFilter(invalid)
     assert exc_info.errisinstance(InvalidCallbackData)
     prefix = CategoryTypeFilter.callback_prefix
-    suffix = CategoryTypeFilter._get_callback_suffix(
-        select_invalid_category_type
-    )
+    suffix = CategoryTypeFilter._get_callback_suffix(invalid)
     assert str(exc_info.value) == str(
         InvalidCallbackData(f"callback_prefix={prefix}, suffix={suffix}")
     )
@@ -160,14 +45,17 @@ async def test_category_type_filter():
 
 @pytest.mark.asyncio
 async def test_category_id_filter():
-    context = await CategoryIdFIlter(valid_category_id)
-    assert context == {"category_id": int(valid_category_id.data[-2:])}
+    valid = callback(data=f"{sc.CATEGORY_ID}:11")
+    invalid = callback(data=f"{sc.CATEGORY_ID}:eleven")
+
+    context = await CategoryIdFIlter(valid)
+    assert context == {"category_id": int(valid.data[-2:])}
 
     with pytest.raises(InvalidCallbackData) as exc_info:
-        context = await CategoryIdFIlter(invalid_category_id)
+        context = await CategoryIdFIlter(invalid)
     assert exc_info.errisinstance(InvalidCallbackData)
     prefix = CategoryIdFIlter.callback_prefix
-    suffix = CategoryIdFIlter._get_callback_suffix(invalid_category_id)
+    suffix = CategoryIdFIlter._get_callback_suffix(invalid)
     assert str(exc_info.value) == str(
         InvalidCallbackData(f"callback_prefix={prefix}, suffix={suffix}")
     )
@@ -177,19 +65,21 @@ async def test_category_id_filter():
 
 @pytest.mark.asyncio
 async def test_select_category_page_filter():
-    context = await SelectCategoryPageFilter(select_next_category_page)
+    next = callback(data=f"{sc.PAGINATED_CATEGORIES_PAGE}:next")
+    prev = callback(data=f"{sc.PAGINATED_CATEGORIES_PAGE}:previous")
+    invalid = callback(data=f"{sc.PAGINATED_CATEGORIES_PAGE}:invalid")
+
+    context = await SelectCategoryPageFilter(next)
     assert context == {"switch_to_page": "next"}
 
-    context = await SelectCategoryPageFilter(select_previous_category_page)
+    context = await SelectCategoryPageFilter(prev)
     assert context == {"switch_to_page": "previous"}
 
     with pytest.raises(InvalidCallbackData) as exc_info:
-        context = await SelectCategoryPageFilter(select_invalid_category_page)
+        context = await SelectCategoryPageFilter(invalid)
     assert exc_info.errisinstance(InvalidCallbackData)
     prefix = SelectCategoryPageFilter.callback_prefix
-    suffix = SelectCategoryPageFilter._get_callback_suffix(
-        select_invalid_category_page
-    )
+    suffix = SelectCategoryPageFilter._get_callback_suffix(invalid)
     assert str(exc_info.value) == str(
         InvalidCallbackData(f"callback_prefix={prefix}, suffix={suffix}")
     )
