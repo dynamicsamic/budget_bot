@@ -19,7 +19,11 @@ from app.exceptions import (
 )
 from app.utils import validate_entry_date
 
-entry_sum_pattern = "[0-9]{1,18}[.]?[0-9]{0,2}"
+patterns = {
+    "budget_currency": r"^[A-Za-zА-Яа-я]{3,10}$",
+    "category_name": r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$",
+    "entry_sum": r"[0-9]{1,10}[.]?[0-9]{0,2}",
+}
 
 
 def get_suffix(string: str) -> str:
@@ -70,25 +74,6 @@ class MatchMessageFilter(Filter):
         return context
 
 
-class PatternMatchMessageFilter(Filter):
-    def __init__(
-        self,
-        pattern: str,
-        return_argname: str,
-        exception_type: Type[Exception],
-    ):
-        self.pattern = pattern
-        self.return_argname = return_argname
-        self.exception_type = exception_type
-
-    async def __call__(self, message: Message) -> dict[str, str]:
-        if re.match(self.pattern, message.text):
-            return {self.return_argname: message.text}
-        raise self.exception_type(
-            f"{self.return_argname} does not match pattern {self.pattern}"
-        )
-
-
 def get_category_type(category_type: str) -> dict[str, CategoryType] | None:
     if category_type == "income":
         return {"category_type": CategoryType.INCOME}
@@ -111,32 +96,44 @@ def get_category_id(category_id: str) -> dict[str, int] | None:
 
 def match_entry_sum(entry_sum: str) -> _MatchFnReturnDict:
     result = {"context": None, "error": None}
+    pattern = patterns["entry_sum"]
 
-    if re.fullmatch(entry_sum_pattern, entry_sum):
+    if re.fullmatch(pattern, entry_sum):
         candidate = int(round(float(entry_sum), 2) * 100)
         if candidate == 0:
             result["error"] = "Entry sum must be > 0!"
         else:
             result["context"] = {"entry_sum": candidate}
     else:
-        result["error"] = (
-            f"Entry sum should follow pattern: {entry_sum_pattern}"
-        )
+        result["error"] = f"Entry sum should follow pattern: {pattern}"
 
     return result
 
 
-BudgetCurrencyFilter = PatternMatchMessageFilter(
-    pattern=r"^[A-Za-zА-Яа-я]{3,10}$",
-    return_argname="budget_currency",
-    exception_type=InvalidBudgetCurrency,
-)
+def match_budget_currency(budget_currency: str) -> _MatchFnReturnDict:
+    result = {"context": None, "error": None}
+    pattern = patterns["budget_currency"]
 
-CategoryNameFilter = PatternMatchMessageFilter(
-    pattern=r"^[A-Za-zА-Яа-я0-9_,()]{4,30}$",
-    return_argname="category_name",
-    exception_type=InvalidCategoryName,
-)
+    if re.fullmatch(pattern, budget_currency):
+        result["context"] = {"budget_currency": budget_currency}
+    else:
+        result["error"] = f"Budget currency should follow pattern: {pattern}"
+
+    return result
+
+
+def match_category_name(category_name: str) -> _MatchFnReturnDict:
+    result = {"context": None, "error": None}
+    pattern = patterns["category_name"]
+
+    if re.fullmatch(pattern, category_name):
+        result["context"] = {"category_name": category_name}
+    else:
+        result["error"] = f"Category name should follow pattern: {pattern}"
+
+    return result
+
+
 CategoryTypeFilter = CallbackQueryFilter(
     sc.SELECT_CATEGORY_TYPE, get_category_type
 )
@@ -152,6 +149,12 @@ EntryCategoryIdFilter = CallbackQueryFilter(
 )
 EntryCategoryPageFilter = CallbackQueryFilter(
     sc.ENTRY_CATEGORY_PAGE, get_next_category_page
+)
+BudgetCurrencyFilter = MatchMessageFilter(
+    match_budget_currency, InvalidBudgetCurrency
+)
+CategoryNameFilter = MatchMessageFilter(
+    match_category_name, InvalidCategoryName
 )
 EntrySumFilter = MatchMessageFilter(match_entry_sum, InvalidEntrySum)
 
