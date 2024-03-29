@@ -4,14 +4,21 @@ import pytest
 
 from app.bot import string_constants as sc
 from app.bot.filters import (
+    BudgetCurrencyFilter,
     CategoryIdFIlter,
+    CategoryNameFilter,
     CategoryTypeFilter,
     EntrySumFilter,
     SelectCategoryPageFilter,
-    entry_sum_pattern,
+    patterns,
 )
 from app.db.models import CategoryType
-from app.exceptions import InvalidCallbackData, InvalidEntrySum
+from app.exceptions import (
+    InvalidBudgetCurrency,
+    InvalidCallbackData,
+    InvalidCategoryName,
+    InvalidEntrySum,
+)
 
 from .conftest import generic_callback_query as callback
 from .conftest import generic_message as msg
@@ -88,6 +95,89 @@ async def test_select_category_page_filter():
 
 
 @pytest.mark.parametrize(
+    "valid_currency",
+    (
+        "RUB",
+        "rubles",
+        "Rub",
+        "руб",
+        "РУБ",
+        "рубли",
+        "долл",
+        "доллары",
+        "зайчики",
+        "rabBiTs",
+    ),
+)
+@pytest.mark.asyncio
+async def test_valid_budget_currency(valid_currency):
+    assert await BudgetCurrencyFilter(msg(text=valid_currency)) == {
+        "budget_currency": valid_currency
+    }
+
+
+@pytest.mark.parametrize(
+    "invalid_currency",
+    (
+        "ToLongBudgetCurrency",
+        "a spaced",
+        "$pecial",
+        "dash-name",
+        "332323",
+        "..doted..",
+        "/slashed",
+        "@!ff#",
+    ),
+)
+@pytest.mark.asyncio
+async def test_invalid_budget_currency(invalid_currency):
+    pattern = patterns["budget_currency"]
+    err_msg = f"Budget currency should follow pattern: {re.escape(pattern)}"
+    with pytest.raises(InvalidBudgetCurrency, match=err_msg):
+        await BudgetCurrencyFilter(msg(text=invalid_currency))
+
+
+@pytest.mark.parametrize(
+    "category_name",
+    (
+        "products",
+        "Grocery",
+        "favorite_coffe",
+        "birthday21",
+        "Кредит(Новобанк)",
+        "На_пенсию,отдых",
+        "блаГотвОрительность,лимитНаМес",
+        "пост",
+    ),
+)
+@pytest.mark.asyncio
+async def test_valid_category_name(category_name):
+    assert await CategoryNameFilter(msg(text=category_name)) == {
+        "category_name": category_name
+    }
+
+
+@pytest.mark.parametrize(
+    "category_name",
+    (
+        "ToLongCategoryNameWhichTakesMoreThan30Chars",
+        "a",
+        "aa",
+        "aaa",
+        "$pecial",
+        "dash-name",
+        "..doted..",
+        "/slashed",
+        "@!ff#",
+    ),
+)
+@pytest.mark.asyncio
+async def test_invalid_category_name(category_name):
+    with pytest.raises(InvalidCategoryName):
+        await CategoryNameFilter(msg(text=category_name))
+
+
+@pytest.mark.parametrize(
     "input_num, output_num",
     [
         ("12", 1200),
@@ -119,9 +209,8 @@ async def test_valid_entry_sum(input_num, output_num):
 )
 @pytest.mark.asyncio
 async def test_invalid_entry_sum(invalid_num):
-    err_msg = (
-        f"Entry sum should follow pattern: {re.escape(entry_sum_pattern)}"
-    )
+    pattern = patterns["entry_sum"]
+    err_msg = f"Entry sum should follow pattern: {re.escape(pattern)}"
     with pytest.raises(InvalidEntrySum, match=err_msg):
         await EntrySumFilter(msg(text=invalid_num))
 
