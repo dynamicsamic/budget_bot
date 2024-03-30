@@ -31,8 +31,7 @@ class UpdateCategory(StatesGroup):
 
 
 class CreateEntry(StatesGroup):
-    budget = State()
-    category = State()
+    choose_category = State()
     sum = State()
     transaction_date = State()
     description = State()
