@@ -34,6 +34,9 @@ invalid_category_name = Template(
     texts.invalid_category_name,
     kbd.switch_to_main_or_cancel,
 )
+invalid_entry_sum = Template(
+    texts.invalid_entry_sum, kbd.switch_to_main_or_cancel
+)
 serverside_error = Template(
     texts.serverside_error_response, kbd.switch_to_main
 )
