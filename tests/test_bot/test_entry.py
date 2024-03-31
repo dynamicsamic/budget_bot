@@ -134,3 +134,61 @@ async def test_create_entry_show_next_paginated_income(
         categories=categories.result,
         paginator=paginator,
     )
+
+    state = await requester.get_fsm_state()
+    assert state == CreateEntry.choose_category
+
+    state_data = await requester.get_fsm_state_data()
+    assert state_data == {
+        "user_id": TARGET_USER_ID,
+        "category_type": CategoryType.INCOME,
+        "paginator": paginator,
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_entry_show_next_paginated_expenses(
+    create_test_data, category_repo, requester
+):
+    page_limit = 5
+    paginator = OffsetPaginator(
+        sc.ENTRY_CATEGORY_PAGE, EXPENSES_SAMPLE, page_limit
+    )
+    await requester.set_fsm_state(CreateEntry.choose_category)
+    await requester.update_fsm_state_data(
+        user_id=TARGET_USER_ID,
+        category_type=CategoryType.EXPENSES,
+        paginator=paginator,
+    )
+
+    await requester.make_request(
+        AnswerCallbackQuery,
+        Update(
+            update_id=1,
+            callback_query=callback(data=f"{sc.ENTRY_CATEGORY_PAGE}:next"),
+        ),
+    )
+
+    paginator.switch_next()
+    categories = category_repo.get_user_categories(
+        TARGET_USER_ID,
+        offset=paginator.current_offset,
+        category_type=CategoryType.EXPENSES,
+    )
+    answer = requester.read_last_sent_message()
+    assert_uses_template(
+        answer,
+        func.show_paginated_categories,
+        categories=categories.result,
+        paginator=paginator,
+    )
+
+    state = await requester.get_fsm_state()
+    assert state == CreateEntry.choose_category
+
+    state_data = await requester.get_fsm_state_data()
+    assert state_data == {
+        "user_id": TARGET_USER_ID,
+        "category_type": CategoryType.EXPENSES,
+        "paginator": paginator,
+    }
